@@ -20,28 +20,43 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const CARD_COUNT = 4;
 
-  const [featuredBooks, featuredPeople, featuredLists, featuredSeries] =
-    await Promise.all([
-      getFeaturedBooks(CARD_COUNT),
-      getFeaturedPeople(CARD_COUNT),
-      getFeaturedLists(CARD_COUNT),
-      getFeaturedSeries(CARD_COUNT),
-    ]);
+  let featuredBooks: Awaited<ReturnType<typeof getFeaturedBooks>> = [];
+  let featuredPeople: Awaited<ReturnType<typeof getFeaturedPeople>> = [];
+  let featuredLists: Awaited<ReturnType<typeof getFeaturedLists>> = [];
+  let featuredSeries: Awaited<ReturnType<typeof getFeaturedSeries>> = [];
+
+  try {
+    [featuredBooks, featuredPeople, featuredLists, featuredSeries] =
+      await Promise.all([
+        getFeaturedBooks(CARD_COUNT),
+        getFeaturedPeople(CARD_COUNT),
+        getFeaturedLists(CARD_COUNT),
+        getFeaturedSeries(CARD_COUNT),
+      ]);
+  } catch (e) {
+    console.error("[homepage] Supabase fetch failed, using fallback data:", e);
+  }
 
   const books = featuredBooks.length > 0 ? featuredBooks : getFallbackBooks(CARD_COUNT);
   const people = featuredPeople.length > 0 ? featuredPeople : getFallbackPeople(CARD_COUNT);
   const lists = featuredLists.length > 0 ? featuredLists : getFallbackLists(CARD_COUNT);
   const series = featuredSeries.length > 0 ? featuredSeries : getFallbackSeries(CARD_COUNT);
 
-  const peopleWithCounts = await Promise.all(
-    people.map(async (p) => {
-      const [rc, wc] = await Promise.all([
-        getPersonRecommendedCount(p.id),
-        getPersonWrittenCount(p.id),
-      ]);
-      return { ...p, recommendedCount: rc, writtenCount: wc };
-    })
-  );
+  let peopleWithCounts: (typeof people[number] & { recommendedCount: number; writtenCount: number })[] = [];
+  try {
+    peopleWithCounts = await Promise.all(
+      people.map(async (p) => {
+        const [rc, wc] = await Promise.all([
+          getPersonRecommendedCount(p.id),
+          getPersonWrittenCount(p.id),
+        ]);
+        return { ...p, recommendedCount: rc, writtenCount: wc };
+      })
+    );
+  } catch (e) {
+    console.error("[homepage] Person counts fetch failed:", e);
+    peopleWithCounts = people.map((p) => ({ ...p, recommendedCount: 0, writtenCount: 0 }));
+  }
 
   return (
     <>

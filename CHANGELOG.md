@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-05-23 — Runtime Crash Fix
+
+### Fixed
+- All 18 `throw error` sites in `src/lib/data.ts` replaced with safe fallback returns
+- Every data function now wrapped in try/catch — no Supabase error can crash a public page
+- List queries return `[]` on error; detail queries return `null` on error; count queries return `0`
+- Errors are logged via `console.error` with the function label for debugging
+- Homepage `Promise.all` wrapped in outer try/catch as ultimate safety net — fallback data always renders
+- Supabase client missing-env throw is now caught by data function try/catch wrappers
+
 ## 2026-05-23 — Homepage QA Fixes
 
 ### Fixed
