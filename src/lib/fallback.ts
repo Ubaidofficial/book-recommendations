@@ -1,0 +1,243 @@
+import type { Book, Person, BookList, Series } from "./data";
+
+const NOW = new Date().toISOString();
+
+export const FALLBACK_BOOKS: Book[] = [
+  {
+    id: "fb-1",
+    slug: "the-great-gatsby",
+    title: "The Great Gatsby",
+    subtitle: null,
+    author: "F. Scott Fitzgerald",
+    author_slug: "f-scott-fitzgerald",
+    cover_url: "https://covers.openlibrary.org/b/id/7222246-L.jpg",
+    description: "A story of decadence, idealism, and excess set in the Jazz Age, exploring the American Dream.",
+    rating: 4.5,
+    recommendation_count: 0,
+    series: null,
+    series_slug: null,
+    index_status: "noindex",
+    meta_title: null,
+    meta_description: null,
+    created_at: NOW,
+  },
+  {
+    id: "fb-2",
+    slug: "to-kill-a-mockingbird",
+    title: "To Kill a Mockingbird",
+    subtitle: null,
+    author: "Harper Lee",
+    author_slug: "harper-lee",
+    cover_url: "https://covers.openlibrary.org/b/id/8225266-L.jpg",
+    description: "A compassionate, dramatic, and deeply moving novel about racial injustice in the American South.",
+    rating: 4.8,
+    recommendation_count: 0,
+    series: null,
+    series_slug: null,
+    index_status: "noindex",
+    meta_title: null,
+    meta_description: null,
+    created_at: NOW,
+  },
+  {
+    id: "fb-3",
+    slug: "1984",
+    title: "1984",
+    subtitle: null,
+    author: "George Orwell",
+    author_slug: "george-orwell",
+    cover_url: "https://covers.openlibrary.org/b/id/7222166-L.jpg",
+    description: "A dystopian novel exploring totalitarianism, surveillance, and the manipulation of truth.",
+    rating: 4.7,
+    recommendation_count: 0,
+    series: null,
+    series_slug: null,
+    index_status: "noindex",
+    meta_title: null,
+    meta_description: null,
+    created_at: NOW,
+  },
+  {
+    id: "fb-4",
+    slug: "pride-and-prejudice",
+    title: "Pride and Prejudice",
+    subtitle: null,
+    author: "Jane Austen",
+    author_slug: "jane-austen",
+    cover_url: "https://covers.openlibrary.org/b/id/8225302-L.jpg",
+    description: "A witty and romantic satire of manners and marriage in Regency England.",
+    rating: 4.6,
+    recommendation_count: 0,
+    series: null,
+    series_slug: null,
+    index_status: "noindex",
+    meta_title: null,
+    meta_description: null,
+    created_at: NOW,
+  },
+];
+
+export const FALLBACK_PEOPLE: Person[] = [
+  {
+    id: "fp-1",
+    slug: "barack-obama",
+    name: "Barack Obama",
+    role: "44th President of the United States",
+    bio: "Barack Obama served as the 44th President of the United States and is the author of several bestselling books.",
+    avatar_url: "https://upload.wikimedia.org/wikipedia/commons/8/8d/President_Barack_Obama.jpg",
+    source_url: null,
+    quality_score: 100,
+    index_status: "noindex",
+    meta_title: null,
+    meta_description: null,
+    published_at: null,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+  {
+    id: "fp-2",
+    slug: "oprah-winfrey",
+    name: "Oprah Winfrey",
+    role: "Media Executive & Philanthropist",
+    bio: "Oprah Winfrey is a talk show host, television producer, actress, author, and media proprietor.",
+    avatar_url: "https://upload.wikimedia.org/wikipedia/commons/b/bf/Oprah_in_2014.jpg",
+    source_url: null,
+    quality_score: 99,
+    index_status: "noindex",
+    meta_title: null,
+    meta_description: null,
+    published_at: null,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+  {
+    id: "fp-3",
+    slug: "bill-gates",
+    name: "Bill Gates",
+    role: "Co-founder of Microsoft & Philanthropist",
+    bio: "Bill Gates is a business magnate, software developer, and philanthropist who co-founded Microsoft.",
+    avatar_url: "https://upload.wikimedia.org/wikipedia/commons/a/a8/Bill_Gates_2017.jpg",
+    source_url: null,
+    quality_score: 98,
+    index_status: "noindex",
+    meta_title: null,
+    meta_description: null,
+    published_at: null,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+  {
+    id: "fp-4",
+    slug: "naval-ravikant",
+    name: "Naval Ravikant",
+    role: "Entrepreneur & Investor",
+    bio: "Naval Ravikant is an entrepreneur, angel investor, and the co-founder of AngelList.",
+    avatar_url: "https://upload.wikimedia.org/wikipedia/commons/e/e9/Naval_Ravikant.jpg",
+    source_url: null,
+    quality_score: 97,
+    index_status: "noindex",
+    meta_title: null,
+    meta_description: null,
+    published_at: null,
+    created_at: NOW,
+    updated_at: NOW,
+  },
+];
+
+export const FALLBACK_LISTS: BookList[] = [
+  {
+    id: "fl-1",
+    slug: "best-classic-novels",
+    title: "Best Classic Novels of All Time",
+    description: "Timeless novels that have shaped literature and continue to captivate readers across generations.",
+    book_count: 0,
+    curator: null,
+    index_status: "noindex",
+    created_at: NOW,
+  },
+  {
+    id: "fl-2",
+    slug: "must-read-nonfiction",
+    title: "Must-Read Nonfiction",
+    description: "Essential nonfiction books that broaden perspectives and deepen understanding of the world.",
+    book_count: 0,
+    curator: null,
+    index_status: "noindex",
+    created_at: NOW,
+  },
+  {
+    id: "fl-3",
+    slug: "booker-prize-winners",
+    title: "Booker Prize Winners",
+    description: "Award-winning novels recognized by the Booker Prize for outstanding literary achievement.",
+    book_count: 0,
+    curator: null,
+    index_status: "noindex",
+    created_at: NOW,
+  },
+  {
+    id: "fl-4",
+    slug: "science-and-technology",
+    title: "Science & Technology Reads",
+    description: "Engaging books on science, technology, and the ideas shaping our future.",
+    book_count: 0,
+    curator: null,
+    index_status: "noindex",
+    created_at: NOW,
+  },
+];
+
+export const FALLBACK_SERIES: Series[] = [
+  {
+    id: "fs-1",
+    slug: "harry-potter",
+    title: "Harry Potter",
+    description: "J.K. Rowling's beloved series following a young wizard's journey through Hogwarts School of Witchcraft and Wizardry.",
+    book_count: 0,
+    index_status: "noindex",
+    created_at: NOW,
+  },
+  {
+    id: "fs-2",
+    slug: "the-lord-of-the-rings",
+    title: "The Lord of the Rings",
+    description: "J.R.R. Tolkien's epic fantasy trilogy set in the richly imagined world of Middle-earth.",
+    book_count: 0,
+    index_status: "noindex",
+    created_at: NOW,
+  },
+  {
+    id: "fs-3",
+    slug: "a-song-of-ice-and-fire",
+    title: "A Song of Ice and Fire",
+    description: "George R.R. Martin's sprawling epic fantasy series of political intrigue and dragons.",
+    book_count: 0,
+    index_status: "noindex",
+    created_at: NOW,
+  },
+  {
+    id: "fs-4",
+    slug: "the-foundation-series",
+    title: "The Foundation Series",
+    description: "Isaac Asimov's landmark science fiction saga charting the rise and fall of a galactic empire.",
+    book_count: 0,
+    index_status: "noindex",
+    created_at: NOW,
+  },
+];
+
+export function getFallbackBooks(count = 4): Book[] {
+  return FALLBACK_BOOKS.slice(0, count);
+}
+
+export function getFallbackPeople(count = 4): Person[] {
+  return FALLBACK_PEOPLE.slice(0, count);
+}
+
+export function getFallbackLists(count = 4): BookList[] {
+  return FALLBACK_LISTS.slice(0, count);
+}
+
+export function getFallbackSeries(count = 4): Series[] {
+  return FALLBACK_SERIES.slice(0, count);
+}

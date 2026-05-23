@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-05-23 — Homepage QA Fixes
+
+### Fixed
+- Homepage Popular Lists and Popular Series sections now always render 4 visible cards
+- Added curated fallback data for all four homepage sections (books, people, lists, series) when Supabase returns empty
+- Changed homepage card counts from 6/4/3/3 to 4 books, 4 people, 4 lists, 4 series
+- Lists/Series sections no longer render empty when Supabase has no data
+
+### Added
+- Methodology link in desktop header navigation (previously only in mobile menu)
+- `src/lib/fallback.ts` with 4 curated fallback entries per category
+
 ## 2026-05-23 — Figma Visual Theme Integration
 
 ### Changed

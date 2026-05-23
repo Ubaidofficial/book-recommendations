@@ -7,21 +7,34 @@ import {
   getPersonRecommendedCount,
   getPersonWrittenCount,
 } from "@/lib/data";
+import {
+  getFallbackBooks,
+  getFallbackPeople,
+  getFallbackLists,
+  getFallbackSeries,
+} from "@/lib/fallback";
 import { BookCard, PersonCard, ListCard, SeriesCard, SearchBar, SectionHeading } from "@/components";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
+  const CARD_COUNT = 4;
+
   const [featuredBooks, featuredPeople, featuredLists, featuredSeries] =
     await Promise.all([
-      getFeaturedBooks(6),
-      getFeaturedPeople(4),
-      getFeaturedLists(3),
-      getFeaturedSeries(3),
+      getFeaturedBooks(CARD_COUNT),
+      getFeaturedPeople(CARD_COUNT),
+      getFeaturedLists(CARD_COUNT),
+      getFeaturedSeries(CARD_COUNT),
     ]);
 
+  const books = featuredBooks.length > 0 ? featuredBooks : getFallbackBooks(CARD_COUNT);
+  const people = featuredPeople.length > 0 ? featuredPeople : getFallbackPeople(CARD_COUNT);
+  const lists = featuredLists.length > 0 ? featuredLists : getFallbackLists(CARD_COUNT);
+  const series = featuredSeries.length > 0 ? featuredSeries : getFallbackSeries(CARD_COUNT);
+
   const peopleWithCounts = await Promise.all(
-    featuredPeople.map(async (p) => {
+    people.map(async (p) => {
       const [rc, wc] = await Promise.all([
         getPersonRecommendedCount(p.id),
         getPersonWrittenCount(p.id),
@@ -55,46 +68,42 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {featuredBooks.length > 0 && (
-        <section className="py-14 px-4">
-          <div className="max-w-7xl mx-auto">
-            <SectionHeading title="Popular Books" href="/books" />
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-5">
-              {featuredBooks.map((book) => (
-                <BookCard key={book.id} {...book} coverUrl={book.cover_url} authorSlug={book.author_slug} recommendationCount={book.recommendation_count} />
-              ))}
-            </div>
+      <section className="py-14 px-4">
+        <div className="max-w-7xl mx-auto">
+          <SectionHeading title="Popular Books" href="/books" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
+            {books.map((book) => (
+              <BookCard key={book.id} {...book} coverUrl={book.cover_url} authorSlug={book.author_slug} recommendationCount={book.recommendation_count} />
+            ))}
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {peopleWithCounts.length > 0 && (
-        <section className="py-14 px-4 bg-subtle/60">
-          <div className="max-w-7xl mx-auto">
-            <SectionHeading title="Featured People" href="/people" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {peopleWithCounts.map((person) => (
-                <PersonCard
-                  key={person.id}
-                  name={person.name}
-                  slug={person.slug}
-                  role={person.role}
-                  avatarUrl={person.avatar_url}
-                  recommendedCount={person.recommendedCount}
-                  writtenCount={person.writtenCount}
-                />
-              ))}
-            </div>
+      <section className="py-14 px-4 bg-subtle/60">
+        <div className="max-w-7xl mx-auto">
+          <SectionHeading title="Featured People" href="/people" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {peopleWithCounts.map((person) => (
+              <PersonCard
+                key={person.id}
+                name={person.name}
+                slug={person.slug}
+                role={person.role}
+                avatarUrl={person.avatar_url}
+                recommendedCount={person.recommendedCount}
+                writtenCount={person.writtenCount}
+              />
+            ))}
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       <section className="py-14 px-4">
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-14">
           <div>
             <SectionHeading title="Popular Lists" href="/lists" />
             <div className="flex flex-col gap-3">
-              {featuredLists.map((list) => (
+              {lists.map((list) => (
                 <ListCard key={list.id} {...list} bookCount={list.book_count} />
               ))}
             </div>
@@ -102,8 +111,8 @@ export default async function HomePage() {
           <div>
             <SectionHeading title="Popular Series" href="/series" />
             <div className="flex flex-col gap-3">
-              {featuredSeries.map((series) => (
-                <SeriesCard key={series.id} {...series} bookCount={series.book_count} />
+              {series.map((s) => (
+                <SeriesCard key={s.id} {...s} bookCount={s.book_count} />
               ))}
             </div>
           </div>
