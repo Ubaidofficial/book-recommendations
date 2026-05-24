@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-05-23 — Homepage Trust & Data QA
+
+### Fixed
+- Removed all fallback book cover URLs — fallback cards now show a neutral book icon placeholder, never a mismatched cover
+- BookCard: hides "recs" badge when recommendation_count is 0 or null
+- ListCard: hides "books" badge when book_count is 0 or null
+- SeriesCard: hides "books" badge when book_count is 0 or null
+- PersonCard: hides "recs" and "books" badges when counts are 0 or null; shows initial letter placeholder when no avatar
+- Homepage no longer renders "0 recs" or "0 books" anywhere
+
+### Added
+- "Why BookRecs?" section below hero: three cards (Verified Sources, Curated Lists & Series, Quality Over Quantity)
+- "How recommendations are verified" section with 2-sentence explanation and link to /methodology
+
 ## 2026-05-23 — Runtime Crash Fix
 
 ### Fixed

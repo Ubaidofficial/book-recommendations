@@ -17,9 +17,11 @@ export function SeriesCard({ title, slug, description, bookCount }: SeriesCardPr
         <h3 className="font-semibold text-base text-ink group-hover:text-accent transition-colors leading-snug">
           {title}
         </h3>
-        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium shrink-0">
-          {bookCount} books
-        </span>
+        {bookCount > 0 && (
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium shrink-0">
+            {bookCount} books
+          </span>
+        )}
       </div>
       <p className="text-sm text-muted leading-relaxed line-clamp-2">{description}</p>
     </Link>
