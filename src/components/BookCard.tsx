@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { isValidHttpUrl, isValidRating, formatRating } from "@/lib/dataQuality";
 
 interface BookCardProps {
   title: string;
@@ -21,18 +23,23 @@ export function BookCard({
   rating,
   recommendationCount,
 }: BookCardProps) {
+  const [imgError, setImgError] = useState(false);
+  const showCover = isValidHttpUrl(coverUrl) && !imgError;
+  const showRating = isValidRating(rating);
+
   return (
     <Link
       href={`/books/${slug}`}
       className="group block rounded-2xl border border-border bg-surface overflow-hidden hover:shadow-lg hover:border-accent/20 transition-all duration-200"
     >
       <div className="aspect-[2/3] bg-subtle overflow-hidden">
-        {coverUrl && /^https?:\/\//i.test(coverUrl) ? (
+        {showCover ? (
           <img
             src={coverUrl}
             alt={title}
             className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
             loading="lazy"
+            onError={() => setImgError(true)}
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-accent/5 to-accent/10 border-b border-accent/20 p-3">
@@ -57,9 +64,11 @@ export function BookCard({
           {author}
         </Link>
         <div className="flex items-center gap-2 mt-2.5 text-xs">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-light text-accent font-medium">
-            ★ {rating}
-          </span>
+          {showRating && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-light text-accent font-medium">
+              ★ {formatRating(rating)}
+            </span>
+          )}
           {recommendationCount > 0 && (
             <span className="text-muted">{recommendationCount.toLocaleString()} recs</span>
           )}

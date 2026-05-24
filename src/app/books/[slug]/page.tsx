@@ -13,6 +13,15 @@ import {
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { bookJsonLd } from "@/lib/jsonld";
 import { displayTitle } from "@/lib/display";
+import {
+  isValidHttpUrl,
+  isValidRating,
+  formatRating,
+  formatConfidence,
+  isUsefulDescription,
+  cleanDescription,
+  uniqueByNormalizedText,
+} from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs } from "@/components";
 
 interface Props {
@@ -23,11 +32,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const book = await getBookBySlug(slug);
   if (!book) return { robots: "noindex, follow" };
+  const desc = isUsefulDescription(book.meta_description)
+    ? book.meta_description
+    : isUsefulDescription(book.description)
+      ? book.description
+      : undefined;
   return pageMetadata({
     title: book.meta_title || `${book.title} by ${book.author}`,
-    description: book.meta_description || book.description,
+    description: desc || "",
     path: `/books/${book.slug}`,
-    image: book.cover_url,
+    image: isValidHttpUrl(book.cover_url) ? book.cover_url : undefined,
     type: "book",
     robots: robotsDirective(book),
   });
@@ -41,25 +55,39 @@ export default async function BookDetailPage({ params }: Props) {
   const personId = await getPersonIdBySlug(book.author_slug);
   const seriesId = book.series_slug ? await getSeriesIdBySlug(book.series_slug) : null;
 
-  const [authorBooks, seriesBooks, proof, lists] = await Promise.all([
+  const [authorBooks, seriesBooks, rawProof, lists] = await Promise.all([
     personId ? getBooksByAuthor(personId, 6) : Promise.resolve([]),
     seriesId ? getBooksBySeries(seriesId, 6) : Promise.resolve([]),
     getRecommendationProof(book.id, 6),
     getListsForBook(book.id, 5),
   ]);
 
-  const hasCover = book.cover_url && /^https?:\/\//i.test(book.cover_url);
+  // Deduplicate quotes
+  const proof = uniqueByNormalizedText(rawProof, "quote");
 
-  // Consolidate similar books: union of authorBooks + seriesBooks, deduped, max 6
+  // Determine proof quality
+  const hasProof = proof.length > 0;
+  const proofWithSource = proof.filter((p) => isValidHttpUrl(p.source_url));
+  const allVerified = hasProof && proofWithSource.length === proof.length;
+  const proofHeading = allVerified ? "Recommendation Proof" : "Recommendation Signals";
+
+  const hasCover = isValidHttpUrl(book.cover_url);
+  const showRating = isValidRating(book.rating);
+  const showDescription = isUsefulDescription(book.description);
+  const descriptionText = showDescription
+    ? cleanDescription(book.description)
+    : "Description is being reviewed for this book.";
+
+  const hasLists = lists.length > 0;
+  const hasSeries = book.series && book.series_slug;
+
+  // Consolidate similar books
   const similarIds = new Set<string>();
   const similarBooks = [...seriesBooks, ...authorBooks]
     .filter((b) => b.id !== book.id && !similarIds.has(b.id) && (similarIds.add(b.id), true))
     .slice(0, 6);
 
   const jsonld = bookJsonLd(book);
-  const hasProof = proof.length > 0;
-  const hasLists = lists.length > 0;
-  const hasSeries = book.series && book.series_slug;
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
@@ -70,29 +98,38 @@ export default async function BookDetailPage({ params }: Props) {
         <div className="max-w-[180px] mx-auto md:max-w-full">
           <div className="rounded-2xl overflow-hidden shadow-md bg-subtle aspect-[2/3]">
             {hasCover ? (
-              <img src={book.cover_url} alt={book.title} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-accent/5 to-accent/10 p-4">
-                <span className="text-lg font-bold text-accent/50 text-center leading-tight mb-2">
-                  {book.title}
-                </span>
-                <svg className="w-6 h-6 text-accent/25 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-              </div>
-            )}
+              <img
+                src={book.cover_url}
+                alt={book.title}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                  (e.target as HTMLImageElement).parentElement!.querySelector(".cover-fallback")?.classList.remove("hidden");
+                }}
+              />
+            ) : null}
+            <div className={`w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-accent/5 to-accent/10 p-4 ${hasCover ? "hidden cover-fallback" : ""}`}>
+              <span className="text-lg font-bold text-accent/50 text-center leading-tight mb-2">
+                {book.title}
+              </span>
+              <svg className="w-6 h-6 text-accent/25 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            </div>
           </div>
         </div>
 
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-3">
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold">
-              ★ {book.rating}
-            </span>
+            {showRating && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold">
+                ★ {formatRating(book.rating)}
+              </span>
+            )}
             {book.recommendation_count > 0 && (
               <span className="text-sm text-muted">{book.recommendation_count.toLocaleString()} recommendations</span>
             )}
-            {hasProof && (
+            {proofWithSource.length > 0 && (
               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-subtle border border-border text-xs text-muted font-medium">
                 <svg className="w-3 h-3 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -125,71 +162,70 @@ export default async function BookDetailPage({ params }: Props) {
           )}
 
           <div className="prose prose-base text-muted max-w-none leading-relaxed">
-            <p>{book.description}</p>
+            <p>{descriptionText}</p>
           </div>
         </div>
       </div>
 
-      {/* Recommendation Proof */}
+      {/* Recommendation Proof / Signals */}
       <section className="mb-14">
-        <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Recommendation Proof</h2>
+        <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">{proofHeading}</h2>
         {hasProof ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {proof.map((p, i) => (
-              <div
-                key={`${p.person.id}-${i}`}
-                className="rounded-xl border border-border bg-surface p-4"
-              >
-                <Link
-                  href={`/people/${p.person.slug}`}
-                  className="flex items-center gap-3 mb-3 hover:opacity-80 transition-opacity"
+            {proof.map((p, i) => {
+              const hasSource = isValidHttpUrl(p.source_url);
+              const hasQuote = p.quote && p.quote.trim().length > 30;
+              const conf = formatConfidence(p.confidence_score);
+              const hasAnything = hasSource || p.source_name || hasQuote;
+
+              return (
+                <div
+                  key={`${p.person.id}-${i}`}
+                  className="rounded-xl border border-border bg-surface p-4"
                 >
-                  <div className="w-10 h-10 rounded-full bg-subtle overflow-hidden shrink-0 ring-1 ring-border flex items-center justify-center">
-                    {p.person.avatar_url && /^https?:\/\//i.test(p.person.avatar_url) ? (
-                      <img src={p.person.avatar_url} alt={p.person.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-sm font-bold text-muted/40">{p.person.name.charAt(0)}</span>
+                  <Link
+                    href={`/people/${p.person.slug}`}
+                    className="flex items-center gap-3 mb-3 hover:opacity-80 transition-opacity"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-subtle overflow-hidden shrink-0 ring-1 ring-border flex items-center justify-center">
+                      {isValidHttpUrl(p.person.avatar_url) ? (
+                        <img src={p.person.avatar_url} alt={p.person.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-sm font-bold text-muted/40">{p.person.name.charAt(0)}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink truncate">{p.person.name}</p>
+                      <p className="text-xs text-muted">{p.person.role}</p>
+                    </div>
+                  </Link>
+
+                  {hasQuote && (
+                    <blockquote className="text-sm text-muted italic border-l-2 border-accent/20 pl-3 mb-2 line-clamp-3">
+                      &ldquo;{p.quote}&rdquo;
+                    </blockquote>
+                  )}
+
+                  <div className="flex items-center justify-between gap-2 text-xs mt-2">
+                    {hasSource ? (
+                      <a
+                        href={p.source_url!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-accent hover:underline font-medium"
+                      >
+                        View source →
+                      </a>
+                    ) : p.source_name ? (
+                      <span className="text-muted">{p.source_name}</span>
+                    ) : null}
+                    {conf && (
+                      <span className="text-muted/40 tabular-nums">{conf}</span>
                     )}
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink truncate">{p.person.name}</p>
-                    <p className="text-xs text-muted">{p.person.role}</p>
-                  </div>
-                </Link>
-
-                {p.quote && (
-                  <blockquote className="text-sm text-muted italic border-l-2 border-accent/20 pl-3 mb-2 line-clamp-3">
-                    &ldquo;{p.quote}&rdquo;
-                  </blockquote>
-                )}
-
-                <div className="flex items-center justify-between gap-2 text-xs mt-2">
-                  {p.source_url ? (
-                    <a
-                      href={p.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-accent hover:underline font-medium"
-                    >
-                      View source →
-                    </a>
-                  ) : p.source_name ? (
-                    <span className="text-muted">{p.source_name}</span>
-                  ) : (
-                    <span className="text-muted/50">Source unverified</span>
-                  )}
-                  {p.confidence_score != null && p.confidence_score > 0 && (
-                    <span className="text-muted/40 tabular-nums">
-                      {typeof p.confidence_score === "number"
-                        ? p.confidence_score >= 1
-                          ? Math.round(p.confidence_score * 100) + "%"
-                          : (p.confidence_score * 100).toFixed(0) + "%"
-                        : ""}
-                    </span>
-                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="rounded-xl border border-border bg-surface p-6 text-center">
@@ -264,7 +300,7 @@ export default async function BookDetailPage({ params }: Props) {
         <p className="text-sm text-muted leading-relaxed">
           Each recommendation is collected from a public source — interviews, articles, or curated lists —
           and linked to its original URL. Books with many verifiable recommendations from respected
-          people rank higher, helping you discover genuinely worthwhile reads.
+          people rank higher.
         </p>
       </section>
     </div>

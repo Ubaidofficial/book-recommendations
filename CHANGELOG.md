@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-05-24 — Data Quality Display Hardening
+
+### Added
+- `src/lib/dataQuality.ts` — reusable quality helpers:
+  - `isValidHttpUrl()` — validates https?:// URLs
+  - `isValidRating()` — only 1-5 numeric
+  - `formatRating()` — one-decimal max
+  - `formatConfidence()` — null-safe: 0<v≤1→%, 1<v≤100→%, >100→null
+  - `isUsefulDescription()` — rejects empty/<80 chars/scraped junk (Goodreads, Indonesian metadata, etc.)
+  - `cleanDescription()` — trims and clamps to 700 chars
+  - `uniqueByNormalizedText()` — deduplicates by normalized text
+
+### Changed
+- BookCard: rating only shown if `isValidRating()`, cover uses `isValidHttpUrl()` + `onError` fallback
+- BookCard: rating formatted via `formatRating()` (one decimal)
+- Book detail page: rating only shown if valid, description shows fallback message if scraped/too-short, clamped 700 chars
+- Book detail page: confidence formatted with `formatConfidence()`, hidden if null
+- Book detail page: quotes deduplicated via `uniqueByNormalizedText()`
+- Book detail page: "Verified" badge only when at least one recommendation has valid source_url
+- Book detail page: section renamed to "Recommendation Signals" unless all recs have source_url
+- Person detail page: same confidence formatting, quote dedupe, source URL validation
+- Person detail page: renamed to "Recommendation Signals" when source proof incomplete
+- JSON-LD: only includes aggregateRating if valid 1-5, only includes image if valid URL, filters bad descriptions
+
 ## 2026-05-24 — Metadata Polish
 
 ### Changed

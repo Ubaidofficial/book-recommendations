@@ -10,6 +10,12 @@ import {
 } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { personJsonLd } from "@/lib/jsonld";
+import {
+  isValidHttpUrl,
+  formatConfidence,
+  isUsefulDescription,
+  uniqueByNormalizedText,
+} from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs } from "@/components";
 
 interface Props {
@@ -20,11 +26,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const person = await getPersonBySlug(slug);
   if (!person) return { robots: "noindex, follow" };
+  const desc = isUsefulDescription(person.meta_description)
+    ? person.meta_description
+    : isUsefulDescription(person.bio)
+      ? person.bio
+      : undefined;
   return pageMetadata({
     title: person.meta_title || `${person.name} — Books & Recommendations`,
-    description: person.meta_description || person.bio,
+    description: desc || "",
     path: `/people/${person.slug}`,
-    image: person.avatar_url,
+    image: isValidHttpUrl(person.avatar_url) ? person.avatar_url : undefined,
     robots: robotsDirective(person),
   });
 }
@@ -34,23 +45,27 @@ export default async function PersonDetailPage({ params }: Props) {
   const person = await getPersonBySlug(slug);
   if (!person) notFound();
 
-  const [writtenBooks, recommendationProof, recommendedCount, writtenCount] = await Promise.all([
+  const [writtenBooks, rawProof, recommendedCount, writtenCount] = await Promise.all([
     getBooksByAuthor(person.id, 24),
     getPersonRecommendationProof(person.id, 24),
     getPersonRecommendedCount(person.id),
     getPersonWrittenCount(person.id),
   ]);
 
-  const hasAvatar = person.avatar_url && /^https?:\/\//i.test(person.avatar_url);
+  const recommendationProof = uniqueByNormalizedText(rawProof, "quote");
+  const hasAvatar = isValidHttpUrl(person.avatar_url);
   const jsonld = personJsonLd(person);
   const hasWritten = writtenBooks.length > 0;
   const hasRecommendations = recommendationProof.length > 0;
-  const hasBio = person.bio && person.bio.length > 0;
+  const hasBio = isUsefulDescription(person.bio);
 
   // Proof list — top 10 with source data
   const proofList = recommendationProof
-    .filter((p) => p.source_url || p.source_name || p.quote)
+    .filter((p) => isValidHttpUrl(p.source_url) || p.source_name || (p.quote && p.quote.trim().length > 30))
     .slice(0, 10);
+
+  const hasFullProof = proofList.every((p) => isValidHttpUrl(p.source_url));
+  const proofHeading = hasFullProof ? "Source & Proof" : "Recommendation Signals";
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
@@ -60,7 +75,12 @@ export default async function PersonDetailPage({ params }: Props) {
       <div className="flex flex-col sm:flex-row items-start gap-6 mb-14">
         <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-subtle overflow-hidden shrink-0 ring-3 ring-border flex items-center justify-center">
           {hasAvatar ? (
-            <img src={person.avatar_url} alt={person.name} className="w-full h-full object-cover" />
+            <img
+              src={person.avatar_url}
+              alt={person.name}
+              className="w-full h-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
           ) : (
             <span className="text-2xl font-bold text-muted/40">{person.name.charAt(0)}</span>
           )}
@@ -81,9 +101,9 @@ export default async function PersonDetailPage({ params }: Props) {
               </span>
             )}
           </div>
-          {person.source_url && (
+          {isValidHttpUrl(person.source_url) && (
             <Link
-              href={person.source_url}
+              href={person.source_url!}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-xs text-accent hover:underline mt-3"
@@ -148,55 +168,54 @@ export default async function PersonDetailPage({ params }: Props) {
         </section>
       )}
 
-      {/* Source & Proof */}
+      {/* Source & Proof / Recommendation Signals */}
       <section className="mb-14">
-        <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Source & Proof</h2>
+        <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">{proofHeading}</h2>
         {proofList.length > 0 ? (
           <div className="space-y-2">
-            {proofList.map((p, i) => (
-              <div
-                key={`proof-${i}`}
-                className="rounded-xl border border-border bg-surface p-3.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4"
-              >
-                <Link
-                  href={`/books/${p.book.slug}`}
-                  className="text-sm font-semibold text-ink hover:text-accent transition-colors shrink-0"
+            {proofList.map((p, i) => {
+              const hasSource = isValidHttpUrl(p.source_url);
+              const hasQuote = p.quote && p.quote.trim().length > 30;
+              const conf = formatConfidence(p.confidence_score);
+
+              return (
+                <div
+                  key={`proof-${i}`}
+                  className="rounded-xl border border-border bg-surface p-3.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4"
                 >
-                  {p.book.title}
-                </Link>
-                {p.quote && (
-                  <span className="text-xs text-muted italic line-clamp-2 flex-1">
-                    &ldquo;{p.quote}&rdquo;
-                  </span>
-                )}
-                <div className="flex items-center gap-3 shrink-0">
-                  {p.source_url ? (
-                    <a
-                      href={p.source_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-accent hover:underline font-medium"
-                    >
-                      View source →
-                    </a>
-                  ) : p.source_name ? (
-                    <span className="text-xs text-muted">{p.source_name}</span>
-                  ) : null}
-                  {p.confidence_score != null && p.confidence_score > 0 && (
-                    <span className="text-xs text-muted/40 tabular-nums">
-                      {typeof p.confidence_score === "number"
-                        ? p.confidence_score >= 1
-                          ? Math.round(p.confidence_score * 100) + "%"
-                          : (p.confidence_score * 100).toFixed(0) + "%"
-                        : ""}
+                  <Link
+                    href={`/books/${p.book.slug}`}
+                    className="text-sm font-semibold text-ink hover:text-accent transition-colors shrink-0"
+                  >
+                    {p.book.title}
+                  </Link>
+                  {hasQuote && (
+                    <span className="text-xs text-muted italic line-clamp-2 flex-1">
+                      &ldquo;{p.quote}&rdquo;
                     </span>
                   )}
+                  <div className="flex items-center gap-3 shrink-0">
+                    {hasSource ? (
+                      <a
+                        href={p.source_url!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-accent hover:underline font-medium"
+                      >
+                        View source →
+                      </a>
+                    ) : p.source_name ? (
+                      <span className="text-xs text-muted">{p.source_name}</span>
+                    ) : null}
+                    {conf && (
+                      <span className="text-xs text-muted/40 tabular-nums">{conf}</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : recommendationProof.length > 0 ? (
-          // Recommendations exist but no source data in any of them
           <div className="rounded-xl border border-border bg-surface p-6 text-center">
             <p className="text-sm text-muted">
               {person.name} has {recommendationProof.length} recommendations, but source proof is not yet available.
@@ -217,8 +236,8 @@ export default async function PersonDetailPage({ params }: Props) {
         <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">About this profile</h2>
         <p className="text-sm text-muted leading-relaxed">
           {person.name} is tracked across {recommendationProof.length} book recommendations and {writtenBooks.length} authored
-          books. Detail pages are kept noindex until they meet our quality bar — complete metadata, verified
-          data, and sufficient recommendation proof. This keeps search results useful.
+          books. We only surface pages when they have enough useful information — complete metadata, verified
+          data, and sufficient recommendation proof.
         </p>
       </section>
     </div>
