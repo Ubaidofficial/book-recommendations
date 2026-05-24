@@ -9,6 +9,8 @@ import {
   getListsForBook,
   getPersonIdBySlug,
   getSeriesIdBySlug,
+  type Book,
+  type RecommendationProof,
 } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { bookJsonLd } from "@/lib/jsonld";
@@ -52,18 +54,32 @@ export default async function BookDetailPage({ params }: Props) {
   const book = await getBookBySlug(slug);
   if (!book) notFound();
 
-  const personId = await getPersonIdBySlug(book.author_slug);
+  const personId = book.author_slug ? await getPersonIdBySlug(book.author_slug) : null;
   const seriesId = book.series_slug ? await getSeriesIdBySlug(book.series_slug) : null;
 
-  const [authorBooks, seriesBooks, rawProof, lists] = await Promise.all([
-    personId ? getBooksByAuthor(personId, 6) : Promise.resolve([]),
-    seriesId ? getBooksBySeries(seriesId, 6) : Promise.resolve([]),
-    getRecommendationProof(book.id, 6),
-    getListsForBook(book.id, 5),
-  ]);
+  let authorBooks: Awaited<ReturnType<typeof getBooksByAuthor>> = [];
+  let seriesBooks: Awaited<ReturnType<typeof getBooksBySeries>> = [];
+  let rawProof: Awaited<ReturnType<typeof getRecommendationProof>> = [];
+  let lists: Awaited<ReturnType<typeof getListsForBook>> = [];
+
+  try {
+    [authorBooks, seriesBooks, rawProof, lists] = await Promise.all([
+      personId ? getBooksByAuthor(personId, 6) : Promise.resolve([]),
+      seriesId ? getBooksBySeries(seriesId, 6) : Promise.resolve([]),
+      getRecommendationProof(book.id, 6),
+      getListsForBook(book.id, 5),
+    ]);
+  } catch (e) {
+    console.error("[book-detail] Relation queries failed:", e);
+  }
+
+  // Sanitize junction data — filter out nulls from failed foreign-key joins
+  const safeSeriesBooks = seriesBooks.filter((b: Book | null | undefined) => b != null && b.id);
+  const safeAuthorBooks = authorBooks.filter((b: Book | null | undefined) => b != null && b.id);
+  const safeProof = rawProof.filter((p: RecommendationProof | null | undefined) => p != null && p.person != null && p.person.id);
 
   // Deduplicate quotes
-  const proof = uniqueByNormalizedText(rawProof, "quote");
+  const proof = uniqueByNormalizedText(safeProof, "quote");
 
   // Determine proof quality
   const hasProof = proof.length > 0;
@@ -88,7 +104,7 @@ export default async function BookDetailPage({ params }: Props) {
 
   // Consolidate similar books
   const similarIds = new Set<string>();
-  const similarBooks = [...seriesBooks, ...authorBooks]
+  const similarBooks = [...safeSeriesBooks, ...safeAuthorBooks]
     .filter((b) => b.id !== book.id && !similarIds.has(b.id) && (similarIds.add(b.id), true))
     .slice(0, 6);
 
@@ -267,11 +283,11 @@ export default async function BookDetailPage({ params }: Props) {
       )}
 
       {/* Series Context */}
-      {hasSeries && seriesBooks.length > 0 && (
+      {hasSeries && safeSeriesBooks.length > 0 && (
         <section className="mb-14">
           <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">More from {displayTitle(book.series!)}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
-            {seriesBooks.filter((b) => b.id !== book.id).map((b) => (
+            {safeSeriesBooks.filter((b) => b.id !== book.id).map((b) => (
               <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} />
             ))}
           </div>
@@ -279,11 +295,11 @@ export default async function BookDetailPage({ params }: Props) {
       )}
 
       {/* Also By Author */}
-      {authorBooks.filter((b) => b.id !== book.id).length > 0 && (
+      {safeAuthorBooks.filter((b) => b.id !== book.id).length > 0 && (
         <section className="mb-14">
           <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Also by {book.author}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
-            {authorBooks.filter((b) => b.id !== book.id).map((b) => (
+            {safeAuthorBooks.filter((b) => b.id !== book.id).map((b) => (
               <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} />
             ))}
           </div>

@@ -2,7 +2,7 @@ import { Book, Person, BookList } from "@/lib/data";
 import { isValidHttpUrl, isValidRating, isUsefulDescription } from "@/lib/dataQuality";
 
 export function bookJsonLd(book: Book | null): Record<string, unknown> | null {
-  if (!book) return null;
+  if (!book || !book.title) return null;
   const result: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Book",

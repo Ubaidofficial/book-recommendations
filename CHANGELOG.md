@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-05-24 — Production Crash Fix
+
+### Fixed
+- All 9 junction-table casts in data.ts hardened: `as Book/Person/BookList` now filter out null objects from broken FK joins
+- Book detail page: related queries wrapped in try/catch with empty-array fallbacks
+- Book detail page: `author_slug`, `series_slug` safely optionally chained — no crashes on books without author/series
+- Person detail page: same null-safe treatment for written books and recommendation proof
+- `jsonld.ts`: `bookJsonLd` returns null if book is missing title
+- Junction data sanitized on both detail pages — nulls filtered from series author, and proof arrays
+
 ## 2026-05-24 — Cover Image Field Fix
 
 ### Fixed

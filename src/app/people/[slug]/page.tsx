@@ -45,17 +45,28 @@ export default async function PersonDetailPage({ params }: Props) {
   const person = await getPersonBySlug(slug);
   if (!person) notFound();
 
-  const [writtenBooks, rawProof, recommendedCount, writtenCount] = await Promise.all([
-    getBooksByAuthor(person.id, 24),
-    getPersonRecommendationProof(person.id, 24),
-    getPersonRecommendedCount(person.id),
-    getPersonWrittenCount(person.id),
-  ]);
+  let writtenBooks: Awaited<ReturnType<typeof getBooksByAuthor>> = [];
+  let rawProof: Awaited<ReturnType<typeof getPersonRecommendationProof>> = [];
+  let recommendedCount = 0;
+  let writtenCount = 0;
 
-  const recommendationProof = uniqueByNormalizedText(rawProof, "quote");
+  try {
+    [writtenBooks, rawProof, recommendedCount, writtenCount] = await Promise.all([
+      getBooksByAuthor(person.id, 24),
+      getPersonRecommendationProof(person.id, 24),
+      getPersonRecommendedCount(person.id),
+      getPersonWrittenCount(person.id),
+    ]);
+  } catch (e) {
+    console.error("[person-detail] Relation queries failed:", e);
+  }
+
+  const safeWrittenBooks = writtenBooks.filter((b) => b != null && b.id);
+  const safeProof = rawProof.filter((p) => p != null && p.book != null && p.book.id);
+  const recommendationProof = uniqueByNormalizedText(safeProof, "quote");
   const hasAvatar = isValidHttpUrl(person.avatar_url);
   const jsonld = personJsonLd(person);
-  const hasWritten = writtenBooks.length > 0;
+  const hasWritten = safeWrittenBooks.length > 0;
   const hasRecommendations = recommendationProof.length > 0;
   const hasBio = isUsefulDescription(person.bio);
 
@@ -152,7 +163,7 @@ export default async function PersonDetailPage({ params }: Props) {
         <section className="mb-14">
           <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Books by {person.name}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
-            {writtenBooks.map((book) => (
+            {safeWrittenBooks.map((book) => (
               <BookCard
                 key={book.id}
                 title={book.title}

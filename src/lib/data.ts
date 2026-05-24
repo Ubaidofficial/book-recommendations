@@ -149,7 +149,7 @@ export async function getBooksByAuthor(personId: string, limit = 12): Promise<Bo
       .limit(limit);
 
     if (error) { logQueryError("getBooksByAuthor", error); return []; }
-    return (rows || []).map((r: { books: unknown }) => r.books as Book);
+    return (rows || []).map((r: { books: unknown }) => r.books as Book).filter((b: Book) => b != null && b.id);
   } catch (e) {
     logQueryError("getBooksByAuthor", e);
     return [];
@@ -166,7 +166,7 @@ export async function getBooksBySeries(seriesId: string, limit = 48): Promise<Bo
       .limit(limit);
 
     if (error) { logQueryError("getBooksBySeries", error); return []; }
-    return (rows || []).map((r: { books: unknown }) => r.books as Book);
+    return (rows || []).map((r: { books: unknown }) => r.books as Book).filter((b: Book) => b != null && b.id);
   } catch (e) {
     logQueryError("getBooksBySeries", e);
     return [];
@@ -309,7 +309,7 @@ export async function getPersonRecommendedBooks(personId: string, limit = 12): P
       .limit(limit);
 
     if (error) { logQueryError("getPersonRecommendedBooks", error); return []; }
-    return (rows || []).map((r: { books: unknown }) => r.books as Book);
+    return (rows || []).map((r: { books: unknown }) => r.books as Book).filter((b: Book) => b != null && b.id);
   } catch (e) {
     logQueryError("getPersonRecommendedBooks", e);
     return [];
@@ -352,7 +352,7 @@ export async function getPersonRecommendationProof(
         quote: r.quote,
         confidence_score: r.confidence_score,
       })
-    );
+    ).filter((p: PersonRecommendationProof) => p.book != null && p.book.id);
   } catch (e) {
     logQueryError("getPersonRecommendationProof", e);
     return [];
@@ -426,7 +426,7 @@ export async function getBooksForList(listId: string, limit = 48): Promise<Book[
       .limit(limit);
 
     if (error) { logQueryError("getBooksForList", error); return []; }
-    return (rows || []).map((r: { books: unknown }) => r.books as Book);
+    return (rows || []).map((r: { books: unknown }) => r.books as Book).filter((b: Book) => b != null && b.id);
   } catch (e) {
     logQueryError("getBooksForList", e);
     return [];
@@ -535,7 +535,7 @@ export async function getBooksForSeriesDetail(seriesId: string): Promise<Book[]>
       .order("position", { ascending: true });
 
     if (error) { logQueryError("getBooksForSeriesDetail", error); return []; }
-    return (rows || []).map((r: { books: unknown }) => r.books as Book);
+    return (rows || []).map((r: { books: unknown }) => r.books as Book).filter((b: Book) => b != null && b.id);
   } catch (e) {
     logQueryError("getBooksForSeriesDetail", e);
     return [];
@@ -557,7 +557,7 @@ export async function getRecommendersForBook(
       .limit(limit);
 
     if (error) { logQueryError("getRecommendersForBook", error); return []; }
-    return (rows || []).map((r: { people: unknown }) => r.people as Person);
+    return (rows || []).map((r: { people: unknown }) => r.people as Person).filter((p: Person) => p != null && p.id);
   } catch (e) {
     logQueryError("getRecommendersForBook", e);
     return [];
@@ -591,7 +591,7 @@ export async function getRecommendationProof(
         quote: r.quote,
         confidence_score: r.confidence_score,
       })
-    );
+    ).filter((p: RecommendationProof) => p.person != null && p.person.id);
   } catch (e) {
     logQueryError("getRecommendationProof", e);
     return [];
@@ -607,7 +607,7 @@ export async function getListsForBook(bookId: string, limit = 5): Promise<BookLi
       .limit(limit);
 
     if (error) { logQueryError("getListsForBook", error); return []; }
-    return (rows || []).map((r: { lists: unknown }) => r.lists as BookList);
+    return (rows || []).map((r: { lists: unknown }) => r.lists as BookList).filter((l: BookList) => l != null && l.id);
   } catch (e) {
     logQueryError("getListsForBook", e);
     return [];
