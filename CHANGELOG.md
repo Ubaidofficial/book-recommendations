@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-05-24 — Cover Image Field Fix
+
+### Fixed
+- Book interface `cover_url` renamed to `cover_image_url` to match actual Supabase DB column
+- All 13 references to `book.cover_url` updated to `book.cover_image_url` across 7 files
+- Fallback data `cover_url` renamed to `cover_image_url`
+- Cover images (Supabase Storage, Open Library, Google Books) now render on book detail pages
+
+## 2026-05-24 — Conservative Labels & Cover Debugging
+
+### Changed
+- Book detail: forced conservative proof labels — always "Recommendation Signals" and "How recommendation signals are reviewed"
+- Removed "Recommendation Proof" and "How recommendations are verified" from book detail pages entirely
+- Will restore proof wording after DB source quality audit
+- Added `console.log` in `getBookBySlug()` (dev only) showing slug + cover_url value + validity
+- Cover field confirmed: DB `cover_url` → Interface `cover_url` → Page `book.cover_url` — no mismatch
+
 ## 2026-05-24 — Wrong-Language & Data Quality Fixes
 
 ### Added

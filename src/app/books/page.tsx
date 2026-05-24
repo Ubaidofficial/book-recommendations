@@ -67,7 +67,7 @@ export default async function BooksPage({ searchParams }: Props) {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
           {books.map((book) => (
-            <BookCard key={book.id} title={book.title} slug={book.slug} author={book.author} authorSlug={book.author_slug} coverUrl={book.cover_url} rating={book.rating} recommendationCount={book.recommendation_count} />
+            <BookCard key={book.id} title={book.title} slug={book.slug} author={book.author} authorSlug={book.author_slug} coverUrl={book.cover_image_url} rating={book.rating} recommendationCount={book.recommendation_count} />
           ))}
         </div>
       )}

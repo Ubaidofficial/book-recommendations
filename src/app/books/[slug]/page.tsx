@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: book.meta_title || (book.author ? `${book.title} by ${book.author}` : book.title),
     description: desc || "",
     path: `/books/${book.slug}`,
-    image: isValidHttpUrl(book.cover_url) ? book.cover_url : undefined,
+    image: isValidHttpUrl(book.cover_image_url) ? book.cover_image_url : undefined,
     type: "book",
     robots: robotsDirective(book),
   });
@@ -69,13 +69,11 @@ export default async function BookDetailPage({ params }: Props) {
   const hasProof = proof.length > 0;
   const proofWithSource = proof.filter((p) => isValidHttpUrl(p.source_url));
   const showVerifiedBadge = proofWithSource.length >= 2;
-  const allFullyVerified = hasProof && proof.every((p) => isValidHttpUrl(p.source_url) && p.quote && p.quote.trim().length >= 50);
-  const proofHeading = allFullyVerified ? "Recommendation Proof" : "Recommendation Signals";
-  const bottomBoxTitle = allFullyVerified
-    ? "How recommendations are verified"
-    : "How recommendation signals are reviewed";
+  // Conservative labels until DB source quality is audited
+  const proofHeading = "Recommendation Signals";
+  const bottomBoxTitle = "How recommendation signals are reviewed";
 
-  const hasCover = isValidHttpUrl(book.cover_url);
+  const hasCover = isValidHttpUrl(book.cover_image_url);
   const showRating = isValidRating(book.rating);
   const showDescription = isUsefulDescription(book.description);
   const descriptionText = showDescription
@@ -106,7 +104,7 @@ export default async function BookDetailPage({ params }: Props) {
           <div className="rounded-2xl overflow-hidden shadow-md bg-subtle aspect-[2/3]">
             {hasCover ? (
               <img
-                src={book.cover_url}
+                src={book.cover_image_url}
                 alt={book.title}
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -274,7 +272,7 @@ export default async function BookDetailPage({ params }: Props) {
           <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">More from {displayTitle(book.series!)}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {seriesBooks.filter((b) => b.id !== book.id).map((b) => (
-              <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_url} rating={b.rating} recommendationCount={b.recommendation_count} />
+              <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} />
             ))}
           </div>
         </section>
@@ -286,7 +284,7 @@ export default async function BookDetailPage({ params }: Props) {
           <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Also by {book.author}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {authorBooks.filter((b) => b.id !== book.id).map((b) => (
-              <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_url} rating={b.rating} recommendationCount={b.recommendation_count} />
+              <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} />
             ))}
           </div>
         </section>
@@ -298,7 +296,7 @@ export default async function BookDetailPage({ params }: Props) {
           <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">What to read next</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {similarBooks.map((b) => (
-              <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_url} rating={b.rating} recommendationCount={b.recommendation_count} />
+              <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} />
             ))}
           </div>
         </section>

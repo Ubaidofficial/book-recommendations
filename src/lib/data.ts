@@ -9,7 +9,7 @@ export interface Book {
   subtitle: string | null;
   author: string;
   author_slug: string;
-  cover_url: string;
+  cover_image_url: string;
   description: string;
   rating: number;
   recommendation_count: number;

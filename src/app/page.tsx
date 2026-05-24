@@ -39,7 +39,7 @@ export default async function HomePage() {
 
   const books = (() => {
     if (featuredBooks.length > 0) {
-      const withCovers = featuredBooks.filter(b => b.cover_url && /^https?:\/\//i.test(b.cover_url));
+      const withCovers = featuredBooks.filter(b => b.cover_image_url && /^https?:\/\//i.test(b.cover_image_url));
       console.log(`[homepage] Popular Books: ${featuredBooks.length} rows, ${withCovers.length} with valid covers`);
       return featuredBooks;
     }
@@ -165,7 +165,7 @@ export default async function HomePage() {
           <SectionHeading title="Popular Books" href="/books" />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
             {books.map((book) => (
-              <BookCard key={book.id} {...book} coverUrl={book.cover_url} authorSlug={book.author_slug} recommendationCount={book.recommendation_count} />
+              <BookCard key={book.id} {...book} coverUrl={book.cover_image_url} authorSlug={book.author_slug} recommendationCount={book.recommendation_count} />
             ))}
           </div>
         </div>

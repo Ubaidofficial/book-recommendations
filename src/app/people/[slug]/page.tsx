@@ -126,7 +126,7 @@ export default async function PersonDetailPage({ params }: Props) {
                 slug={p.book.slug}
                 author={p.book.author}
                 authorSlug={p.book.author_slug}
-                coverUrl={p.book.cover_url}
+                coverUrl={p.book.cover_image_url}
                 rating={p.book.rating}
                 recommendationCount={p.book.recommendation_count}
               />
@@ -159,7 +159,7 @@ export default async function PersonDetailPage({ params }: Props) {
                 slug={book.slug}
                 author={book.author}
                 authorSlug={book.author_slug}
-                coverUrl={book.cover_url}
+                coverUrl={book.cover_image_url}
                 rating={book.rating}
                 recommendationCount={book.recommendation_count}
               />
