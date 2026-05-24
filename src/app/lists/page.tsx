@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
   title: "Book Lists",
-  description: "Curated book lists and reading guides covering every genre and topic imaginable.",
+  description: "Browse curated book lists across nonfiction, fiction, business, science, history, personal development, and more.",
   path: "/lists",
 });
 

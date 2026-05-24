@@ -4,23 +4,23 @@ import { Footer } from "@/components/Footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "BookRecs — Discover Your Next Great Read",
+  title: "BookRecs | Source-Backed Book Recommendations",
   description:
-    "Discover the best books recommended by the world's most respected people.",
+    "Discover books recommended by notable people, curated lists, and reading series. Every recommendation is connected to source-backed evidence.",
   alternates: { canonical: "https://bookrecommendations.com" },
   openGraph: {
-    title: "BookRecs — Discover Your Next Great Read",
+    title: "BookRecs | Source-Backed Book Recommendations",
     description:
-      "Discover the best books recommended by the world's most respected people.",
+      "Discover books recommended by notable people, curated lists, and reading series. Every recommendation is connected to source-backed evidence.",
     url: "https://bookrecommendations.com",
     siteName: "BookRecs",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "BookRecs — Discover Your Next Great Read",
+    title: "BookRecs | Source-Backed Book Recommendations",
     description:
-      "Discover the best books recommended by the world's most respected people.",
+      "Discover books recommended by notable people, curated lists, and reading series. Every recommendation is connected to source-backed evidence.",
   },
 };
 

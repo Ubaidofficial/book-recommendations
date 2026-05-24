@@ -16,3 +16,4 @@
 # workflow
 - When a Figma URL cannot be accessed, provide detailed text design specs proactively — do not ask the user for screenshots or workarounds. Confidence: 0.65
 - When user says "Execute only. Do not plan.", skip reasoning/planning and go directly to implementation — no analysis commentary, just action. Confidence: 0.85
+- After implementing changes, run `npx next build` and update `CHANGELOG.md` to document what changed. Confidence: 0.70

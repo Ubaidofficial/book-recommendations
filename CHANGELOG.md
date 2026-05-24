@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-05-24 — Metadata Polish
+
+### Changed
+- All page metadata titles and descriptions updated for launch:
+  - Homepage: "BookRecs | Source-Backed Book Recommendations"
+  - /books: "Browse Books | BookRecs"
+  - /people: "Featured People | BookRecs"
+  - /lists: "Book Lists | BookRecs"
+  - /series: "Book Series in Order | BookRecs"
+  - /about: "About BookRecs"
+  - /methodology: "Methodology | BookRecs"
+  - /privacy: "Privacy Policy | BookRecs"
+  - /terms: "Terms of Use | BookRecs"
+  - /report-issue: "Report an Issue | BookRecs"
+- `pageMetadata()` now uses "BookRecs" brand (was "Book Recommendations")
+- All meta descriptions are human-readable, 130-160 characters, no SEO/internal jargon
+
 ## 2026-05-24 — People Page Data Quality
 
 ### Changed

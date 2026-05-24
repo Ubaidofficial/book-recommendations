@@ -3,7 +3,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
   title: "Privacy Policy",
-  description: "How BookRecs handles data, cookies, and your privacy.",
+  description: "Learn how BookRecs handles basic analytics, cookies, privacy, and user data for this book discovery website.",
   path: "/privacy",
 });
 

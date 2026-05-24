@@ -2,8 +2,8 @@ import { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
-  title: "About",
-  description: "Learn about BookRecs — how we collect and verify book recommendations from the world's most respected people.",
+  title: "About BookRecs",
+  description: "Learn how BookRecs helps readers discover books through source-backed recommendations from notable people and curated lists.",
   path: "/about",
 });
 

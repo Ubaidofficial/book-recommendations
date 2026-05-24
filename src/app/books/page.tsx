@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
   title: "Browse Books",
-  description: "Discover thousands of books recommended by the world's most respected people.",
+  description: "Explore recommended books ranked by recommendation signals, lists, series, ratings, and source-backed mentions.",
   path: "/books",
 });
 

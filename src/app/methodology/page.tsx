@@ -3,7 +3,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
   title: "Methodology",
-  description: "How BookRecs collects, verifies, and ranks book recommendations from notable people and trusted sources.",
+  description: "See how BookRecs collects, verifies, ranks, and quality-checks book recommendations from public sources.",
   path: "/methodology",
 });
 

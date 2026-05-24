@@ -6,8 +6,8 @@ import { PersonCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
-  title: "People",
-  description: "Browse notable people whose book recommendations shape what we read.",
+  title: "Featured People",
+  description: "Discover books recommended by authors, founders, leaders, creators, and public figures with source-backed recommendation proof.",
   path: "/people",
 });
 

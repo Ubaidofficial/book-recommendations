@@ -3,7 +3,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
   title: "Report an Issue",
-  description: "Report incorrect book data, recommendation sources, or other issues on BookRecs.",
+  description: "Report incorrect book details, recommendation sources, broken links, or other data quality issues on BookRecs.",
   path: "/report-issue",
 });
 

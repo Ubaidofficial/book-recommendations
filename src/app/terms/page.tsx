@@ -3,7 +3,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
   title: "Terms of Use",
-  description: "Terms of use for BookRecs, a book recommendation discovery platform.",
+  description: "Review the terms for using BookRecs, including accuracy limits, external links, acceptable use, and content policies.",
   path: "/terms",
 });
 

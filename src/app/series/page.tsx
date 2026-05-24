@@ -6,8 +6,8 @@ import { SeriesCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Book Series",
-  description: "Explore complete book series in reading order.",
+  title: "Book Series in Order",
+  description: "Explore book series and reading-order guides organized from available series data and recommendation signals.",
   path: "/series",
 });
 
