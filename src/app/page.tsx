@@ -34,13 +34,42 @@ export default async function HomePage() {
         getFeaturedSeries(CARD_COUNT),
       ]);
   } catch (e) {
-    console.error("[homepage] Supabase fetch failed, using fallback data:", e);
+    console.error("[homepage] QUERY_ERROR: Supabase fetch threw exception, using fallback data:", e);
   }
 
-  const books = featuredBooks.length > 0 ? featuredBooks : getFallbackBooks(CARD_COUNT);
-  const people = featuredPeople.length > 0 ? featuredPeople : getFallbackPeople(CARD_COUNT);
-  const lists = featuredLists.length > 0 ? featuredLists : getFallbackLists(CARD_COUNT);
-  const series = featuredSeries.length > 0 ? featuredSeries : getFallbackSeries(CARD_COUNT);
+  const books = (() => {
+    if (featuredBooks.length > 0) {
+      const withCovers = featuredBooks.filter(b => b.cover_url && /^https?:\/\//i.test(b.cover_url));
+      console.log(`[homepage] Popular Books: ${featuredBooks.length} rows, ${withCovers.length} with valid covers`);
+      return featuredBooks;
+    }
+    console.warn("[homepage] FALLBACK_BOOKS: zero rows returned from Supabase books query");
+    return getFallbackBooks(CARD_COUNT);
+  })();
+  const people = (() => {
+    if (featuredPeople.length > 0) {
+      console.log(`[homepage] Featured People: ${featuredPeople.length} rows`);
+      return featuredPeople;
+    }
+    console.warn("[homepage] FALLBACK_PEOPLE: zero rows returned from Supabase people query");
+    return getFallbackPeople(CARD_COUNT);
+  })();
+  const lists = (() => {
+    if (featuredLists.length > 0) {
+      console.log(`[homepage] Popular Lists: ${featuredLists.length} rows`);
+      return featuredLists;
+    }
+    console.warn("[homepage] FALLBACK_LISTS: zero rows returned from Supabase lists query");
+    return getFallbackLists(CARD_COUNT);
+  })();
+  const series = (() => {
+    if (featuredSeries.length > 0) {
+      console.log(`[homepage] Popular Series: ${featuredSeries.length} rows`);
+      return featuredSeries;
+    }
+    console.warn("[homepage] FALLBACK_SERIES: zero rows returned from Supabase series query");
+    return getFallbackSeries(CARD_COUNT);
+  })();
 
   let peopleWithCounts: (typeof people[number] & { recommendedCount: number; writtenCount: number })[] = [];
   try {

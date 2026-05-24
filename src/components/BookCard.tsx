@@ -27,7 +27,7 @@ export function BookCard({
       className="group block rounded-2xl border border-border bg-surface overflow-hidden hover:shadow-lg hover:border-accent/20 transition-all duration-200"
     >
       <div className="aspect-[2/3] bg-subtle overflow-hidden">
-        {coverUrl ? (
+        {coverUrl && /^https?:\/\//i.test(coverUrl) ? (
           <img
             src={coverUrl}
             alt={title}

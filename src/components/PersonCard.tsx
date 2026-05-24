@@ -23,7 +23,7 @@ export function PersonCard({
       className="group flex items-center gap-4 rounded-2xl border border-border bg-surface p-4 hover:shadow-lg hover:border-accent/20 transition-all duration-200"
     >
       <div className="w-14 h-14 rounded-full bg-subtle overflow-hidden shrink-0 ring-2 ring-border group-hover:ring-accent/30 transition-all flex items-center justify-center">
-        {avatarUrl ? (
+        {avatarUrl && /^https?:\/\//i.test(avatarUrl) ? (
           <img src={avatarUrl} alt={name} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <span className="text-lg font-bold text-muted/40">{name.charAt(0)}</span>

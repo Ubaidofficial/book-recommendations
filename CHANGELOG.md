@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-05-23 — Homepage Book Thumbnail Fix
+
+### Fixed
+- BookCard now validates `coverUrl` against `/^https?:\/\//` — relative or broken cover URLs render a placeholder icon instead of a broken image
+- PersonCard applies the same URL validation to avatar
+- Added server-side diagnostic logging to homepage: logs row counts and how many books have valid covers; logs explicit warning when any section falls back to fallback data (QUERY_ERROR vs zero rows)
+
 ## 2026-05-23 — Homepage Trust & Data QA
 
 ### Fixed
