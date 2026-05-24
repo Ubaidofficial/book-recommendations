@@ -646,7 +646,99 @@ export async function getSeriesIdBySlug(slug: string): Promise<string | null> {
   }
 }
 
-// --- Search ---
+// --- Data quality diagnostics (admin/internal use) ---
+
+export async function getBooksWithSuspiciousDescriptions(limit = 20): Promise<Book[]> {
+  try {
+    const { data, error } = await getSupabase()
+      .from("books")
+      .select("*")
+      .or("description.ilike.%goodreads%,description.ilike.%tanggal terbit%,description.ilike.%informasi lainnya%")
+      .order("recommendation_count", { ascending: false })
+      .limit(limit);
+
+    if (error) { logQueryError("getBooksWithSuspiciousDescriptions", error); return []; }
+    return data || [];
+  } catch (e) {
+    logQueryError("getBooksWithSuspiciousDescriptions", e);
+    return [];
+  }
+}
+
+export async function getBooksWithMissingCover(limit = 20): Promise<Book[]> {
+  try {
+    const { data, error } = await getSupabase()
+      .from("books")
+      .select("*")
+      .or("cover_image_url.is.null,cover_image_url.eq.")
+      .order("recommendation_count", { ascending: false })
+      .limit(limit);
+
+    if (error) { logQueryError("getBooksWithMissingCover", error); return []; }
+    return data || [];
+  } catch (e) {
+    logQueryError("getBooksWithMissingCover", e);
+    return [];
+  }
+}
+
+export async function getBooksWithInvalidRating(limit = 20): Promise<Book[]> {
+  try {
+    const { data, error } = await getSupabase()
+      .from("books")
+      .select("*")
+      .or("rating.lt.1,rating.gt.5,rating.is.null")
+      .order("recommendation_count", { ascending: false })
+      .limit(limit);
+
+    if (error) { logQueryError("getBooksWithInvalidRating", error); return []; }
+    return data || [];
+  } catch (e) {
+    logQueryError("getBooksWithInvalidRating", e);
+    return [];
+  }
+}
+
+export async function getBooksMissingDescription(limit = 20): Promise<Book[]> {
+  try {
+    const { data, error } = await getSupabase()
+      .from("books")
+      .select("*")
+      .is("description", null)
+      .order("recommendation_count", { ascending: false })
+      .limit(limit);
+
+    if (error) { logQueryError("getBooksMissingDescription", error); return []; }
+    return data || [];
+  } catch (e) {
+    logQueryError("getBooksMissingDescription", e);
+    return [];
+  }
+}
+
+export async function getHighRecBooksWithQualityIssues(limit = 20): Promise<Book[]> {
+  try {
+    // Books with recommendation_count > 0 but missing cover or short description
+    const { data, error } = await getSupabase()
+      .from("books")
+      .select("*")
+      .gt("recommendation_count", 0)
+      .order("recommendation_count", { ascending: false })
+      .limit(200);
+
+    if (error) { logQueryError("getHighRecBooksWithQualityIssues", error); return []; }
+    // Filter client-side for missing cover or suspicious description
+    const filtered = (data || []).filter((b: Book) => {
+      const noCover = !b.cover_image_url || b.cover_image_url.trim() === "";
+      const shortDesc = !b.description || b.description.trim().length < 80;
+      return noCover || shortDesc;
+    });
+    return filtered.slice(0, limit);
+  } catch (e) {
+    logQueryError("getHighRecBooksWithQualityIssues", e);
+    return [];
+  }
+}
 
 export async function searchBooks(q: string, limit = 8): Promise<Book[]> {
   if (!q || q.length < 2) return [];

@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-05-24 — Internal Data Quality Audit
+
+### Added
+- `/admin/data-quality` — internal diagnostics page with `robots: "noindex"`
+- 5 summary cards: sampled books, valid covers, local covers, missing desc, bad desc, bad ratings, has recs
+- 5 problem lists (20 items each):
+  - Books with suspicious descriptions (Goodreads/Tanggal Terbit markers)
+  - Books missing or with invalid covers
+  - Books with invalid ratings (<1, >5, null)
+  - Books missing descriptions
+  - High-recommendation books missing covers or descriptions
+- 5 diagnostic query functions in data.ts: `getBooksWithSuspiciousDescriptions`, `getBooksWithMissingCover`, `getBooksWithInvalidRating`, `getBooksMissingDescription`, `getHighRecBooksWithQualityIssues`
+
 ## 2026-05-24 — Production Crash Fix (onError + Supabase)
 
 ### Fixed
