@@ -19,18 +19,20 @@ export function Footer() {
             <nav className="flex flex-col gap-2.5 text-sm text-muted">
               <Link href="/about" className="hover:text-ink transition-colors">About</Link>
               <Link href="/methodology" className="hover:text-ink transition-colors">Methodology</Link>
-              <span className="text-muted/50 cursor-default">Report an issue</span>
             </nav>
           </div>
           <div>
-            <h4 className="font-semibold text-ink mb-4 text-sm tracking-tight">About</h4>
-            <p className="text-sm text-muted leading-relaxed">
-              BookRecs aggregates recommendations from the world&apos;s most respected people to help you find your next great read.
-            </p>
+            <h4 className="font-semibold text-ink mb-4 text-sm tracking-tight">Legal</h4>
+            <nav className="flex flex-col gap-2.5 text-sm text-muted">
+              <Link href="/privacy" className="hover:text-ink transition-colors">Privacy</Link>
+              <Link href="/terms" className="hover:text-ink transition-colors">Terms</Link>
+            </nav>
           </div>
           <div>
-            <h4 className="font-semibold text-ink mb-4 text-sm tracking-tight">BookRecs</h4>
-            <p className="text-xs text-muted">&copy; {new Date().getFullYear()} BookRecs. Built for readers.</p>
+            <h4 className="font-semibold text-ink mb-4 text-sm tracking-tight">Help</h4>
+            <nav className="flex flex-col gap-2.5 text-sm text-muted">
+              <Link href="/report-issue" className="hover:text-ink transition-colors">Report an issue</Link>
+            </nav>
           </div>
         </div>
         <div className="mt-10 pt-6 border-t border-border text-xs text-muted">

@@ -27,7 +27,6 @@ export function Header() {
           <Link href="/lists" className="hover:text-ink transition-colors">Lists</Link>
           <Link href="/series" className="hover:text-ink transition-colors">Series</Link>
           <Link href="/about" className="hover:text-ink transition-colors">About</Link>
-          <Link href="/methodology" className="hover:text-ink transition-colors">Methodology</Link>
         </nav>
 
         <button
@@ -58,7 +57,6 @@ export function Header() {
             <Link href="/lists" className="hover:text-ink transition-colors py-1" onClick={() => setMenuOpen(false)}>Lists</Link>
             <Link href="/series" className="hover:text-ink transition-colors py-1" onClick={() => setMenuOpen(false)}>Series</Link>
             <Link href="/about" className="hover:text-ink transition-colors py-1" onClick={() => setMenuOpen(false)}>About</Link>
-            <Link href="/methodology" className="hover:text-ink transition-colors py-1" onClick={() => setMenuOpen(false)}>Methodology</Link>
           </nav>
         </div>
       )}

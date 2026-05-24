@@ -36,11 +36,11 @@ export default function MethodologyPage() {
           publicly recommended them. Secondary ranking factors include recency, source quality, and the
           confidence score of each individual recommendation.
         </p>
-        <h2 className="text-xl font-bold text-ink mt-8">Indexing Policy</h2>
+        <h2 className="text-xl font-bold text-ink mt-8">Quality Standards</h2>
         <p>
-          Detail pages are set to noindex by default. Pages are only marked as indexable when they meet
-          our quality bar: complete metadata, verified data, and sufficient recommendation proof.
-          This prevents low-quality or incomplete pages from being indexed by search engines.
+          We only surface pages when they have enough useful information, such as clear metadata,
+          recommendation evidence, and related books or lists. Incomplete pages are kept out of
+          discovery until they are improved.
         </p>
       </div>
     </div>

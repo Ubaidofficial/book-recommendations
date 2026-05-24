@@ -45,9 +45,9 @@ export default function AboutPage() {
           so popular books with many endorsements naturally rise while hidden gems get visibility.
         </p>
         <p>
-          Detail pages are kept <strong>noindex</strong> by default until they meet our quality bar:
-          complete metadata, verified source data, and sufficient recommendation proof. This keeps search
-          engines focused on genuinely useful pages.
+          We only surface pages when they have enough useful information — clear metadata, recommendation
+          evidence, and related books or lists. Incomplete pages are kept out of discovery until they
+          are improved.
         </p>
 
         <h2 className="text-xl font-bold text-ink mt-10">Source-Backed Recommendations</h2>

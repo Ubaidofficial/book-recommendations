@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-05-24 — Legal Pages & Homepage Upgrade
+
+### Added
+- `/privacy` — privacy policy covering analytics, cookies, data handling
+- `/terms` — terms of use covering accuracy disclaimer, external links, acceptable use
+- `/report-issue` — report page with mailto link and types of issues that can be reported
+- `src/components/HomepageVisual.tsx` — original abstract SVG of people/recommendations/books with purple accent
+- Footer: Legal section (Privacy, Terms) and Help section (Report an issue)
+
+### Changed
+- Homepage restructured:
+  - Trust + Visual section below hero with 3 benefit points and abstract SVG
+  - "Popular Books" section
+  - "Books recommended by notable people" section (renamed from "Featured People")
+  - "Featured Reading Lists" section (renamed from "Popular Lists")
+  - "Popular Series" section
+  - "How recommendations are verified" section
+  - CTA section
+- Footer: reorganized into Discover / Info / Legal / Help columns
+- Header: kept focused — Books, People, Lists, Series, About only
+
+### Removed
+- "Why BookRecs?" 3-card grid replaced with trust + visual section
+- All remaining public copy mentioning noindex, indexing, SEO, Google, or search engines
+
+## 2026-05-24 — Nav & Methodology Copy Cleanup
+
+### Changed
+- Removed Methodology link from desktop and mobile header nav
+- Methodology link remains in footer under Info
+- `/methodology`: renamed "Indexing Policy" → "Quality Standards"
+- `/methodology`: rewritten to be user-facing — no mention of noindex, indexing, Google, or search engines
+- `/about`: removed noindex mention from quality standards paragraph, replaced with user-facing copy
+
 ## 2026-05-24 — Series Detail Page Quality
 
 ### Added
