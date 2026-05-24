@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026-05-24 — Series Detail Page Quality
+
+### Added
+- `getRelatedSeries()` in data.ts — returns popular series by book_count (excluding current, max 6)
+- Series detail page: reading order indicator ("#1, #2, #3..." badges)
+- Series detail page: "Reading order is based on available series metadata" explainer
+- Series detail page: "Explore more series" section with related series cards
+- Series detail page: "About this series" explainer section
+- Series detail page: fallback description when series has no description text
+
+### Changed
+- `getBooksBySeries()` default limit increased from 12 → 48
+- Series detail page restructured:
+  - Hero: displayTitle, book count badge (hidden when 0), description or fallback intro
+  - Books: ranked cards with "#N" position badges, up to 48 shown
+  - Empty state: "Books for this series are still being organized."
+  - Related series section hidden when empty
+- Book count badge hidden when 0
+
+## 2026-05-24 — List Detail Page Quality
+
+### Added
+- `getRelatedLists()` in data.ts — returns popular lists by book_count (excluding current list, max 6)
+- List detail page: "Explore more lists" section with related list cards
+- List detail page: "About this list" explainer section with ranking methodology
+- List detail page: fallback description when list has no description text
+
+### Changed
+- `getBooksForList()` default limit increased from 10 to 48
+- List detail page restructured:
+  - Hero: displayTitle, book count badge (hidden when 0), description or fallback intro copy, curator
+  - Books: ranked cards with position badges, up to 48 shown
+  - Empty state: "Books for this list are still being organized."
+  - Related lists section hidden when empty
+- Book count badge hidden when 0
+
 ## 2026-05-24 — Person Detail Page Quality
 
 ### Added

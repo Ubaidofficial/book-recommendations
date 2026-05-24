@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getListBySlug, getBooksForList } from "@/lib/data";
+import Link from "next/link";
+import { getListBySlug, getBooksForList, getRelatedLists } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { displayTitle } from "@/lib/display";
 import { itemListJsonLd } from "@/lib/jsonld";
@@ -16,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!list) return { robots: "noindex, follow" };
   return pageMetadata({
     title: displayTitle(list.title),
-    description: list.description,
+    description: list.description || `A curated collection of books in ${displayTitle(list.title)}.`,
     path: `/lists/${list.slug}`,
     robots: robotsDirective(list),
   });
@@ -27,41 +28,106 @@ export default async function ListDetailPage({ params }: Props) {
   const list = await getListBySlug(slug);
   if (!list) notFound();
 
-  const books = await getBooksForList(list.id, 10);
+  const [books, relatedLists] = await Promise.all([
+    getBooksForList(list.id, 48),
+    getRelatedLists(list.id, 6),
+  ]);
+
   const jsonld = itemListJsonLd(list, books);
+  const displayName = displayTitle(list.title);
+  const hasBooks = books.length > 0;
+  const hasDescription = list.description && list.description.length > 0;
+  const hasRelated = relatedLists.length > 0;
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
       {jsonld && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />
       )}
-      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Lists", href: "/lists" }, { label: displayTitle(list.title) }]} />
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Lists", href: "/lists" }, { label: displayName }]} />
+
       <div className="mb-10">
         <div className="flex items-start gap-3 flex-wrap mb-3">
-          <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">{displayTitle(list.title)}</h1>
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium shrink-0 mt-1">
-            {list.book_count} books
-          </span>
+          <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">{displayName}</h1>
+          {list.book_count > 0 && (
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium shrink-0 mt-1">
+              {list.book_count} books
+            </span>
+          )}
         </div>
-        <p className="text-base text-muted max-w-2xl leading-relaxed">{list.description}</p>
+        {hasDescription ? (
+          <p className="text-base text-muted max-w-2xl leading-relaxed">{list.description}</p>
+        ) : (
+          <p className="text-base text-muted max-w-2xl leading-relaxed">
+            A curated collection of books related to {displayName}, ranked by recommendation signals.
+          </p>
+        )}
         {list.curator && (
           <p className="text-sm text-accent font-medium mt-2">Curated by {list.curator}</p>
         )}
       </div>
-      {books.length === 0 ? (
-        <EmptyState message="No books in this list yet." />
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
+
+      {hasBooks ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5 mb-14">
           {books.map((book, i) => (
             <div key={book.id} className="relative">
               <span className="absolute top-2 left-2 z-10 w-6 h-6 rounded-full bg-accent text-white text-xs flex items-center justify-center font-bold shadow-sm">
                 {i + 1}
               </span>
-              <BookCard title={book.title} slug={book.slug} author={book.author} authorSlug={book.author_slug} coverUrl={book.cover_url} rating={book.rating} recommendationCount={book.recommendation_count} />
+              <BookCard
+                title={book.title}
+                slug={book.slug}
+                author={book.author}
+                authorSlug={book.author_slug}
+                coverUrl={book.cover_url}
+                rating={book.rating}
+                recommendationCount={book.recommendation_count}
+              />
             </div>
           ))}
         </div>
+      ) : (
+        <section className="mb-14">
+          <EmptyState message="Books for this list are still being organized." />
+        </section>
       )}
+
+      {/* Related Lists */}
+      {hasRelated && (
+        <section className="mb-14">
+          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Explore more lists</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {relatedLists.map((rl) => (
+              <Link
+                key={rl.id}
+                href={`/lists/${rl.slug}`}
+                className="p-3.5 rounded-xl border border-border bg-surface hover:shadow-md hover:border-accent/20 transition-all"
+              >
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <p className="text-sm font-semibold text-ink">{displayTitle(rl.title)}</p>
+                  {rl.book_count > 0 && (
+                    <span className="text-xs text-muted shrink-0">{rl.book_count} books</span>
+                  )}
+                </div>
+                {rl.description && (
+                  <p className="text-xs text-muted line-clamp-2">{rl.description}</p>
+                )}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* About this list */}
+      <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
+        <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">About this list</h2>
+        <p className="text-sm text-muted leading-relaxed">
+          {displayName} is built from recommendation and category data collected across public sources.
+          Books are ranked by their position in the list — those appearing higher have stronger placement
+          signals. Recommendation counts and ratings are shown where available so you can quickly
+          identify standout titles.
+        </p>
+      </section>
     </div>
   );
 }

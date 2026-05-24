@@ -14,6 +14,8 @@ Real search is implemented across all pages. Data presentation and trust signals
 - **Trust signals** — "Why BookRecs?" section, verification explainer, platform stats (98k+ books, 2k+ people, 350+ lists, 3.5k+ series)
 - **SEO utilities** — canonical URLs, `robotsDirective()` based on `index_status`, Open Graph, Twitter cards
 - **Person detail pages** — recommended books with proof data, authored books, source/proof compact list, 3-state empty handling
+- **List detail pages** — 48 books ranked by position, related lists, fallback descriptions, about sections
+- **Series detail pages** — 48 books in reading order, #N badges, related series, about sections
 - **JSON-LD placeholders** — Book, Person, ItemList schemas, only rendered when data is available
 - **Display utilities** — `displayTitle()` converts slug text to readable display text
 - **Visual theme** — purple/indigo accent (`#5b4fcf`), near-white background (`#faf9f7`), charcoal text (`#1b1b1f`), rounded-2xl editorial cards, purple accent badges, responsive mobile menu

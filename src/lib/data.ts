@@ -156,7 +156,7 @@ export async function getBooksByAuthor(personId: string, limit = 12): Promise<Bo
   }
 }
 
-export async function getBooksBySeries(seriesId: string, limit = 12): Promise<Book[]> {
+export async function getBooksBySeries(seriesId: string, limit = 48): Promise<Book[]> {
   try {
     const { data: rows, error } = await getSupabase()
       .from("book_series")
@@ -399,7 +399,7 @@ export async function getListBySlug(slug: string): Promise<BookList | null> {
 }
 
 // Books in a list (via book_lists junction table)
-export async function getBooksForList(listId: string, limit = 10): Promise<Book[]> {
+export async function getBooksForList(listId: string, limit = 48): Promise<Book[]> {
   try {
     const { data: rows, error } = await getSupabase()
       .from("book_lists")
@@ -412,6 +412,24 @@ export async function getBooksForList(listId: string, limit = 10): Promise<Book[
     return (rows || []).map((r: { books: unknown }) => r.books as Book);
   } catch (e) {
     logQueryError("getBooksForList", e);
+    return [];
+  }
+}
+
+// Related lists — other popular lists by book_count
+export async function getRelatedLists(listId: string, limit = 6): Promise<BookList[]> {
+  try {
+    const { data, error } = await getSupabase()
+      .from("lists")
+      .select("*")
+      .neq("id", listId)
+      .order("book_count", { ascending: false })
+      .limit(limit);
+
+    if (error) { logQueryError("getRelatedLists", error); return []; }
+    return data || [];
+  } catch (e) {
+    logQueryError("getRelatedLists", e);
     return [];
   }
 }
@@ -469,6 +487,24 @@ export async function getSeriesBySlug(slug: string): Promise<Series | null> {
   } catch (e) {
     logQueryError("getSeriesBySlug", e);
     return null;
+  }
+}
+
+// Related series — other popular series by book_count
+export async function getRelatedSeries(seriesId: string, limit = 6): Promise<Series[]> {
+  try {
+    const { data, error } = await getSupabase()
+      .from("series")
+      .select("*")
+      .neq("id", seriesId)
+      .order("book_count", { ascending: false })
+      .limit(limit);
+
+    if (error) { logQueryError("getRelatedSeries", error); return []; }
+    return data || [];
+  } catch (e) {
+    logQueryError("getRelatedSeries", e);
+    return [];
   }
 }
 
