@@ -10,6 +10,7 @@ Real search is implemented across all pages. Data presentation and trust signals
 - **Real search** — debounced global search dropdown (header + hero), server-side `?q=` filtering on all index pages, Supabase `ilike` queries
 - **Reusable component library** — BookCard, PersonCard, ListCard, SeriesCard, SearchBar, GlobalSearch, Breadcrumbs, SectionHeading, Header (with mobile menu), Footer
 - **Loading/empty states** — BookCardSkeleton, PersonCardSkeleton, ListCardSkeleton, EmptyState
+- **People quality filtering** — default view hides one-word names without signals; sorts by recs, quality, name; search bypasses filter
 - **Safe Supabase query layer** — all queries wrapped in try/catch, never crash a public page, fallback data for homepage
 - **Trust signals** — recommendations backed by real sources, verification explainer, platform stats (98k+ books, 2k+ people, 350+ lists, 3.5k+ series)
 - **SEO utilities** — canonical URLs, `robotsDirective()` based on `index_status`, Open Graph, Twitter cards

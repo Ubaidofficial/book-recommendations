@@ -233,6 +233,23 @@ export async function getFeaturedPeople(count = 4): Promise<Person[]> {
   }
 }
 
+// For the People index default view — fetches enough rows to filter weak names client-side
+export async function getQualityPeople(batch = 100): Promise<Person[]> {
+  try {
+    const { data, error } = await getSupabase()
+      .from("people")
+      .select("*")
+      .order("quality_score", { ascending: false })
+      .limit(batch);
+
+    if (error) { logQueryError("getQualityPeople", error); return []; }
+    return data || [];
+  } catch (e) {
+    logQueryError("getQualityPeople", e);
+    return [];
+  }
+}
+
 export async function getPersonBySlug(slug: string): Promise<Person | null> {
   try {
     const { data, error } = await getSupabase()

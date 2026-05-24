@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-05-24 — People Page Data Quality
+
+### Changed
+- People index default view now fetches top 100 by quality_score, then sorts client-side by:
+  recommendation_count desc → quality_score desc → name asc
+- One-word names (e.g. "Gross", "Sedaris") are hidden from default view unless they have
+  recommendation counts, written counts, or a bio
+- One-word names still appear in search results when explicitly searched
+- Search results skip the quality filter entirely
+- Default People page heading now reads "Featured people whose recommendations shape what we read"
+- Pagination label shows "Showing X of Y people" instead of page numbers
+- New `getQualityPeople()` in data.ts — fetches up to 100 people by quality_score for client-side filtering
+
 ## 2026-05-24 — Legal Pages & Homepage Upgrade
 
 ### Added
