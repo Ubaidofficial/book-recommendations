@@ -49,6 +49,14 @@ export interface BookList {
   created_at: string;
 }
 
+export interface RecommendationProof {
+  person: Person;
+  source_url: string | null;
+  source_name: string | null;
+  quote: string | null;
+  confidence_score: number | null;
+}
+
 export interface Series {
   id: string;
   slug: string;
@@ -456,6 +464,40 @@ export async function getRecommendersForBook(
     return (rows || []).map((r: { people: unknown }) => r.people as Person);
   } catch (e) {
     logQueryError("getRecommendersForBook", e);
+    return [];
+  }
+}
+
+export async function getRecommendationProof(
+  bookId: string,
+  limit = 10
+): Promise<RecommendationProof[]> {
+  try {
+    const { data: rows, error } = await getSupabase()
+      .from("book_recommendations")
+      .select("source_url, source_name, quote, confidence_score, people(*)")
+      .eq("book_id", bookId)
+      .order("confidence_score", { ascending: false })
+      .limit(limit);
+
+    if (error) { logQueryError("getRecommendationProof", error); return []; }
+    return (rows || []).map(
+      (r: {
+        source_url: string | null;
+        source_name: string | null;
+        quote: string | null;
+        confidence_score: number | null;
+        people: unknown;
+      }) => ({
+        person: r.people as Person,
+        source_url: r.source_url,
+        source_name: r.source_name,
+        quote: r.quote,
+        confidence_score: r.confidence_score,
+      })
+    );
+  } catch (e) {
+    logQueryError("getRecommendationProof", e);
     return [];
   }
 }

@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-05-24 — Book Detail Page & Recommendation Proof
+
+### Added
+- `getRecommendationProof()` in data.ts — returns full book_recommendations junction data (person, source_url, source_name, quote, confidence_score)
+- `RecommendationProof` interface in data.ts
+- Book detail page: recommendation proof cards showing recommender name/role, quote, "View source" link, confidence percentage
+- Book detail page: clean "No verified recommendation proof available yet" state when proof is empty
+- Book detail page: "Verified" badge when proof exists
+- Book detail page: placeholder cover design matching BookCard style
+
+### Changed
+- Book detail page fully restructured:
+  - Hero: title, author, rating, recommendation count (hidden when 0), Verified badge, series chip, description
+  - "Recommendation Proof" section (replaces old "Recommended By" without source data)
+  - "Appears In" lists section with displayTitle()
+  - "More from [Series]" section
+  - "Also by [Author]" section
+  - "What to read next" — merged author + series similar books, deduped, max 6
+  - All sections hide when empty
+- Lists use `displayTitle()` for display names
+
 ## 2026-05-24 — Real Search Implementation
 
 ### Added

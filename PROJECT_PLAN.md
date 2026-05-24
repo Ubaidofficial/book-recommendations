@@ -13,6 +13,7 @@ Real search is implemented across all pages. Data presentation and trust signals
 - **Safe Supabase query layer** — all queries wrapped in try/catch, never crash a public page, fallback data for homepage
 - **Trust signals** — "Why BookRecs?" section, verification explainer, platform stats (98k+ books, 2k+ people, 350+ lists, 3.5k+ series)
 - **SEO utilities** — canonical URLs, `robotsDirective()` based on `index_status`, Open Graph, Twitter cards
+- **Recommendation proof** — source URL, quote, confidence score shown per recommender; "No verified proof" state when empty
 - **JSON-LD placeholders** — Book, Person, ItemList schemas, only rendered when data is available
 - **Display utilities** — `displayTitle()` converts slug text to readable display text
 - **Visual theme** — purple/indigo accent (`#5b4fcf`), near-white background (`#faf9f7`), charcoal text (`#1b1b1f`), rounded-2xl editorial cards, purple accent badges, responsive mobile menu
@@ -35,8 +36,7 @@ Real search is implemented across all pages. Data presentation and trust signals
 
 ## Next Steps
 
-1. Populate Supabase tables with real data
+1. Populate Supabase tables with real data (recommendation sources, quotes, confidence scores)
 2. Set `index_status = 'index'` on high-quality rows
-3. Implement real pagination UI (page 2, 3, etc.)
-4. Create `/books/[slug]/recommendations` sub-page for recommendation proof
-5. Roll out more detail pages as quality data becomes available
+3. Ensure `cover_url` values are valid absolute URLs
+4. Create `/books/[slug]/recommendations` sub-page for full recommendation proof list
