@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-05-24 — Wrong-Language & Data Quality Fixes
+
+### Added
+- `isLikelyEnglish()` in dataQuality.ts — rejects Spanish (El libro, Traducido, vendidos, etc.), Indonesian (Tanggal Terbit, halaman, penerbit), French, and German metadata
+- English stopword ratio check: text must have >10% common English stopwords if ≥10 words
+- Non-ASCII accented word ratio check: rejects if >20% of words contain accented characters
+- `isUsefulDescription()` now requires `isLikelyEnglish()` pass
+
+### Changed
+- Author line hidden completely when `book.author` is empty — never renders naked "by"
+- "Verified" badge: only shown when ≥2 recommendations have valid source_url (was ≥1)
+- Proof section: renamed "Recommendation Proof" → "Recommendation Signals" unless ALL recs have source_url AND quote ≥50 chars
+- Bottom box title: changes to "How recommendation signals are reviewed" unless all recs fully verified
+- Quote cards: only show quote if length ≥50 chars (was ≥30); otherwise show "Recommended this book"
+- Quote cards: no source link rendered unless source_url is valid
+- Confidence always formatted via `formatConfidence()`; invalid (>100) values hidden
+- Cover images on detail page accept Supabase Storage, Open Library, and Google Books URLs; onError fallback works
+- `generateMetadata` handles missing author by falling back to book title alone
+
 ## 2026-05-24 — Data Quality Display Hardening
 
 ### Added

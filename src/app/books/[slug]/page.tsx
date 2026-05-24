@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ? book.description
       : undefined;
   return pageMetadata({
-    title: book.meta_title || `${book.title} by ${book.author}`,
+    title: book.meta_title || (book.author ? `${book.title} by ${book.author}` : book.title),
     description: desc || "",
     path: `/books/${book.slug}`,
     image: isValidHttpUrl(book.cover_url) ? book.cover_url : undefined,
@@ -68,8 +68,12 @@ export default async function BookDetailPage({ params }: Props) {
   // Determine proof quality
   const hasProof = proof.length > 0;
   const proofWithSource = proof.filter((p) => isValidHttpUrl(p.source_url));
-  const allVerified = hasProof && proofWithSource.length === proof.length;
-  const proofHeading = allVerified ? "Recommendation Proof" : "Recommendation Signals";
+  const showVerifiedBadge = proofWithSource.length >= 2;
+  const allFullyVerified = hasProof && proof.every((p) => isValidHttpUrl(p.source_url) && p.quote && p.quote.trim().length >= 50);
+  const proofHeading = allFullyVerified ? "Recommendation Proof" : "Recommendation Signals";
+  const bottomBoxTitle = allFullyVerified
+    ? "How recommendations are verified"
+    : "How recommendation signals are reviewed";
 
   const hasCover = isValidHttpUrl(book.cover_url);
   const showRating = isValidRating(book.rating);
@@ -77,6 +81,9 @@ export default async function BookDetailPage({ params }: Props) {
   const descriptionText = showDescription
     ? cleanDescription(book.description)
     : "Description is being reviewed for this book.";
+
+  // Author line
+  const hasAuthor = book.author && book.author.trim().length > 0;
 
   const hasLists = lists.length > 0;
   const hasSeries = book.series && book.series_slug;
@@ -129,7 +136,7 @@ export default async function BookDetailPage({ params }: Props) {
             {book.recommendation_count > 0 && (
               <span className="text-sm text-muted">{book.recommendation_count.toLocaleString()} recommendations</span>
             )}
-            {proofWithSource.length > 0 && (
+            {showVerifiedBadge && (
               <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-subtle border border-border text-xs text-muted font-medium">
                 <svg className="w-3 h-3 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
@@ -142,12 +149,14 @@ export default async function BookDetailPage({ params }: Props) {
           <h1 className="text-2xl md:text-4xl font-bold text-ink mb-2 tracking-tight">{book.title}</h1>
           {book.subtitle && <p className="text-base text-muted mb-2">{book.subtitle}</p>}
 
-          <p className="text-base text-muted mb-4">
-            by{" "}
-            <Link href={`/people/${book.author_slug}`} className="text-accent font-semibold hover:underline">
-              {book.author}
-            </Link>
-          </p>
+          {hasAuthor && (
+            <p className="text-base text-muted mb-4">
+              by{" "}
+              <Link href={`/people/${book.author_slug}`} className="text-accent font-semibold hover:underline">
+                {book.author}
+              </Link>
+            </p>
+          )}
 
           {hasSeries && (
             <Link
@@ -174,9 +183,8 @@ export default async function BookDetailPage({ params }: Props) {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {proof.map((p, i) => {
               const hasSource = isValidHttpUrl(p.source_url);
-              const hasQuote = p.quote && p.quote.trim().length > 30;
+              const hasQuote = p.quote && p.quote.trim().length >= 50;
               const conf = formatConfidence(p.confidence_score);
-              const hasAnything = hasSource || p.source_name || hasQuote;
 
               return (
                 <div
@@ -200,10 +208,12 @@ export default async function BookDetailPage({ params }: Props) {
                     </div>
                   </Link>
 
-                  {hasQuote && (
+                  {hasQuote ? (
                     <blockquote className="text-sm text-muted italic border-l-2 border-accent/20 pl-3 mb-2 line-clamp-3">
                       &ldquo;{p.quote}&rdquo;
                     </blockquote>
+                  ) : (
+                    <p className="text-xs text-muted/50">Recommended this book</p>
                   )}
 
                   <div className="flex items-center justify-between gap-2 text-xs mt-2">
@@ -296,7 +306,7 @@ export default async function BookDetailPage({ params }: Props) {
 
       {/* Methodology footer */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
-        <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">How recommendations are verified</h2>
+        <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">{bottomBoxTitle}</h2>
         <p className="text-sm text-muted leading-relaxed">
           Each recommendation is collected from a public source — interviews, articles, or curated lists —
           and linked to its original URL. Books with many verifiable recommendations from respected

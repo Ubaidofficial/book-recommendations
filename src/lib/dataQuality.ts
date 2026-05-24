@@ -33,11 +33,54 @@ export function formatConfidence(value: unknown): string | null {
   return Math.round(n) + "%";
 }
 
+// --- Language / junk detection ---
+
+const NON_ENGLISH_MARKERS = [
+  // Spanish
+  /\bel libro\b/i, /\btraducido\b/i, /\bvendidos\b/i, /\bla historia\b/i,
+  /\bidomas\b/i, /\bcomenzado\b/i, /\bhumanidad\b/i, /\baños\b/i,
+  /\busted\b/i, /\busted\b/i, /\bmuchos\b/i, /\bnuestra\b/i,
+  // Indonesian
+  /\btanggal terbit\b/i, /\binformasi lainnya\b/i, /\bhalaman\b/i,
+  /\bpenerbit\b/i, /\boleh\b/i,
+  // French
+  /\best un\b/i, /\bdans le\b/i, /\bpour les\b/i, /\bplus de\b/i,
+  // German
+  /\bund die\b/i, /\bfür die\b/i, /\bbuch ist\b/i,
+];
+
+// Common English stopwords — high ratio suggests English text
+const ENGLISH_STOPWORDS = new Set([
+  "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+  "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+  "this", "that", "it", "its", "he", "she", "they", "his", "her", "their",
+  "has", "have", "had", "not", "no", "who", "which", "will", "can", "may",
+  "one", "all", "about", "more", "some", "than", "also", "when", "into",
+]);
+
+export function isLikelyEnglish(text: string | null | undefined): boolean {
+  if (!text || typeof text !== "string") return false;
+  const trimmed = text.trim();
+  if (trimmed.length < 50) return true; // too short to judge
+  for (const m of NON_ENGLISH_MARKERS) {
+    if (m.test(trimmed)) return false;
+  }
+  const words = trimmed.toLowerCase().split(/[\s,.;:!?"']+/).filter(Boolean);
+  if (words.length < 10) return true;
+  const stopwordCount = words.filter((w) => ENGLISH_STOPWORDS.has(w)).length;
+  const ratio = stopwordCount / words.length;
+  if (ratio < 0.1) return false;
+
+  // Check for high ratio of accented/non-ASCII letters
+  const nonAsciiWords = words.filter((w) => /[^\x00-\x7F]/.test(w));
+  if (nonAsciiWords.length / words.length > 0.2) return false;
+
+  return true;
+}
+
 const SCRAPED_JUNK_PATTERNS = [
   /goodreads\s*profile/i,
   /books\s*read\s*section/i,
-  /tanggal\s*terbit/i,
-  /informasi\s*lainnya/i,
   /description\s*not\s*available/i,
   /no\s*description\s*available/i,
   /^\s*$/,
@@ -50,6 +93,7 @@ export function isUsefulDescription(value: string | null | undefined): boolean {
   for (const pattern of SCRAPED_JUNK_PATTERNS) {
     if (pattern.test(trimmed)) return false;
   }
+  if (!isLikelyEnglish(trimmed)) return false;
   return true;
 }
 
