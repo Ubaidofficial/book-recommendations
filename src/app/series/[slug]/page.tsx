@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getSeriesBySlug, getBooksBySeries } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
+import { displayTitle } from "@/lib/display";
 import { BookCard, Breadcrumbs, EmptyState } from "@/components";
 
 interface Props {
@@ -13,7 +14,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const series = await getSeriesBySlug(slug);
   if (!series) return { robots: "noindex, follow" };
   return pageMetadata({
-    title: series.title,
+    title: displayTitle(series.title),
     description: series.description,
     path: `/series/${series.slug}`,
     robots: robotsDirective(series),
@@ -29,10 +30,10 @@ export default async function SeriesDetailPage({ params }: Props) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
-      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Series", href: "/series" }, { label: series.title }]} />
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Series", href: "/series" }, { label: displayTitle(series.title) }]} />
       <div className="mb-10">
         <div className="flex items-start gap-3 flex-wrap mb-3">
-          <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">{series.title}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">{displayTitle(series.title)}</h1>
           <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium shrink-0 mt-1">
             {series.book_count} books
           </span>

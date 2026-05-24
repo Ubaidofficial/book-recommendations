@@ -11,7 +11,15 @@ export default function MethodologyPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-12">
       <h1 className="text-3xl font-bold text-ink mb-4 tracking-tight">Methodology</h1>
+
       <div className="prose prose-base text-muted max-w-none space-y-5 leading-relaxed">
+        <h2 className="text-xl font-bold text-ink mt-8">Platform Scale</h2>
+        <p>
+          BookRecs currently tracks over <strong>98,000 books</strong>, more than <strong>2,000 notable people</strong>,
+          over <strong>350 curated lists</strong>, and <strong>3,500+ book series</strong>. Every entry is linked to
+          verified sources where available.
+        </p>
+
         <h2 className="text-xl font-bold text-ink mt-8">Source Collection</h2>
         <p>
           We collect book recommendations from public sources including interviews, articles, books, podcasts,

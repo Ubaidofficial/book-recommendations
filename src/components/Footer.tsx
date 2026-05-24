@@ -19,6 +19,7 @@ export function Footer() {
             <nav className="flex flex-col gap-2.5 text-sm text-muted">
               <Link href="/about" className="hover:text-ink transition-colors">About</Link>
               <Link href="/methodology" className="hover:text-ink transition-colors">Methodology</Link>
+              <span className="text-muted/50 cursor-default">Report an issue</span>
             </nav>
           </div>
           <div>

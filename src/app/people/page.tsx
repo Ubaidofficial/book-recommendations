@@ -11,6 +11,12 @@ export const metadata: Metadata = pageMetadata({
   path: "/people",
 });
 
+function isWeakName(person: { name: string; role: string; bio: string }): boolean {
+  const trimmed = person.name.trim();
+  if (!trimmed.includes(" ")) return true;
+  return false;
+}
+
 export default async function PeoplePage() {
   const { data: people, total } = await getPeoplePaginated(1, 24);
 
@@ -23,6 +29,11 @@ export default async function PeoplePage() {
       return { ...p, recommendedCount: rc, writtenCount: wc };
     })
   );
+
+  const filtered = peopleWithCounts.filter(
+    (p) => !isWeakName(p) || p.recommendedCount > 0 || p.writtenCount > 0
+  );
+  const shown = filtered.length > 0 ? filtered : peopleWithCounts;
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
@@ -41,11 +52,11 @@ export default async function PeoplePage() {
           <option>Name A-Z</option>
         </select>
       </div>
-      {peopleWithCounts.length === 0 ? (
+      {shown.length === 0 ? (
         <EmptyState message="No people found." />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {peopleWithCounts.map((person) => (
+          {shown.slice(0, 24).map((person) => (
             <PersonCard
               key={person.id}
               name={person.name}
@@ -56,6 +67,14 @@ export default async function PeoplePage() {
               writtenCount={person.writtenCount}
             />
           ))}
+        </div>
+      )}
+      {total > 24 && (
+        <div className="flex items-center justify-center mt-10 gap-2">
+          <span className="text-sm text-muted">Page 1 of {Math.ceil(total / 24)}</span>
+          <span className="px-3 py-1.5 rounded-full bg-subtle border border-border text-xs text-muted">
+            More coming soon
+          </span>
         </div>
       )}
     </div>

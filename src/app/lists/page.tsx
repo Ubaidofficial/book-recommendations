@@ -40,6 +40,14 @@ export default async function ListsPage() {
           ))}
         </div>
       )}
+      {total > 24 && (
+        <div className="flex items-center justify-center mt-10 gap-2">
+          <span className="text-sm text-muted">Page 1 of {Math.ceil(total / 24)}</span>
+          <span className="px-3 py-1.5 rounded-full bg-subtle border border-border text-xs text-muted">
+            More coming soon
+          </span>
+        </div>
+      )}
     </div>
   );
 }

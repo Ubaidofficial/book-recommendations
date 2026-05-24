@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { displayTitle } from "@/lib/display";
 
 interface ListCardProps {
   title: string;
@@ -16,7 +17,7 @@ export function ListCard({ title, slug, description, bookCount, curator }: ListC
     >
       <div className="flex items-start justify-between gap-3 mb-2">
         <h3 className="font-semibold text-base text-ink group-hover:text-accent transition-colors leading-snug">
-          {title}
+          {displayTitle(title)}
         </h3>
         {bookCount > 0 && (
           <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium shrink-0">

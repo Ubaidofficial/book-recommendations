@@ -9,6 +9,9 @@
 # design
 - Design theme: purple accent color, warm background tones, rounded cards, editorial typography style. Confidence: 0.75
 
+# ui
+- Format slug-based text for display using a reusable `displayTitle()` helper — never show raw slug text (e.g., "enid-blyton-books-in-order") in the UI. Confidence: 0.65
+
 # workflow
 - When a Figma URL cannot be accessed, provide detailed text design specs proactively — do not ask the user for screenshots or workarounds. Confidence: 0.65
 - When user says "Execute only. Do not plan.", skip reasoning/planning and go directly to implementation — no analysis commentary, just action. Confidence: 0.75

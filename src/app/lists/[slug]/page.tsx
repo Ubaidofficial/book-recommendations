@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getListBySlug, getBooksForList } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
+import { displayTitle } from "@/lib/display";
 import { itemListJsonLd } from "@/lib/jsonld";
 import { BookCard, Breadcrumbs, EmptyState } from "@/components";
 
@@ -14,7 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const list = await getListBySlug(slug);
   if (!list) return { robots: "noindex, follow" };
   return pageMetadata({
-    title: list.title,
+    title: displayTitle(list.title),
     description: list.description,
     path: `/lists/${list.slug}`,
     robots: robotsDirective(list),
@@ -34,10 +35,10 @@ export default async function ListDetailPage({ params }: Props) {
       {jsonld && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />
       )}
-      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Lists", href: "/lists" }, { label: list.title }]} />
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Lists", href: "/lists" }, { label: displayTitle(list.title) }]} />
       <div className="mb-10">
         <div className="flex items-start gap-3 flex-wrap mb-3">
-          <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">{list.title}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">{displayTitle(list.title)}</h1>
           <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium shrink-0 mt-1">
             {list.book_count} books
           </span>
