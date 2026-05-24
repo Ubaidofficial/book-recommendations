@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-05-24 — Person Detail Page Quality
+
+### Added
+- `getPersonRecommendationProof()` in data.ts — returns books with source_url, quote, confidence_score from book_recommendations
+- `PersonRecommendationProof` interface
+- Person detail page: compact proof list with book title, quote, "View source" link, confidence percentage (top 10 with source data)
+- Person detail page: "About this profile" section with recommendation count and authored count
+
+### Changed
+- Person detail page restructured:
+  - Hero: avatar with initial fallback, name, role, bio (hidden if empty), badges (hidden when 0), "Profile source →" link
+  - "Books [Name] Recommends" — cards from proof data, sorted by confidence_score desc
+  - Empty state when no recommendations: "No verified recommendation data available yet."
+  - "Books by [Name]" — hidden when empty
+  - "Source & Proof" — 3 states: compact proof rows, "recommendations exist but sources pending", general explainer
+- Zero-count badges hidden everywhere
+- All queries limited to 24 rows max
+
 ## 2026-05-24 — Book Detail Page & Recommendation Proof
 
 ### Added

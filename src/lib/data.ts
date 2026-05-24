@@ -299,6 +299,49 @@ export async function getPersonRecommendedBooks(personId: string, limit = 12): P
   }
 }
 
+// Person recommendations with full proof data (source, quote, confidence)
+export interface PersonRecommendationProof {
+  book: Book;
+  source_url: string | null;
+  source_name: string | null;
+  quote: string | null;
+  confidence_score: number | null;
+}
+
+export async function getPersonRecommendationProof(
+  personId: string,
+  limit = 24
+): Promise<PersonRecommendationProof[]> {
+  try {
+    const { data: rows, error } = await getSupabase()
+      .from("book_recommendations")
+      .select("source_url, source_name, quote, confidence_score, books(*)")
+      .eq("person_id", personId)
+      .order("confidence_score", { ascending: false })
+      .limit(limit);
+
+    if (error) { logQueryError("getPersonRecommendationProof", error); return []; }
+    return (rows || []).map(
+      (r: {
+        source_url: string | null;
+        source_name: string | null;
+        quote: string | null;
+        confidence_score: number | null;
+        books: unknown;
+      }) => ({
+        book: r.books as Book,
+        source_url: r.source_url,
+        source_name: r.source_name,
+        quote: r.quote,
+        confidence_score: r.confidence_score,
+      })
+    );
+  } catch (e) {
+    logQueryError("getPersonRecommendationProof", e);
+    return [];
+  }
+}
+
 // --- Lists ---
 
 export async function getListsPaginated(
