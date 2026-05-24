@@ -16,7 +16,7 @@ import {
   isUsefulDescription,
   uniqueByNormalizedText,
 } from "@/lib/dataQuality";
-import { BookCard, Breadcrumbs } from "@/components";
+import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -86,11 +86,11 @@ export default async function PersonDetailPage({ params }: Props) {
       <div className="flex flex-col sm:flex-row items-start gap-6 mb-14">
         <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-subtle overflow-hidden shrink-0 ring-3 ring-border flex items-center justify-center">
           {hasAvatar ? (
-            <img
+            <SafeImage
               src={person.avatar_url}
               alt={person.name}
               className="w-full h-full object-cover"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              fallback={<span className="text-2xl font-bold text-muted/40">{person.name.charAt(0)}</span>}
             />
           ) : (
             <span className="text-2xl font-bold text-muted/40">{person.name.charAt(0)}</span>

@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-05-24 — Production Crash Fix (onError + Supabase)
+
+### Fixed
+- Created `src/components/SafeImage.tsx` — client component with `useState` for onError fallback
+- Removed all inline `onError` handlers from server components (book detail, person detail, BookCard)
+- BookCard now uses SafeImage for cover rendering
+- Book detail page: hero image uses SafeImage with fallback placeholder
+- Person detail page: avatar uses SafeImage with initial-letter fallback
+- `getBooksByAuthor()`: removed `.order("rank", { foreignTable: "books" })` — `rank` is on the junction table, not books, causing SQL error
+- Removed `count: "exact"` from 4 paginated queries (books, people, lists, series) to avoid timeout on large tables
+- Total count now uses `data.length` instead of `count(*)` — fast and sufficient for current limits
+
 ## 2026-05-24 — Production Crash Fix
 
 ### Fixed

@@ -93,14 +93,14 @@ export async function getBooksPaginated(
     const col = sort === "title" ? "title" : sort;
     const asc = sort === "title";
 
-    const { data, count, error } = await getSupabase()
+    const { data, error } = await getSupabase()
       .from("books")
-      .select("*", { count: "exact" })
+      .select("*")
       .order(col, { ascending: asc })
       .range(from, to);
 
     if (error) { logQueryError("getBooksPaginated", error); return { data: [], total: 0, page, pageSize }; }
-    return { data: data || [], total: count || 0, page, pageSize };
+    return { data: data || [], total: (data || []).length, page, pageSize };
   } catch (e) {
     logQueryError("getBooksPaginated", e);
     return { data: [], total: 0, page, pageSize };
@@ -145,7 +145,6 @@ export async function getBooksByAuthor(personId: string, limit = 12): Promise<Bo
       .from("book_authors")
       .select("books(*)")
       .eq("person_id", personId)
-      .order("rank", { ascending: true, foreignTable: "books" })
       .limit(limit);
 
     if (error) { logQueryError("getBooksByAuthor", error); return []; }
@@ -203,14 +202,14 @@ export async function getPeoplePaginated(
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const { data, count, error } = await getSupabase()
+    const { data, error } = await getSupabase()
       .from("people")
-      .select("*", { count: "exact" })
+      .select("*")
       .order("quality_score", { ascending: false })
       .range(from, to);
 
     if (error) { logQueryError("getPeoplePaginated", error); return { data: [], total: 0, page, pageSize }; }
-    return { data: data || [], total: count || 0, page, pageSize };
+    return { data: data || [], total: (data || []).length, page, pageSize };
   } catch (e) {
     logQueryError("getPeoplePaginated", e);
     return { data: [], total: 0, page, pageSize };
@@ -369,14 +368,14 @@ export async function getListsPaginated(
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const { data, count, error } = await getSupabase()
+    const { data, error } = await getSupabase()
       .from("lists")
-      .select("*", { count: "exact" })
+      .select("*")
       .order("book_count", { ascending: false })
       .range(from, to);
 
     if (error) { logQueryError("getListsPaginated", error); return { data: [], total: 0, page, pageSize }; }
-    return { data: data || [], total: count || 0, page, pageSize };
+    return { data: data || [], total: (data || []).length, page, pageSize };
   } catch (e) {
     logQueryError("getListsPaginated", e);
     return { data: [], total: 0, page, pageSize };
@@ -461,14 +460,14 @@ export async function getSeriesPaginated(
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const { data, count, error } = await getSupabase()
+    const { data, error } = await getSupabase()
       .from("series")
-      .select("*", { count: "exact" })
+      .select("*")
       .order("book_count", { ascending: false })
       .range(from, to);
 
     if (error) { logQueryError("getSeriesPaginated", error); return { data: [], total: 0, page, pageSize }; }
-    return { data: data || [], total: count || 0, page, pageSize };
+    return { data: data || [], total: (data || []).length, page, pageSize };
   } catch (e) {
     logQueryError("getSeriesPaginated", e);
     return { data: [], total: 0, page, pageSize };
