@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { getPeoplePaginated, getPersonRecommendedCount, getPersonWrittenCount } from "@/lib/data";
+import { getPeoplePaginated, getPersonRecommendedCount, getPersonWrittenCount, searchPeople } from "@/lib/data";
 import { pageMetadata } from "@/lib/seo";
 import { PersonCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
 
@@ -17,8 +17,22 @@ function isWeakName(person: { name: string; role: string; bio: string }): boolea
   return false;
 }
 
-export default async function PeoplePage() {
-  const { data: people, total } = await getPeoplePaginated(1, 24);
+interface Props {
+  searchParams: Promise<{ q?: string }>;
+}
+
+export default async function PeoplePage({ searchParams }: Props) {
+  const { q } = await searchParams;
+
+  let peopleResult;
+  if (q && q.length >= 2) {
+    const data = await searchPeople(q, 24);
+    peopleResult = { data, total: data.length };
+  } else {
+    peopleResult = await getPeoplePaginated(1, 24);
+  }
+
+  const { data: people, total } = peopleResult;
 
   const peopleWithCounts = await Promise.all(
     people.map(async (p) => {
@@ -30,9 +44,9 @@ export default async function PeoplePage() {
     })
   );
 
-  const filtered = peopleWithCounts.filter(
-    (p) => !isWeakName(p) || p.recommendedCount > 0 || p.writtenCount > 0
-  );
+  const filtered = q
+    ? peopleWithCounts
+    : peopleWithCounts.filter((p) => !isWeakName(p) || p.recommendedCount > 0 || p.writtenCount > 0);
   const shown = filtered.length > 0 ? filtered : peopleWithCounts;
 
   return (
@@ -40,10 +54,12 @@ export default async function PeoplePage() {
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "People" }]} />
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">People</h1>
-        <p className="text-base text-muted">Discover the people behind the recommendations.</p>
+        <p className="text-base text-muted">
+          {q ? `Results for "${q}"` : "Discover the people behind the recommendations."}
+        </p>
       </div>
       <div className="mb-8">
-        <SearchBar placeholder="Search people by name or role…" basePath="/people" />
+        <SearchBar placeholder="Search people by name or role…" />
       </div>
       <div className="flex items-center justify-between mb-6 text-sm">
         <span className="text-muted">{total.toLocaleString()} people</span>
@@ -53,7 +69,7 @@ export default async function PeoplePage() {
         </select>
       </div>
       {shown.length === 0 ? (
-        <EmptyState message="No people found." />
+        <EmptyState message={q ? `No people match "${q}".` : "No people found."} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {shown.slice(0, 24).map((person) => (
@@ -69,7 +85,7 @@ export default async function PeoplePage() {
           ))}
         </div>
       )}
-      {total > 24 && (
+      {total > 24 && !q && (
         <div className="flex items-center justify-center mt-10 gap-2">
           <span className="text-sm text-muted">Page 1 of {Math.ceil(total / 24)}</span>
           <span className="px-3 py-1.5 rounded-full bg-subtle border border-border text-xs text-muted">

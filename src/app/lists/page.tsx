@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { getListsPaginated } from "@/lib/data";
+import { getListsPaginated, searchLists } from "@/lib/data";
 import { pageMetadata } from "@/lib/seo";
 import { ListCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
 
@@ -11,18 +11,34 @@ export const metadata: Metadata = pageMetadata({
   path: "/lists",
 });
 
-export default async function ListsPage() {
-  const { data: lists, total } = await getListsPaginated(1, 24);
+interface Props {
+  searchParams: Promise<{ q?: string }>;
+}
+
+export default async function ListsPage({ searchParams }: Props) {
+  const { q } = await searchParams;
+
+  let listsResult;
+  if (q && q.length >= 2) {
+    const data = await searchLists(q, 24);
+    listsResult = { data, total: data.length };
+  } else {
+    listsResult = await getListsPaginated(1, 24);
+  }
+
+  const { data: lists, total } = listsResult;
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Lists" }]} />
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Book Lists</h1>
-        <p className="text-base text-muted">Curated collections of outstanding books.</p>
+        <p className="text-base text-muted">
+          {q ? `Results for "${q}"` : "Curated collections of outstanding books."}
+        </p>
       </div>
       <div className="mb-8">
-        <SearchBar placeholder="Search lists by title or topic…" basePath="/lists" />
+        <SearchBar placeholder="Search lists by title or topic…" />
       </div>
       <div className="flex items-center justify-between mb-6 text-sm">
         <span className="text-muted">{total} lists</span>
@@ -32,7 +48,7 @@ export default async function ListsPage() {
         </select>
       </div>
       {lists.length === 0 ? (
-        <EmptyState message="No lists found." />
+        <EmptyState message={q ? `No lists match "${q}".` : "No lists found."} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {lists.map((list) => (
@@ -40,7 +56,7 @@ export default async function ListsPage() {
           ))}
         </div>
       )}
-      {total > 24 && (
+      {total > 24 && !q && (
         <div className="flex items-center justify-center mt-10 gap-2">
           <span className="text-sm text-muted">Page 1 of {Math.ceil(total / 24)}</span>
           <span className="px-3 py-1.5 rounded-full bg-subtle border border-border text-xs text-muted">

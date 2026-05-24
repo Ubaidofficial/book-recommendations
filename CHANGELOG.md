@@ -1,5 +1,49 @@
 # Changelog
 
+## 2026-05-24 — Real Search Implementation
+
+### Added
+- `searchBooks()`, `searchPeople()`, `searchLists()`, `searchSeries()` in `src/lib/data.ts` — Supabase `ilike` queries across title/author/name/role/description
+- `src/components/GlobalSearch.tsx` — debounced (300ms) client-side search dropdown for header and homepage hero
+  - Minimum 2 characters before querying
+  - Results grouped by type (Books, People, Lists, Series) with max 4 each
+  - "View all →" links to filtered index pages
+  - Loading spinner, "No results found", "Search unavailable" error state
+  - Click outside to dismiss, Escape to close
+  - All result links are crawlable `<Link>` elements
+
+### Changed
+- `Header.tsx`: replaced disabled placeholder with GlobalSearch (desktop + mobile)
+- `page.tsx` (homepage): replaced disabled SearchBar with GlobalSearch hero search
+- `SearchBar.tsx`: now a live input that submits `?q=` param on Enter with clear button
+- `/books`, `/people`, `/lists`, `/series`: accept `searchParams.q` for server-side filtering via search functions
+- All index pages: show "Results for X" heading when searching; EmptyState messages reflect search context
+
+### Fixed
+- Search is genuinely functional — no more fake/disabled search UI
+
+## 2026-05-24 — Data Presentation Cleanup
+
+### Added
+- `src/lib/display.ts` — reusable `displayTitle()` helper that converts slug text (e.g. "enid-blyton-books-in-order") to display text ("Enid Blyton Books In Order")
+- Pagination placeholders on /books, /people, /lists, /series showing "Page X of Y — More coming soon" when total exceeds page size
+- About page: platform stat cards (98k+ Books, 2k+ People, 350+ Lists, 3.5k+ Series)
+- Methodology page: platform scale section with stats
+- Footer: "Report an issue" link
+
+### Changed
+- SeriesCard and ListCard now apply `displayTitle()` — no raw slug text in UI
+- Series detail page (h1, breadcrumbs, metadata) uses `displayTitle()`
+- List detail page (h1, breadcrumbs, metadata) uses `displayTitle()`
+- BookCard placeholder cover redesigned: purple gradient background, book title text, small book icon — looks intentional, not like a broken image
+- SearchBar is now disabled with "Coming soon" label — no longer pretends search is functional
+- Header search input: disabled, "coming soon" placeholder
+- People index: filters single-word names unless they have recommendation/book counts
+- People index: shows only first 24 results with pagination placeholder
+
+### Fixed
+- No raw slug-formatted text appears anywhere in UI
+
 ## 2026-05-23 — Homepage Book Thumbnail Fix
 
 ### Fixed

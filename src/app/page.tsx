@@ -13,7 +13,7 @@ import {
   getFallbackLists,
   getFallbackSeries,
 } from "@/lib/fallback";
-import { BookCard, PersonCard, ListCard, SeriesCard, SearchBar, SectionHeading } from "@/components";
+import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading } from "@/components";
 
 export const dynamic = "force-dynamic";
 
@@ -98,7 +98,7 @@ export default async function HomePage() {
           <p className="text-base md:text-lg text-muted max-w-xl mx-auto mb-10 leading-relaxed">
             Explore hand-picked book recommendations from authors, leaders, and thinkers. Backed by real sources.
           </p>
-          <SearchBar placeholder="Search for books, authors, or topics…" />
+          <GlobalSearch placeholder="Search for books, authors, or topics…" className="max-w-2xl mx-auto" />
           <div className="mt-7 flex items-center justify-center gap-3 text-sm text-muted">
             <span>Popular:</span>
             <Link href="/books" className="hover:text-ink transition-colors">Fiction</Link>

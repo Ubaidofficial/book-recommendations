@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { getSeriesPaginated } from "@/lib/data";
+import { getSeriesPaginated, searchSeries } from "@/lib/data";
 import { pageMetadata } from "@/lib/seo";
 import { SeriesCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
 
@@ -11,18 +11,34 @@ export const metadata: Metadata = pageMetadata({
   path: "/series",
 });
 
-export default async function SeriesPage() {
-  const { data: seriesList, total } = await getSeriesPaginated(1, 24);
+interface Props {
+  searchParams: Promise<{ q?: string }>;
+}
+
+export default async function SeriesPage({ searchParams }: Props) {
+  const { q } = await searchParams;
+
+  let seriesResult;
+  if (q && q.length >= 2) {
+    const data = await searchSeries(q, 24);
+    seriesResult = { data, total: data.length };
+  } else {
+    seriesResult = await getSeriesPaginated(1, 24);
+  }
+
+  const { data: seriesList, total } = seriesResult;
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Series" }]} />
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Book Series</h1>
-        <p className="text-base text-muted">Complete book series in reading order.</p>
+        <p className="text-base text-muted">
+          {q ? `Results for "${q}"` : "Complete book series in reading order."}
+        </p>
       </div>
       <div className="mb-8">
-        <SearchBar placeholder="Search series by title…" basePath="/series" />
+        <SearchBar placeholder="Search series by title…" />
       </div>
       <div className="flex items-center justify-between mb-6 text-sm">
         <span className="text-muted">{total} series</span>
@@ -32,7 +48,7 @@ export default async function SeriesPage() {
         </select>
       </div>
       {seriesList.length === 0 ? (
-        <EmptyState message="No series found." />
+        <EmptyState message={q ? `No series match "${q}".` : "No series found."} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {seriesList.map((series) => (
@@ -40,7 +56,7 @@ export default async function SeriesPage() {
           ))}
         </div>
       )}
-      {total > 24 && (
+      {total > 24 && !q && (
         <div className="flex items-center justify-center mt-10 gap-2">
           <span className="text-sm text-muted">Page 1 of {Math.ceil(total / 24)}</span>
           <span className="px-3 py-1.5 rounded-full bg-subtle border border-border text-xs text-muted">

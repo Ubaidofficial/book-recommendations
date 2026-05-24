@@ -1,17 +1,20 @@
 # Project Plan
 
-## Current Phase: Visual Theme Integration
+## Current Phase: Launch Readiness QA
 
-Figma-inspired editorial theme has been applied across all 12 routes and components. Purple/indigo accent color system, rounded editorial cards, and responsive mobile layouts are complete.
+Real search is implemented across all pages. Data presentation and trust signals are in place. The platform is ready for production review.
 
 ## What Is Built
 
 - **12 routes** — homepage, 5 index pages, 4 detail page types, about, methodology
-- **Reusable component library** — BookCard, PersonCard, ListCard, SeriesCard, SearchBar, Breadcrumbs, SectionHeading, Header (with mobile menu), Footer
+- **Real search** — debounced global search dropdown (header + hero), server-side `?q=` filtering on all index pages, Supabase `ilike` queries
+- **Reusable component library** — BookCard, PersonCard, ListCard, SeriesCard, SearchBar, GlobalSearch, Breadcrumbs, SectionHeading, Header (with mobile menu), Footer
 - **Loading/empty states** — BookCardSkeleton, PersonCardSkeleton, ListCardSkeleton, EmptyState
-- **Supabase query layer** — all queries use actual table names, junction tables, and column names from the real schema
+- **Safe Supabase query layer** — all queries wrapped in try/catch, never crash a public page, fallback data for homepage
+- **Trust signals** — "Why BookRecs?" section, verification explainer, platform stats (98k+ books, 2k+ people, 350+ lists, 3.5k+ series)
 - **SEO utilities** — canonical URLs, `robotsDirective()` based on `index_status`, Open Graph, Twitter cards
 - **JSON-LD placeholders** — Book, Person, ItemList schemas, only rendered when data is available
+- **Display utilities** — `displayTitle()` converts slug text to readable display text
 - **Visual theme** — purple/indigo accent (`#5b4fcf`), near-white background (`#faf9f7`), charcoal text (`#1b1b1f`), rounded-2xl editorial cards, purple accent badges, responsive mobile menu
 - **Documentation** — README.md, PROJECT_PLAN.md, DATABASE.md, SEO_STRATEGY.md, CHANGELOG.md
 
@@ -27,12 +30,13 @@ Figma-inspired editorial theme has been applied across all 12 routes and compone
 - Quotes page
 - Add Book flow
 - Mass-indexing of detail pages
+- Full pagination (page 1 + "More coming soon" placeholder in place)
+- Dark mode
 
 ## Next Steps
 
 1. Populate Supabase tables with real data
 2. Set `index_status = 'index'` on high-quality rows
-3. Add search functionality (backend query + debounced search)
-4. Implement pagination UI on index pages
-5. Create `/books/[slug]/recommendations` sub-page for recommendation proof
-6. Roll out more detail pages as quality data becomes available
+3. Implement real pagination UI (page 2, 3, etc.)
+4. Create `/books/[slug]/recommendations` sub-page for recommendation proof
+5. Roll out more detail pages as quality data becomes available

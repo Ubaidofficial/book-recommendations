@@ -508,3 +508,81 @@ export async function getSeriesIdBySlug(slug: string): Promise<string | null> {
     return null;
   }
 }
+
+// --- Search ---
+
+export async function searchBooks(q: string, limit = 8): Promise<Book[]> {
+  if (!q || q.length < 2) return [];
+  try {
+    const pattern = `%${q}%`;
+    const { data, error } = await getSupabase()
+      .from("books")
+      .select("*")
+      .or(`title.ilike.${pattern},author.ilike.${pattern}`)
+      .order("recommendation_count", { ascending: false })
+      .limit(limit);
+
+    if (error) { logQueryError("searchBooks", error); return []; }
+    return data || [];
+  } catch (e) {
+    logQueryError("searchBooks", e);
+    return [];
+  }
+}
+
+export async function searchPeople(q: string, limit = 8): Promise<Person[]> {
+  if (!q || q.length < 2) return [];
+  try {
+    const pattern = `%${q}%`;
+    const { data, error } = await getSupabase()
+      .from("people")
+      .select("*")
+      .or(`name.ilike.${pattern},role.ilike.${pattern}`)
+      .order("quality_score", { ascending: false })
+      .limit(limit);
+
+    if (error) { logQueryError("searchPeople", error); return []; }
+    return data || [];
+  } catch (e) {
+    logQueryError("searchPeople", e);
+    return [];
+  }
+}
+
+export async function searchLists(q: string, limit = 8): Promise<BookList[]> {
+  if (!q || q.length < 2) return [];
+  try {
+    const pattern = `%${q}%`;
+    const { data, error } = await getSupabase()
+      .from("lists")
+      .select("*")
+      .or(`title.ilike.${pattern},description.ilike.${pattern}`)
+      .order("book_count", { ascending: false })
+      .limit(limit);
+
+    if (error) { logQueryError("searchLists", error); return []; }
+    return data || [];
+  } catch (e) {
+    logQueryError("searchLists", e);
+    return [];
+  }
+}
+
+export async function searchSeries(q: string, limit = 8): Promise<Series[]> {
+  if (!q || q.length < 2) return [];
+  try {
+    const pattern = `%${q}%`;
+    const { data, error } = await getSupabase()
+      .from("series")
+      .select("*")
+      .or(`title.ilike.${pattern},description.ilike.${pattern}`)
+      .order("book_count", { ascending: false })
+      .limit(limit);
+
+    if (error) { logQueryError("searchSeries", error); return []; }
+    return data || [];
+  } catch (e) {
+    logQueryError("searchSeries", e);
+    return [];
+  }
+}

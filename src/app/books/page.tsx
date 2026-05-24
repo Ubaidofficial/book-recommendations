@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { getBooksPaginated } from "@/lib/data";
+import { getBooksPaginated, searchBooks } from "@/lib/data";
 import { pageMetadata } from "@/lib/seo";
 import { BookCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
 
@@ -11,18 +11,34 @@ export const metadata: Metadata = pageMetadata({
   path: "/books",
 });
 
-export default async function BooksPage() {
-  const { data: books, total } = await getBooksPaginated(1, 24);
+interface Props {
+  searchParams: Promise<{ q?: string }>;
+}
+
+export default async function BooksPage({ searchParams }: Props) {
+  const { q } = await searchParams;
+
+  let booksResult;
+  if (q && q.length >= 2) {
+    const data = await searchBooks(q, 24);
+    booksResult = { data, total: data.length };
+  } else {
+    booksResult = await getBooksPaginated(1, 24);
+  }
+
+  const { data: books, total } = booksResult;
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Books" }]} />
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Browse Books</h1>
-        <p className="text-base text-muted">Discover books recommended by people you trust.</p>
+        <p className="text-base text-muted">
+          {q ? `Results for "${q}"` : "Discover books recommended by people you trust."}
+        </p>
       </div>
       <div className="mb-8">
-        <SearchBar placeholder="Search by title, author, or topic…" />
+        <SearchBar placeholder="Search by title or author…" />
       </div>
       <div className="flex items-center gap-3 mb-6 overflow-x-auto pb-2">
         {["All", "Fiction", "Non-Fiction", "Science Fiction", "Classics", "History", "Self-Help"].map((f, i) => (
@@ -47,7 +63,7 @@ export default async function BooksPage() {
         </select>
       </div>
       {books.length === 0 ? (
-        <EmptyState message="No books found. Check back soon." />
+        <EmptyState message={q ? `No books match "${q}".` : "No books found. Check back soon."} />
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
           {books.map((book) => (
@@ -55,7 +71,7 @@ export default async function BooksPage() {
           ))}
         </div>
       )}
-      {total > 24 && (
+      {total > 24 && !q && (
         <div className="flex items-center justify-center mt-10 gap-2">
           <span className="text-sm text-muted">Page 1 of {Math.ceil(total / 24)}</span>
           <span className="px-3 py-1.5 rounded-full bg-subtle border border-border text-xs text-muted">
