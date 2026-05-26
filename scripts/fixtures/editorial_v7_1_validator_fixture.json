@@ -1,0 +1,1227 @@
+{
+  "books": [
+    {
+      "id": "fixture-sapiens",
+      "slug": "sapiens-yuval-noah-harari",
+      "title": "Sapiens",
+      "author": "Yuval Noah Harari",
+      "description": "A broad narrative that traces humanity's journey from the Stone Age to the present, exploring how biology and history have shaped our species.",
+      "recommendation_count": 101,
+      "lists": [
+        "NonFiction",
+        "History",
+        "Science"
+      ],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/sapiens-rec-1",
+          "quote": "Fixture-only quote. Must never leak into public fields."
+        },
+        {
+          "source_url": "https://example.com/sapiens-rec-2"
+        }
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want a big-picture story of how humans got here. Skip if you need detailed history or get restless with broad arguments that condense millennia into chapters.",
+        "editorial_summary": "Harari walks readers through the major turning points that shaped human societies: the cognitive revolution, agriculture, money, empires, and science. The reading experience is idea-dense and fast-moving — each chapter introduces a framework you will either find clarifying or reductive. The book rewards readers who enjoy connecting dots across disciplines and questioning things they assumed were natural. It has drawn attention on nonfiction, history, and science lists, suggesting this book reaches curious generalists across multiple disciplines. However, the broad claims can feel oversimplified to specialists, and the ending turns unexpectedly philosophical, which may frustrate readers who came for straight history.",
+        "best_for": [
+          "You want a high-level framework for understanding how human societies developed",
+          "You enjoy books that mix history, anthropology, and provocative argument",
+          "You are in a questioning phase and want your assumptions about money, nations, and religion challenged"
+        ],
+        "not_for": [
+          "The pace is too fast and too broad if you prefer detailed event-by-event histories — likely DNF point when it races through centuries you want to explore",
+          "The late chapters shift into philosophical speculation and lose narrative momentum",
+          "Specialists in any of the covered fields will find the generalizations frustrating"
+        ],
+        "theme_tensions": [
+          "Did agriculture make life better or worse for most humans?",
+          "Are shared fictions like money and nations a sign of human genius or collective delusion?",
+          "Does scientific progress meaningfully increase human happiness?",
+          "What does humanity's ecological impact say about our prospects?"
+        ],
+        "emotional_journey": "Starts with wonder at humanity's improbable rise, shifts into unease about the costs of civilization, and ends with a low-anxiety existential question mark.",
+        "reading_pace_profile": "Reads quickly in concept-dense bursts — each chapter is self-contained enough to digest separately, but the argument builds best when read steadily over a week.",
+        "vibe_tags": [
+          "big-idea-nonfiction",
+          "idea-dense",
+          "provocative-but-slick",
+          "armchair-anthropology",
+          "existential-unease",
+          "fast-but-dense"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Strong book club choice — people tend to argue over whether Harari is brilliant or glib, especially the agriculture and happiness chapters.",
+        "comparable_experience": "Similar in scope and ambition to Jared Diamond's Guns, Germs, and Steel but faster-paced, more willing to make broad claims, and less grounded in specific evidence."
+      }
+    },
+    {
+      "id": "fixture-mans-search",
+      "slug": "man-s-search-for-meaning-viktor-e-frankl",
+      "title": "Man's Search for Meaning",
+      "author": "Viktor E. Frankl",
+      "description": "Viktor Frankl's memoir of survival in Nazi death camps introduces logotherapy, a psychotherapeutic approach centered on finding meaning in suffering.",
+      "recommendation_count": 88,
+      "lists": [
+        "Psychology",
+        "Personal Development",
+        "NonFiction",
+        "Leadership"
+      ],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/frankl-rec-1",
+          "quote": "Fixture-only quote. Must never leak into public fields.",
+          "person_role": "psychologist"
+        },
+        {
+          "source_url": "https://example.com/frankl-rec-2",
+          "person_role": "executive coach"
+        }
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this when you are trying to make sense of difficulty or looking for a framework that treats suffering as meaningful rather than broken. Skip if reading about Holocaust experiences would be too heavy right now.",
+        "editorial_summary": "Frankl splits the book into two parts: a brief, unflinching account of surviving Nazi concentration camps, and an introduction to logotherapy, his therapeutic approach built around the human need for meaning. The camp sections are stark and compressed — he does not dwell on horror for effect but uses experience to ground his ideas. The psychology half is lighter reading but more abstract, and the clinical tone can feel jarring after the memoir. Readers often describe the first half as hard to put down and the second as something to revisit when the ideas are useful.",
+        "best_for": [
+          "You are navigating grief, setback, or a period where purpose feels distant",
+          "You want a short, memorable book that bridges personal testimony with actionable psychological ideas",
+          "You appreciate books that give you a mental model to return to during hard seasons"
+        ],
+        "not_for": [
+          "The Holocaust memoir section is necessarily brutal and may be too much if you are already emotionally depleted",
+          "The logotherapy chapters read more like a clinical lecture and may feel anticlimactic after the memoir",
+          "If you are looking for modern psychology research findings, this is a philosophical framework, not a study — likely DNF point if the academic tone of the second half feels jarring after the memoir"
+        ],
+        "theme_tensions": [
+          "Can meaning be found in suffering, or is that idea itself a coping mechanism?",
+          "Is the drive for meaning more fundamental than the drive for pleasure or power?",
+          "When circumstances remove all agency, what remains of a person?"
+        ],
+        "emotional_journey": "Moves from dread and disbelief through hard-won clarity to a quiet, almost clinical hope that feels earned rather than sentimental.",
+        "reading_pace_profile": "Read the first half in one sitting — it is short and propulsive. The second half benefits from slower, reflective reading and may reward returning to it weeks later.",
+        "vibe_tags": [
+          "quietly-devastating",
+          "compact-and-potent",
+          "hard-won-wisdom",
+          "existential-psychology",
+          "survival-narrative",
+          "slow-burn"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates genuine debate about whether meaning can really be found inside extreme suffering, and whether logotherapy holds up outside Frankl's specific experience.",
+        "comparable_experience": "Shorter and more personal than most psychology books — reads more like a letter from someone who earned the right to say what he says."
+      }
+    },
+    {
+      "id": "fixture-thinking-fast",
+      "slug": "thinking-fast-and-slow-daniel-kahneman",
+      "title": "Thinking, Fast and Slow",
+      "author": "Daniel Kahneman",
+      "description": "Daniel Kahneman explains the two-system model of thought: fast, intuitive System 1 and slow, deliberate System 2. He helps readers understand cognitive biases and improve decision-making.",
+      "recommendation_count": 95,
+      "lists": [
+        "Psychology",
+        "Business",
+        "Personal Development",
+        "NonFiction"
+      ],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/kahneman-rec-1",
+          "quote": "Fixture-only quote. Must never leak into public fields.",
+          "person_role": "behavioral economist"
+        }
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want to understand why you overestimate your own judgment and how to catch yourself doing it. Skip if you need a quick airport read — this is dense and rewards patience.",
+        "editorial_summary": "Kahneman walks readers through decades of behavioral economics research in what amounts to a tour of human cognitive error. Each chapter presents a bias or heuristic with experimental evidence, building toward a picture of the mind as a flawed but improvable instrument. The reading experience is slow and cumulative — you will recognize your own thinking mistakes in nearly every chapter, which is both illuminating and slightly humbling. The book is structured for piecemeal reading but rewards a complete pass. Readers who finish often describe it as the kind of book that subtly changes how they evaluate arguments, headlines, and their own conclusions.",
+        "best_for": [
+          "You make high-stakes decisions and want to audit your own blind spots",
+          "You enjoy evidence-heavy nonfiction that builds a case chapter by chapter",
+          "You have patience for academic-style argument and do not need a narrative arc"
+        ],
+        "not_for": [
+          "The density is real — this is a long, slow read with no storyline to pull you forward",
+          "If you already have a psychology research background, much of this will feel like a review",
+          "The book offers few practical action steps, which frustrates readers looking for a how-to guide"
+        ],
+        "theme_tensions": [
+          "How much of our judgment is just patterned error rather than reasoning?",
+          "Can knowing about biases actually help us overcome them?",
+          "Is human intuition a useful shortcut or a liability in complex systems?"
+        ],
+        "emotional_journey": "Starts with intellectual curiosity, gradually shifts into mild self-doubt as you see your own cognitive patterns reflected, and ends with a cautious respect for deliberate thinking.",
+        "reading_pace_profile": "Slow and dense — reads like a well-written textbook. Plan for multiple sittings and expect to pause frequently to process each chapter before continuing.",
+        "vibe_tags": [
+          "idea-dense",
+          "high-friction",
+          "evidence-heavy",
+          "self-audit-nonfiction",
+          "slow-burn",
+          "argument-heavy",
+          "academic-but-readable"
+        ],
+        "difficulty_level": "hard",
+        "discussion_potential": "Excellent for discussion — people tend to argue about whether knowing biases actually reduces them, and the replication crisis has raised questions about some of the studies referenced.",
+        "comparable_experience": "Heavier than Gladwell or Ariely — closer to sitting through a semester-long seminar compressed into one careful, self-aware book."
+      }
+    },
+    {
+      "id": "fixture-zero-to-one",
+      "slug": "zero-to-one-peter-thiel",
+      "title": "Zero to One",
+      "author": "Peter Thiel",
+      "description": "Peter Thiel's contrarian manifesto on building startups that create new value rather than copying existing models, drawing from his experience as a PayPal co-founder.",
+      "recommendation_count": 62,
+      "lists": [
+        "Business",
+        "Entrepreneurship",
+        "Technology",
+        "NonFiction"
+      ],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/thiel-rec-1",
+          "quote": "Fixture-only quote. Must never leak into public fields.",
+          "person_role": "venture capitalist"
+        },
+        {
+          "source_url": "https://example.com/thiel-rec-2",
+          "person_role": "startup founder"
+        }
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this when you are thinking about starting something genuinely new and want a dissent-heavy framework for evaluating ideas. Skip if you need tactical startup advice or find contrarian arguments exhausting.",
+        "editorial_summary": "Thiel argues that most business thinking is incremental and risk-averse, and that the real rewards come from building monopolies through unique insights. The book reads like a series of provocative lecture notes — opinionated, dense with assertions, and structured around surprising questions rather than step-by-step instruction. Readers often describe finishing it with better questions than they started with, which is part of the point. Some chapters feel like permanent mental models; others feel like one person's venture capital heuristics dressed as universal rules. The book surfaces on business, entrepreneurship, and technology lists, attracting founders and strategists who want their assumptions challenged rather than affirmed.",
+        "best_for": [
+          "You are evaluating a startup idea and need a high-bar framework for whether it is worth pursuing",
+          "You enjoy contrarian business thinking and are comfortable with strong, arguable opinions",
+          "You want a short, rereadable book that you can return to when making strategic decisions"
+        ],
+        "not_for": [
+          "This is not a how-to guide — there are no step-by-step frameworks or execution playbooks",
+          "The arguments are intentionally provocative and some readers find the tone grating",
+          "If you disagree with Thiel's broader worldview, you may spend more time arguing with the book than learning from it"
+        ],
+        "theme_tensions": [
+          "Is competition a trap that prevents genuine innovation?",
+          "Does monopoly drive more progress than competitive markets?",
+          "Can contrarian thinking be systematized or is it inherently personal and unrepeatable?"
+        ],
+        "emotional_journey": "Starts with intellectual excitement at a fresh angle on familiar ideas, moves through resistance as some claims feel overstated, and ends with useful questions that linger.",
+        "reading_pace_profile": "Short and fast to read in one or two sittings, but each chapter demands pause and reflection — rereading individual sections is more useful than rushing through.",
+        "vibe_tags": [
+          "contrarian-nonfiction",
+          "opinion-dense",
+          "idea-dense",
+          "startup-thinking",
+          "provocative-but-useful",
+          "argument-heavy",
+          "quick-but-heavy"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates sharp disagreement — people tend to split on whether the monopoly argument is insightful or self-serving, and the book's political undertones surface in conversation.",
+        "comparable_experience": "Shorter and more thesis-driven than most business books — reads more like a long essay or a provocative lecture series than a manual."
+      }
+    },
+    {
+      "id": "fixture-principles",
+      "slug": "principles-ray-dalio",
+      "title": "Principles",
+      "author": "Ray Dalio",
+      "description": "Ray Dalio distills the systematic decision-making framework he developed over four decades at Bridgewater Associates, outlining life and work principles centered on radical truth and transparency.",
+      "recommendation_count": 75,
+      "lists": [
+        "Leadership",
+        "Business",
+        "Personal Development",
+        "NonFiction",
+        "Finance"
+      ],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/dalio-rec-1",
+          "quote": "Fixture-only quote. Must never leak into public fields.",
+          "person_role": "hedge fund manager"
+        },
+        {
+          "source_url": "https://example.com/dalio-rec-2",
+          "person_role": "CEO"
+        }
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want a structured system for decision-making and are willing to tolerate a mechanistic worldview. Skip if you need a narrative or find formula-heavy self-improvement off-putting.",
+        "editorial_summary": "Dalio presents a decision-making operating system built around radical transparency, systematic reflection, and treating failure as data. The book is unusually long and methodical — it reads less like a business book and more like an engineer's manual for personal conduct. The first section is autobiographical and modestly engaging; the bulk is a reference-style catalog of principles you are meant to consult, not read cover to cover. Readers who resonate with the approach often say the book provided a vocabulary for decisions they were already trying to make. Others find the writing dry and the worldview rigid.",
+        "best_for": [
+          "You manage teams or organizations and want a replicable decision-making framework",
+          "You are drawn to systems thinking and like the idea of treating your life like an improvable process",
+          "You have the patience for a long reference-style book you will dip into rather than read straight through"
+        ],
+        "not_for": [
+          "This is not a memoir or narrative — most of the book reads like a technical manual",
+          "The mechanistic, formula-heavy tone can feel dehumanizing if you prefer warmth over systems",
+          "At over 500 pages of dense principles, many readers do not finish — it works better as a reference than a complete read"
+        ],
+        "theme_tensions": [
+          "Can organizational transparency go too far and damage trust instead of building it?",
+          "Does systematizing life decisions strip away intuition and spontaneity?",
+          "Is radical honesty sustainable in cultures where indirectness is valued?"
+        ],
+        "emotional_journey": "Starts with moderate interest during the autobiographical section, dips into dutiful slog through the principle catalog, and ends with a sense of having acquired a mental toolkit rather than an emotional payoff.",
+        "reading_pace_profile": "Long and reference-heavy — best approached as a book to consult in sections rather than read cover to cover. The autobiographical opening moves quickly; the principles section demands slow, selective reading.",
+        "vibe_tags": [
+          "systems-nonfiction",
+          "reference-heavy",
+          "practical-but-heavy",
+          "formula-driven",
+          "leadership-toolkit",
+          "patience-demanding"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Divisive in discussion — some readers see a brilliant system, others see corporate rigidity dressed as wisdom. The radical transparency concept generates particular debate.",
+        "comparable_experience": "More systematic and less narrative than most leadership books — closer to a reference manual than a typical business read."
+      }
+    },
+    {
+      "id": "fixture-bad-overclaim",
+      "slug": "bad-source-overclaim-book",
+      "title": "Bad Source Overclaim Book",
+      "author": "Test Author",
+      "description": "A test book with mock AI output that should fail validation due to source overclaims like quoted endorsement, passed between colleagues, and source-backed recommendations.",
+      "recommendation_count": 30,
+      "lists": [
+        "Business",
+        "Psychology"
+      ],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/bad-rec-1",
+          "quote": "Test quote for bad overclaim validation."
+        }
+      ],
+      "expected_status": "fail",
+      "expected_reason_contains": "source_overclaim",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want an interesting perspective on business psychology. Skip if you are looking for actionable frameworks.",
+        "editorial_summary": "This book explores how psychological principles apply to business decision-making. The writing is clear and the arguments are well-structured. Many readers find the case studies helpful. This quoted endorsement is source-backed proof of quality, passed between colleagues as a professional development staple with heavy citation in reading circles. The concepts are presented with enough depth to be useful without becoming overwhelming.",
+        "best_for": [
+          "You are new to business psychology and want a readable introduction",
+          "You enjoy case-study-driven nonfiction",
+          "You want to understand workplace dynamics better"
+        ],
+        "not_for": [
+          "Experienced practitioners will find the material too introductory",
+          "The case studies can feel repetitive after the first few chapters",
+          "The writing style is drier than comparable books in this space"
+        ],
+        "theme_tensions": [
+          "Can cognitive bias training actually change workplace behavior?",
+          "Is leadership psychology universal or culturally specific?",
+          "Do case studies generalize or just tell compelling stories?"
+        ],
+        "emotional_journey": "Moves from curiosity through recognition of familiar workplace patterns to mild satisfaction with new vocabulary for old problems.",
+        "reading_pace_profile": "Reads at a moderate pace with clear chapter breaks that make it easy to digest in sections.",
+        "vibe_tags": [
+          "business-psychology",
+          "case-study-heavy",
+          "accessible-nonfiction",
+          "idea-dense",
+          "introductory-read"
+        ],
+        "difficulty_level": "easy",
+        "comparable_experience": "Similar reading experience to introductory psychology textbooks adapted for business audiences.",
+        "discussion_potential": "Generates moderate discussion among people who share it as a rite-of-passage text."
+      }
+    },
+    {
+      "id": "fixture-bad-internal",
+      "slug": "bad-internal-language-book",
+      "title": "Bad Internal Language Book",
+      "author": "Test Author",
+      "description": "A test book with mock AI output that should fail validation due to internal pipeline language leaking into public fields, such as database fields, raw output, and dry run terminology.",
+      "recommendation_count": 25,
+      "lists": [
+        "Technology",
+        "History"
+      ],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/bad-internal-rec-1",
+          "quote": "Fixture-only test quote."
+        }
+      ],
+      "expected_status": "fail",
+      "expected_reason_contains": "internal_language",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you enjoy technology history. Skip if you need more depth than a single book can provide.",
+        "editorial_summary": "This book traces the development of computing from early mechanical calculators to modern software. The author covers key inventors and breakthroughs with an engaging narrative style. There is a clear arc from the database fields of early computing to the modern era of distributed systems. The raw output of accumulated findings is distilled into accessible chapters. Readers who enjoy technology history will find this a satisfying overview, though the dry run through certain decades feels rushed.",
+        "best_for": [
+          "You are curious about how computing technology evolved",
+          "You enjoy narrative-driven technology history",
+          "You want a single-volume overview of computer history"
+        ],
+        "not_for": [
+          "Technical readers will want more depth on specific innovations, and the compressed later chapters feel like a slow slog through shallow summaries",
+          "The later chapters compress too much recent history",
+          "Some sections assume background knowledge casual readers may not have"
+        ],
+        "theme_tensions": [
+          "Was computing progress inevitable or dependent on specific individuals?",
+          "Does the open-source movement represent a genuine alternative to corporate computing?",
+          "How much of computing history was shaped by military funding?"
+        ],
+        "emotional_journey": "Moves from fascination with early innovation through appreciation for mid-century breakthroughs to mild disappointment at the compressed treatment of the modern era.",
+        "reading_pace_profile": "Reads at a steady pace with clear chronological structure that makes it easy to follow.",
+        "vibe_tags": [
+          "technology-history",
+          "narrative-nonfiction",
+          "accessible-tech",
+          "idea-dense",
+          "sweep-of-time"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates discussion about which innovations were truly transformative versus incremental.",
+        "comparable_experience": "Similar to other single-volume technology histories that prioritize narrative over technical depth."
+      }
+    },
+    {
+      "id": "fixture-bad-vibe",
+      "slug": "bad-vibe-tag-book",
+      "title": "Bad Vibe Tag Book",
+      "author": "Test Author",
+      "description": "A test book with mock AI output that should fail validation due to malformed and hype vibe tags like existential-hum, cult-classic-energy, and mind-blowing.",
+      "recommendation_count": 15,
+      "lists": [
+        "Philosophy",
+        "Science"
+      ],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/bad-vibe-rec-1",
+          "quote": "Fixture-only test quote."
+        }
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want to grapple with big philosophical questions through a scientific lens. Skip if you need settled answers rather than open-ended exploration.",
+        "editorial_summary": "This book examines the intersection of philosophy and science, exploring questions about consciousness, free will, and the nature of reality. The author synthesizes research from multiple disciplines into a coherent narrative that challenges standard assumptions. The arguments are carefully constructed and supported by evidence, though some conclusions remain speculative. Readers who enjoy interdisciplinary thinking will find plenty to chew on, and the book rewards slow, careful reading. It works best for people who are comfortable with uncertainty and enjoy having their assumptions examined from multiple angles.",
+        "best_for": [
+          "You enjoy philosophical inquiry grounded in scientific research",
+          "You are comfortable with open questions rather than settled answers",
+          "You like interdisciplinary nonfiction that connects multiple fields"
+        ],
+        "not_for": [
+          "The speculative nature of some conclusions may frustrate readers looking for certainty",
+          "The interdisciplinary approach means depth in any single area is limited",
+          "The writing style assumes comfort with abstract philosophical reasoning"
+        ],
+        "theme_tensions": [
+          "Can science fully explain consciousness or is there something irreducible about subjective experience?",
+          "Does free will exist in a deterministic universe?",
+          "What counts as evidence in philosophical versus scientific inquiry?"
+        ],
+        "emotional_journey": "Moves from intellectual curiosity through productive confusion to a sense of expanded perspective without resolution.",
+        "reading_pace_profile": "Slow and dense — demands full attention and benefits from reading in short sessions with time to reflect between them.",
+        "vibe_tags": [
+          "existential-hum",
+          "cult-classic-energy",
+          "mind-blowing",
+          "philosophy-nonfiction",
+          "abstract-reasoning"
+        ],
+        "difficulty_level": "hard",
+        "discussion_potential": "Excellent for discussion — the open-ended nature of the questions means readers often reach different conclusions from the same material.",
+        "comparable_experience": "More philosophical than most popular science books, less technical than academic philosophy — occupies a productive middle ground."
+      }
+    },
+    {
+      "id": "fixture-negated-format",
+      "slug": "negated-format-term-book",
+      "title": "Negated Format Term Book",
+      "author": "Test Author",
+      "description": "A test book where the output uses format terms in negated context — should NOT trigger unsupported_format_claim.",
+      "recommendation_count": 10,
+      "lists": ["Business", "NonFiction"],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/negated-rec-1",
+          "quote": "Fixture-only test quote."
+        }
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want a practical framework for decision-making. Skip if you need a narrative-driven business book.",
+        "editorial_summary": "This book presents a systematic approach to business strategy that rewards methodical readers. The author builds each concept from first principles, which means the early chapters feel slow but the framework coheres by the midpoint. It is a dense but rewarding read for managers who want reusable mental models. The examples are drawn primarily from technology companies, which may limit relevance for readers in other industries. The book rewards patience and rewards rereading specific sections when making decisions.",
+        "best_for": [
+          "You are a manager who wants a reusable decision-making framework",
+          "You enjoy methodical, principle-based business books",
+          "You have patience for systematic rather than narrative-driven nonfiction"
+        ],
+        "not_for": [
+          "Not for readers who want templates or fill-in exercises — this is pure reasoning",
+          "The slow conceptual start may frustrate readers looking for quick takeaways",
+          "Industry-specific examples may feel narrow to readers outside technology"
+        ],
+        "theme_tensions": [
+          "Can systematic thinking be applied without stripping away intuition?",
+          "Does principle-based decision-making work across industries?",
+          "How much structure is too much for creative work?"
+        ],
+        "emotional_journey": "Moves from initial resistance to gradual clarity as the framework locks into place.",
+        "reading_pace_profile": "Dense and methodical — reads slowly and rewards rereading individual sections.",
+        "vibe_tags": [
+          "systems-nonfiction",
+          "methodical-read",
+          "framework-driven",
+          "patience-demanding",
+          "idea-dense"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates debate about whether systematic frameworks outperform intuitive decision-making.",
+        "comparable_experience": "Similar to other methodical business strategy books that prioritize systems over narrative."
+      }
+    },
+    {
+      "id": "fixture-real-format-claim",
+      "slug": "real-format-claim-book",
+      "title": "Real Format Claim Book",
+      "author": "Test Author",
+      "description": "A test book where the output makes real format claims — should trigger unsupported_format_claim.",
+      "recommendation_count": 10,
+      "lists": ["Personal Development", "NonFiction"],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/real-format-rec-1",
+          "quote": "Fixture-only test quote."
+        }
+      ],
+      "expected_status": "fail",
+      "expected_reason_contains": "unsupported_format_claim",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want structured self-improvement with concrete exercises. Skip if you prefer free-form personal development books.",
+        "editorial_summary": "This workbook includes templates and guided exercises that walk you through a structured personal development process. Each chapter presents a concept and then provides fill-in exercises to apply the idea. The format works well for readers who learn by doing rather than just reading. The content is solid but not groundbreaking — the value comes from the structured practice rather than novel insights. This approach requires commitment and works best when you can set aside regular time for the exercises. Some readers may find the workbook format too prescriptive.",
+        "best_for": [
+          "You want structured self-improvement with concrete action steps",
+          "You learn best by doing exercises rather than just reading",
+          "You can commit to regular practice sessions"
+        ],
+        "not_for": [
+          "The workbook format may feel too prescriptive for independent thinkers",
+          "The exercises require consistent time commitment over several weeks",
+          "Readers looking for novel insights may find the content familiar"
+        ],
+        "theme_tensions": [
+          "Is structured practice more effective than free-form reflection?",
+          "Can personal development be systematized or is it inherently personal?",
+          "Does a workbook format encourage depth or superficial completion?"
+        ],
+        "emotional_journey": "Moves from initial enthusiasm through disciplined practice to a sense of earned progress.",
+        "reading_pace_profile": "Slow and exercise-driven — meant to be worked through over weeks, not read in one sitting.",
+        "vibe_tags": [
+          "workbook-style",
+          "exercise-driven",
+          "structured-practice",
+          "patience-demanding",
+          "self-improvement-toolkit"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates discussion about whether structured practice or free-form reflection produces better personal growth.",
+        "comparable_experience": "Similar to guided journals and other structured self-improvement workbooks."
+      }
+    },
+    {
+      "id": "fixture-name-leak-field",
+      "slug": "name-leak-field-test-book",
+      "title": "Name Leak Field Test",
+      "author": "Test Author",
+      "description": "A test book where a recommender name leaks into a specific public field.",
+      "recommendation_count": 20,
+      "lists": ["Business", "Leadership"],
+      "series": [],
+      "recommendations": [
+        {
+          "person_name": "Maria Garcia",
+          "source_url": "https://example.com/maria-rec-1",
+          "quote": "Fixture-only test quote.",
+          "person_role": "executive coach"
+        }
+      ],
+      "expected_status": "fail",
+      "expected_reason_contains": "public_recommender_name_leak_Maria Garcia_editorial_summary",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want a concise framework for leading teams through uncertainty. Skip if you need case studies or step-by-step leadership playbooks.",
+        "editorial_summary": "This book distills leadership principles into a framework that works across industries. The author draws on experience guiding organizations through transitions. Maria Garcia's approach to leadership development informs the structure of the book, which moves from core concepts to specific applications. The reading experience is efficient but dense — each chapter introduces a model you can apply immediately. The compressed format means some ideas get less development than they deserve. The book is strongest when it stays concrete and weakest when it drifts into abstraction.",
+        "best_for": [
+          "You are a new manager who wants a reusable leadership framework",
+          "You lead teams through frequent organizational change",
+          "You prefer concise, model-driven business books"
+        ],
+        "not_for": [
+          "The compressed format means some ideas feel underdeveloped",
+          "Readers wanting detailed case studies will find the examples too brief",
+          "The abstract sections may frustrate readers who want practical immediacy"
+        ],
+        "theme_tensions": [
+          "Can leadership be reduced to frameworks or does it require contextual judgment?",
+          "Do models help or hinder adaptive thinking?",
+          "Is leadership universal or industry-specific?"
+        ],
+        "emotional_journey": "Moves from initial clarity through productive discomfort to cautious confidence.",
+        "reading_pace_profile": "Dense and model-driven — benefits from slow reading and note-taking.",
+        "vibe_tags": [
+          "leadership-framework",
+          "model-driven",
+          "concise-but-dense",
+          "idea-dense",
+          "management-toolkit"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates debate about framework-driven versus context-sensitive leadership.",
+        "comparable_experience": "Similar to concise leadership framework books that prioritize models over narratives."
+      }
+    },
+    {
+      "id": "fixture-fans-of-sanitize",
+      "slug": "fans-of-sanitize-book",
+      "title": "Fans Of Sanitize Book",
+      "author": "Test Author",
+      "description": "A test book that uses 'Fans of' language which should be sanitized, not rejected.",
+      "recommendation_count": 15,
+      "lists": ["History", "NonFiction"],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/fans-rec-1",
+          "quote": "Fixture-only test quote."
+        }
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you enjoy sweeping historical narratives told through individual stories. Skip if you prefer broader analytical history.",
+        "editorial_summary": "This book traces a pivotal decade through the lives of ordinary people caught in extraordinary circumstances. The author resists the temptation to explain everything, instead letting small moments accumulate into a portrait of change that feels earned rather than imposed. Fans of narrative nonfiction will find the pacing generous and the detail vivid. The book is strongest when it zooms in on specific lives and weakest when it zooms out to summarize context. Some readers may find the personal focus too narrow for a book about systemic forces.",
+        "best_for": [
+          "You enjoy history told through individual lives rather than abstract forces",
+          "You appreciate patient, detail-rich narrative nonfiction",
+          "You want to understand a historical period through personal experience"
+        ],
+        "not_for": [
+          "The personal focus may feel too narrow for readers wanting systemic analysis — likely DNF point when personal stories slow the broader argument",
+          "The pacing is slow and detail-rich, which may frustrate readers looking for quick synthesis",
+          "Readers wanting analytical history may find this too anecdotal"
+        ],
+        "theme_tensions": [
+          "Can individual stories represent systemic historical forces?",
+          "Does personal narrative obscure or illuminate historical truth?",
+          "How much context is needed to make individual stories meaningful?"
+        ],
+        "emotional_journey": "Moves from curiosity through intimate connection to a quiet sense of historical perspective.",
+        "reading_pace_profile": "Slow and patient — reads best in long sessions where you can settle into the world.",
+        "vibe_tags": [
+          "narrative-history",
+          "detail-rich",
+          "slow-burn",
+          "intimate-scope",
+          "character-driven-nonfiction"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates debate about whether personal narratives can adequately represent historical forces.",
+        "comparable_experience": "Similar to other immersive narrative history that prioritizes lived experience over analysis."
+      }
+    },
+    {
+      "id": "fixture-sweeping-assertions",
+      "slug": "sweeping-assertions-book",
+      "title": "Sweeping Assertions Book",
+      "author": "Test Author",
+      "description": "A test book that uses 'sweeping assertions' — should be sanitized, not rejected.",
+      "recommendation_count": 15,
+      "lists": ["Philosophy", "Science"],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/sweep-rec-1",
+          "quote": "Fixture-only test quote."
+        }
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want provocative ideas delivered with confidence. Skip if you need evidence-dense argumentation with careful hedging.",
+        "editorial_summary": "The author makes sweeping assertions about how technology reshapes human cognition, piling claim on claim with the energy of a conference talk rather than the caution of a journal article. This approach is useful when the ideas land and frustrating when they overreach. The book reads fast and is structured for snackable consumption — short chapters, bold headings, memorable examples. The useful part is the collection of counterintuitive observations about attention and memory. The limitation is that many claims rest on thin evidence, which may bother readers who want research rigor.",
+        "best_for": [
+          "You want provocative ideas that challenge your assumptions about technology",
+          "You prefer bold, readable argumentation over cautious academic hedging",
+          "You enjoy books that give you conversation-starting ideas"
+        ],
+        "not_for": [
+          "The bold claims rest on thin evidence — likely DNF point when the author overreaches on a topic you know well",
+          "The TED-talk energy may feel superficial to readers wanting research depth",
+          "Readers who prefer carefully hedged academic argument will find the confidence grating"
+        ],
+        "theme_tensions": [
+          "Is technology fundamentally reshaping human cognition or just our tools?",
+          "Does confidence in argument compensate for thin evidence?",
+          "Can provocative ideas be useful even without rigorous backing?"
+        ],
+        "emotional_journey": "Starts with excitement at bold new ideas, moves through occasional skepticism, and ends with useful questions even if the answers feel incomplete.",
+        "reading_pace_profile": "Fast and argument-driven — reads better in one or two sittings than over weeks.",
+        "vibe_tags": [
+          "provocative-nonfiction",
+          "argument-heavy",
+          "fast-but-dense",
+          "idea-dense",
+          "conference-talk-energy",
+          "quick-but-heavy"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates debate about whether bold claims advance or harm public understanding of complex topics.",
+        "comparable_experience": "Similar to other provocative tech-critique books that prioritize readability over rigor."
+      }
+    },
+    {
+      "id": "fixture-sweeping-masterpiece",
+      "slug": "sweeping-masterpiece-book",
+      "title": "Sweeping Masterpiece Book",
+      "author": "Test Author",
+      "description": "A test book that uses 'sweeping masterpiece' — should still be blocked by prestige/publisher hype.",
+      "recommendation_count": 10,
+      "lists": ["History", "NonFiction"],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/sweep-master-rec-1",
+          "quote": "Fixture-only test quote."
+        }
+      ],
+      "expected_status": "fail",
+      "expected_reason_contains": "publisher_hype",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want a sweeping masterpiece of historical narrative that transforms how you see the past. Skip if you need focused, single-topic history.",
+        "editorial_summary": "This sweeping masterpiece traces human civilization from its earliest roots to the present moment. The author weaves together archaeology, anthropology, and political history into a narrative that feels both intimate and epic. Each chapter unfolds like a story within a story, building toward a vision of human progress that is both inspiring and sobering. The breadth means some eras get compressed into brief chapters, and specialists will find their areas simplified. The book works best as a big-picture overview rather than a detailed reference.",
+        "best_for": [
+          "You want a single-volume overview of human civilization",
+          "You enjoy ambitious historical narratives with big claims",
+          "You are looking for context to understand current global dynamics"
+        ],
+        "not_for": [
+          "The breadth means depth is sacrificed — likely DNF point when your area of interest gets a single chapter",
+          "Specialists in any period will find simplifications frustrating",
+          "The narrative scope may feel too broad for readers wanting focused history"
+        ],
+        "theme_tensions": [
+          "Can a single narrative capture the diversity of human experience?",
+          "Does historical narrative impose false coherence on chaotic events?",
+          "What does it mean to tell the story of civilization?"
+        ],
+        "emotional_journey": "Moves from wonder at human achievement through the weight of historical tragedy to cautious hope.",
+        "reading_pace_profile": "Long and ambitious — reads best over several weeks with breaks to digest between sections.",
+        "vibe_tags": [
+          "big-history",
+          "narrative-nonfiction",
+          "slow-burn",
+          "broad-scope",
+          "ambitious-scope"
+        ],
+        "difficulty_level": "hard",
+        "discussion_potential": "Generates debate about whether civilization narratives impose Western frameworks on diverse histories.",
+        "comparable_experience": "Similar to other ambitious single-volume histories that attempt to capture the sweep of human civilization."
+      }
+    },
+    {
+      "id": "fixture-medical-claim",
+      "slug": "medical-claim-book",
+      "title": "Medical Claim Book",
+      "author": "Test Author",
+      "description": "A test book where the output makes unsupported medical/research claims — should be rejected.",
+      "recommendation_count": 10,
+      "lists": ["Psychology", "Science", "NonFiction"],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/medical-rec-1",
+          "quote": "Fixture-only test quote."
+        }
+      ],
+      "expected_status": "fail",
+      "expected_reason_contains": "unsupported_medical_or_research_claim",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you are curious about how psychedelics may treat depression and anxiety. Skip if you need rigorous clinical evidence.",
+        "editorial_summary": "This book explores the history and science of psychedelic therapy with a journalist's eye for narrative. The author follows researchers and patients, building a case for therapeutic potential in treating addiction and depression. The reading experience is part travelogue, part science reporting, part personal memoir. The book is strongest when it stays close to the human stories and weakest when it overreaches on the science. Some readers will find the optimism about psychedelics persuasive; others will want more clinical evidence and skeptical distance.",
+        "best_for": [
+          "You are curious about psychedelic research and want an accessible overview",
+          "You enjoy science journalism that blends personal narrative with reporting",
+          "You are open to reconsidering the therapeutic potential of psychedelics"
+        ],
+        "not_for": [
+          "The author's enthusiasm can feel credulous — likely DNF point if you want skeptical distance",
+          "The personal memoir sections may feel self-indulgent to readers wanting straight journalism",
+          "Readers who want rigorous clinical evidence will find the claims under-supported"
+        ],
+        "theme_tensions": [
+          "Can personal experience substitute for clinical evidence?",
+          "Is the psychedelic renaissance genuine science or wishful thinking?",
+          "What does it mean to treat mental health outside mainstream psychiatry?"
+        ],
+        "emotional_journey": "Moves from curiosity through cautious optimism to questions about what we actually know.",
+        "reading_pace_profile": "Moderate pace — reads best over a week with time to reflect on the science claims between chapters.",
+        "vibe_tags": [
+          "science-journalism",
+          "personal-narrative",
+          "slow-burn",
+          "idea-dense",
+          "controversial-topic",
+          "curiosity-driven"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates debate about whether personal experience and journalism can substitute for clinical evidence.",
+        "comparable_experience": "Similar to other science journalism that blends personal narrative with reporting on controversial topics."
+      }
+    },
+    {
+      "id": "fixture-generic-safe",
+      "slug": "generic-safe-book",
+      "title": "Generic Safe Book",
+      "author": "Test Author",
+      "description": "A test book that passes hard validators but is generic and should get a low quality score.",
+      "recommendation_count": 10,
+      "lists": ["Business", "Personal Development"],
+      "series": [],
+      "recommendations": [
+        {
+          "source_url": "https://example.com/generic-rec-1",
+          "quote": "Fixture-only test quote."
+        }
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want a thought-provoking book about business and life. Skip if you need detailed guidance.",
+        "editorial_summary": "This book provides readers with interesting ideas about how to think differently about business and success. The author shares useful perspectives that readers will find engaging and helpful. Throughout the book, the author explores various topics that are relevant to modern professionals. Readers gain valuable insights into common challenges and opportunities. The book is well-written and accessible, making it suitable for a broad audience interested in personal growth.",
+        "best_for": [
+          "Business professionals looking for new ideas",
+          "People who enjoy reading about success",
+          "Those interested in personal development"
+        ],
+        "not_for": [
+          "Readers seeking detailed guidance may want more specifics",
+          "The broad approach may not satisfy specialists",
+          "Not ideal for those who prefer academic rigor"
+        ],
+        "theme_tensions": [
+          "Can general advice apply to specific situations?",
+          "Is business success replicable or situational?",
+          "How do personal and professional growth intersect?"
+        ],
+        "emotional_journey": "Interesting and engaging throughout with some useful takeaways.",
+        "reading_pace_profile": "Accessible and easy to read at a comfortable pace.",
+        "vibe_tags": [
+          "business-advice",
+          "insightful",
+          "accessible-read",
+          "professional-growth",
+          "general-advice"
+        ],
+        "difficulty_level": "easy",
+        "discussion_potential": "Great for discussion among business readers.",
+        "comparable_experience": "Similar to other popular business books that offer general advice and inspiration."
+      }
+    },
+    {
+      "id": "fixture-atomic-habits-format",
+      "slug": "atomic-habits-james-clear",
+      "title": "Atomic Habits",
+      "author": "James Clear",
+      "description": "James Clear presents a framework for building good habits and breaking bad ones through small, incremental changes.",
+      "recommendation_count": 120,
+      "lists": ["Personal Development", "NonFiction", "Psychology", "Self Help"],
+      "series": [],
+      "recommendations": [
+        {"source_url": "https://example.com/atomic-rec-1", "quote": "Fixture-only quote.", "person_role": "productivity coach"}
+      ],
+      "expected_status": "fail",
+      "expected_reason_contains": "unsupported_format_claim",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want a practical workbook with guided prompts for building better habits. Skip if you prefer free-form self-improvement.",
+        "editorial_summary": "This workbook-style guide walks readers through a structured process for habit formation. Each chapter introduces a concept and then provides fill-in exercises and tracking sheets to apply the idea. The format works well for readers who learn by doing rather than just reading. The exercises build on each other, creating a comprehensive habit-building system. Some readers may find the workbook format too prescriptive, but the structured approach rewards consistent engagement. The concepts are clear but not groundbreaking — the value comes from the guided practice rather than novel insights.",
+        "best_for": [
+          "You want a structured workbook with concrete exercises for habit building",
+          "You learn best through guided prompts and tracking sheets",
+          "You can commit to daily practice with exercises"
+        ],
+        "not_for": [
+          "The workbook format may feel too prescriptive for independent thinkers",
+          "If you prefer conceptual books without exercises, this will frustrate you",
+          "The exercises require consistent time commitment over several weeks"
+        ],
+        "theme_tensions": [
+          "Can small changes really compound into major life transformation?",
+          "Is habit formation about systems or willpower?",
+          "Does tracking behavior actually change it?"
+        ],
+        "emotional_journey": "Starts with optimism about small changes, moves through disciplined practice, ends with a sense of earned progress.",
+        "reading_pace_profile": "Slow and exercise-driven — meant to be worked through over weeks, not read in one sitting.",
+        "vibe_tags": [
+          "workbook-style",
+          "exercise-driven",
+          "structured-practice",
+          "patience-demanding",
+          "self-improvement-toolkit"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates discussion about whether structured practice produces better results than free-form reflection.",
+        "comparable_experience": "Similar to structured self-improvement workbooks that prioritize exercises over narrative."
+      }
+    },
+    {
+      "id": "fixture-emo-3-beat-arc",
+      "slug": "emo-3-beat-arc-book",
+      "title": "Emotional Arc Test Book",
+      "author": "Test Author",
+      "description": "A test book validating that 3-beat emotional arcs score high on the evaluator.",
+      "recommendation_count": 10,
+      "lists": ["Psychology", "NonFiction"],
+      "series": [],
+      "recommendations": [
+        {"source_url": "https://example.com/emo-rec-1", "quote": "Fixture-only quote."}
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this when you want a framework for understanding emotional patterns. Skip if you need clinical depth or dislike personal narrative.",
+        "editorial_summary": "The author explores emotional intelligence through a mix of research summary and personal reflection. The book is strongest when it stays close to real stories. It reads like a long conversation with someone who has spent years thinking about how emotions work. The concepts build clearly and the examples are memorable. The book is weakest when it drifts into prescription without enough evidence. Readers who want pure research may find the personal tone too informal. The practical sections are useful if you are willing to experiment with the suggested techniques.",
+        "best_for": [
+          "You want accessible emotional intelligence concepts with real examples",
+          "You are navigating a difficult emotional period and want a framework",
+          "You enjoy psychology books that blend research with personal narrative"
+        ],
+        "not_for": [
+          "The personal tone may feel too informal for readers wanting academic rigor — likely DNF point if you expect textbook-level detail",
+          "The practical suggestions are light on research backing",
+          "Experienced therapists will find the concepts too introductory"
+        ],
+        "theme_tensions": [
+          "Can emotional intelligence be taught or is it innate?",
+          "Does labeling emotions actually change how we experience them?",
+          "Is self-awareness always beneficial or can it become rumination?"
+        ],
+        "emotional_journey": "Starts like a jolt of recognition as familiar patterns click into place, gets irritating when the author's certainty hardens around chapter five, and ends as a useful provocation if you bought in or an overconfident sermon if you did not. Wrong reader reaction: you may feel lectured rather than helped by someone who assumes their emotional patterns are universal.",
+        "reading_pace_profile": "Front half moves fast while the core framework is introduced; middle chapters drag with repetitive examples; skim the repeated case-studies after the concept lands; read in chunks if you dislike extended personal narrative.",
+        "vibe_tags": [
+          "personal-narrative",
+          "accessible-psychology",
+          "idea-dense",
+          "slow-burn",
+          "emotionally-mixed",
+          "patience-demanding"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates debate about whether emotional intelligence frameworks can be universal or are always culturally specific.",
+        "comparable_experience": "Similar to other accessible psychology books that blend personal reflection with research overview."
+      }
+    },
+    {
+      "id": "fixture-emo-generic-low",
+      "slug": "emo-generic-low-book",
+      "title": "Generic Emotional Book",
+      "author": "Test Author",
+      "description": "A test book with generic emotional journey — should score low on emotional_fit_quality.",
+      "recommendation_count": 10,
+      "lists": ["Business", "Personal Development"],
+      "series": [],
+      "recommendations": [
+        {"source_url": "https://example.com/gen-emo-rec-1", "quote": "Fixture-only quote."}
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want an inspiring book about professional growth. Skip if you need detailed guidance.",
+        "editorial_summary": "This book offers readers an engaging and thought-provoking look at how professionals can grow and succeed. The author shares powerful insights that readers will find inspiring and helpful. Throughout the book, various topics are explored that are relevant to modern professionals. Readers gain valuable perspectives on common challenges and opportunities. The book is well-written and accessible, making it suitable for a broad audience interested in personal growth and professional development.",
+        "best_for": [
+          "Professionals looking for new ideas about growth",
+          "People who enjoy reading about success and motivation",
+          "Those interested in personal and professional development"
+        ],
+        "not_for": [
+          "Readers seeking detailed guidance may want more specifics",
+          "The broad approach may not satisfy specialists",
+          "Not ideal for those who prefer academic rigor"
+        ],
+        "theme_tensions": [
+          "Can general advice apply to specific situations?",
+          "Is professional success replicable or situational?",
+          "How do personal and professional growth intersect?"
+        ],
+        "emotional_journey": "Inspiring and thought-provoking throughout.",
+        "reading_pace_profile": "Accessible and easy to read at a comfortable pace.",
+        "vibe_tags": [
+          "professional-growth",
+          "insightful",
+          "accessible-read",
+          "general-advice"
+        ],
+        "difficulty_level": "easy",
+        "discussion_potential": "Great for discussion among professionals.",
+        "comparable_experience": "Similar to other popular professional development books that offer general advice and inspiration."
+      }
+    },
+    {
+      "id": "fixture-pace-high-structure",
+      "slug": "pace-high-structure-book",
+      "title": "Pacing Structure Test Book",
+      "author": "Test Author",
+      "description": "A test book with excellent pacing profile — should score high on pacing_expectation_quality.",
+      "recommendation_count": 10,
+      "lists": ["Business", "Strategy"],
+      "series": [],
+      "recommendations": [
+        {"source_url": "https://example.com/pace-rec-1", "quote": "Fixture-only quote."}
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this when you want a strategic framework that rewards careful study. Skip if you need quick takeaways or dislike case-study-heavy books.",
+        "editorial_summary": "This book builds a strategic decision-making framework through layered case studies drawn from technology and manufacturing companies. The reading experience is dense but rewarding — each chapter adds a tool to the framework, and the real value emerges around chapter six when the pieces connect. The early chapters feel slow because each concept needs definition before it earns its place. The middle section is where most readers will skim, as case studies repeat similar patterns. The final chapters are the payoff and deserve slow, careful reading.",
+        "best_for": [
+          "A strategy lead inside a scaling company who needs language for trade-off decisions beyond revenue growth",
+          "You are evaluating a competitive position and want reusable mental models rather than one-size-fits-all advice",
+          "You have patience for methodical, concept-heavy business books and prefer depth over speed"
+        ],
+        "not_for": [
+          "The slow conceptual start will lose readers who want quick frameworks — likely DNF around chapter three",
+          "The technology-heavy case studies feel narrow to readers in other industries",
+          "Not a playbook — there are no step-by-step templates or fill-in exercises"
+        ],
+        "theme_tensions": [
+          "Can strategy be taught through frameworks or is it always contextual?",
+          "Do technology company examples generalize to other industries?",
+          "Is methodical analysis faster than intuitive decision-making?"
+        ],
+        "emotional_journey": "Starts with intellectual curiosity at a fresh framing of familiar problems, turns frustrating when the case study pile-up feels repetitive, and ends with a quiet confidence that the tools actually work if you have the patience to apply them.",
+        "reading_pace_profile": "Front half moves fast while the core framework takes shape; middle case studies drag and repeat patterns — skim these unless the industry matches yours; slow down for the final four chapters which are the real payoff; not a one-sitting read — plan for a week of focused sessions with note-taking.",
+        "vibe_tags": [
+          "framework-driven",
+          "methodical-read",
+          "case-study-heavy",
+          "idea-dense",
+          "patience-demanding",
+          "slow-burn",
+          "strategy-toolkit"
+        ],
+        "difficulty_level": "hard",
+        "discussion_potential": "Generates debate about whether frameworks trained on technology companies can apply to slower-moving industries.",
+        "comparable_experience": "Heavier than typical business books — closer to a seminar compressed into careful chapters that demand engagement."
+      }
+    },
+    {
+      "id": "fixture-atomic-habits-format-v2",
+      "slug": "atomic-habits-james-clear-v2",
+      "title": "Atomic Habits",
+      "author": "James Clear",
+      "description": "James Clear presents a framework for building good habits and breaking bad ones through small, incremental changes.",
+      "recommendation_count": 120,
+      "lists": ["Personal Development", "NonFiction", "Psychology"],
+      "series": [],
+      "recommendations": [
+        {"source_url": "https://example.com/atomic-rec-2", "quote": "Fixture-only quote.", "person_role": "productivity coach"}
+      ],
+      "expected_status": "fail",
+      "expected_reason_contains": "unsupported_format_claim",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want a practical interactive guide with hands-on exercises for building better habits. Skip if you prefer conceptual self-improvement books without reflective prompts.",
+        "editorial_summary": "This book functions as an interactive guide with reflective prompts that walk you through a structured habit improvement process. Each chapter introduces a concept and then provides hands-on exercises to apply the idea immediately. The format works well for readers who need guided exercise to form habits. Some readers may find the interactive approach too directive. The concepts are clear — the value comes from the guided practice.",
+        "best_for": [
+          "You want structured habit formation with interactive exercises",
+          "You learn through guided practice and reflective prompts",
+          "You can commit to daily habit-building exercises"
+        ],
+        "not_for": [
+          "The interactive guide format may feel too directive for independent readers",
+          "If you prefer conceptual books without exercises, this will irritate you",
+          "The exercises require consistent commitment over several weeks"
+        ],
+        "theme_tensions": [
+          "Can small changes really compound into major transformation?",
+          "Is habit formation about systems or willpower?",
+          "Does tracking behavior actually change it or just measure it?"
+        ],
+        "emotional_journey": "Starts with motivation at seeing a clear system, moves through dutiful practice as exercises accumulate, ends with earned confidence if you did the work.",
+        "reading_pace_profile": "Exercise-driven and slow — meant to be worked through over weeks, not read in one sitting.",
+        "vibe_tags": [
+          "exercise-driven",
+          "structured-practice",
+          "patience-demanding",
+          "slow-burn",
+          "self-improvement-toolkit"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates discussion about whether guided practice produces better results than free-form reflection.",
+        "comparable_experience": "Similar to structured self-improvement books that prioritize guided exercises over narrative."
+      }
+    },
+    {
+      "id": "fixture-negated-format-v2",
+      "slug": "negated-format-extra-book",
+      "title": "Negated Format Extra Book",
+      "author": "Test Author",
+      "description": "A test book where format terms appear only in negated context — should NOT trigger unsupported_format_claim.",
+      "recommendation_count": 10,
+      "lists": ["Self Help", "NonFiction"],
+      "series": [],
+      "recommendations": [
+        {"source_url": "https://example.com/neg-rec-3", "quote": "Fixture-only test quote."}
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want a concise system for personal change. Skip if you want a workbook with hands-on exercises or journaling.",
+        "editorial_summary": "The author argues that lasting change comes from identity shifts, not behavior tracking. This is not a workbook — there are no fill-in exercises and no daily tracking. The book stays in explanation mode and rewards readers who prefer conceptual understanding over guided practice. The writing is sharp and idea-dense. Some chapters feel like they could be shorter. The book is strongest when it stays concrete.",
+        "best_for": [
+          "You prefer conceptual frameworks over fill-in exercises",
+          "You want a short, idea-dense book about personal change",
+          "You want to understand habit psychology without doing worksheets"
+        ],
+        "not_for": [
+          "Skip if you want a workbook with hands-on exercises — this is not that",
+          "The conceptual approach may feel abstract if you need practical templates",
+          "Not for readers who want guided practice or daily tracking"
+        ],
+        "theme_tensions": [
+          "Does identity change precede behavior change or follow it?",
+          "Can personal change be systematized or is it inherently messy?",
+          "Is conceptual understanding enough without structured practice?"
+        ],
+        "emotional_journey": "Starts with the excitement of a clean framework, shifts into productive questioning of your own habits, and ends with a quiet resolve to stop tracking and start becoming.",
+        "reading_pace_profile": "Short and idea-dense — reads in two or three sittings, but rewards a slow re-read of the identity chapters.",
+        "vibe_tags": [
+          "idea-dense",
+          "conceptual-nonfiction",
+          "compact-read",
+          "quick-but-heavy",
+          "reflective-nonfiction",
+          "systems-thinking"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates debate about whether identity-first approaches work better than behavior-first systems.",
+        "comparable_experience": "Shorter and more philosophical than most habit books."
+      }
+    },
+    {
+      "id": "fixture-attribution-not-penalized",
+      "slug": "attributed-framing-book",
+      "title": "Attributed Framing Book",
+      "author": "Test Author",
+      "description": "A test book where content is attributed with the book argues/the author presents — should NOT be heavily penalized on fact_minimal_safety.",
+      "recommendation_count": 15,
+      "lists": ["Business", "Leadership"],
+      "series": [],
+      "recommendations": [
+        {"source_url": "https://example.com/attr-rec-1", "quote": "Fixture-only quote.", "person_role": "executive"}
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want a provocative argument about why most companies fail at strategy execution. Skip if you need detailed case-study backing or dislike sweeping claims.",
+        "editorial_summary": "The author argues that most strategic failures come from misalignment between stated goals and daily operations. The book presents a framework for diagnosing these gaps without prescribing one-size-fits-all solutions. The author frames the problem through startup and enterprise examples that feel relevant rather than academic. The book discusses why execution is harder than strategy and why culture eats planning for breakfast. The reading experience is fast and opinionated — some chapters feel like a monologue you either buy into or resist. The book's strength is sharp diagnosis; the gap is prescription.",
+        "best_for": [
+          "You lead a team inside a scaling company and need diagnostic language for execution gaps",
+          "You enjoy opinionated business books that argue a clear thesis",
+          "You want reusable mental models for diagnosing organizational problems"
+        ],
+        "not_for": [
+          "The book argues, it does not prove — readers wanting systematic backing will find this frustrating",
+          "Startup and tech examples may feel narrow for readers in traditional industries",
+          "No step-by-step templates — not a playbook for implementation"
+        ],
+        "theme_tensions": [
+          "Is strategy execution a framework problem or a culture problem?",
+          "Can one framework diagnose failures across different industries?",
+          "Is opinionated advice more useful than systematic guidance?"
+        ],
+        "emotional_journey": "Starts with the relief of seeing familiar problems named clearly, builds into productive frustration as you recognize gaps in your own organization, and ends with useful diagnostic tools that linger.",
+        "reading_pace_profile": "Fast but dense — reads in two sessions, but the diagnostic chapters reward slow note-taking and application to your own context.",
+        "vibe_tags": [
+          "opinionated-business",
+          "diagnostic-nonfiction",
+          "idea-dense",
+          "fast-but-dense",
+          "compact-and-sharp",
+          "leadership-framework"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates debate about whether diagnosis without prescription is useful or just satisfying complaining.",
+        "comparable_experience": "Shorter and more thesis-driven than most leadership books — reads like a sharp memo expanded into a book."
+      }
+    },
+    {
+      "id": "fixture-good-vibe-tags-high",
+      "slug": "good-vibe-tags-book",
+      "title": "Good Vibe Tags Book",
+      "author": "Test Author",
+      "description": "A test book with genuinely good vibe tags — should score 5.0 on vibe_quality.",
+      "recommendation_count": 10,
+      "lists": ["History", "NonFiction"],
+      "series": [],
+      "recommendations": [
+        {"source_url": "https://example.com/vibe-rec-1", "quote": "Fixture-only quote."}
+      ],
+      "expected_status": "pass",
+      "expected_reason_contains": "ok",
+      "mock_ai_output": {
+        "quick_verdict": "Read this if you want a compact, sharp history of a pivotal decade told through ordinary lives. Skip if you prefer broad analytical history or dislike personal narrative framing.",
+        "editorial_summary": "This book traces a transformative decade through the stories of people who lived it. The author resists sweeping conclusions, instead letting small moments accumulate into a portrait that feels earned. The reading experience is intimate and patient — the book rewards slow engagement and punishes skimming. The detail-rich chapters build momentum toward a final section that reframes everything before it. The book is weakest when it zooms out to summarize context, strongest when it stays close to specific lives.",
+        "best_for": [
+          "You enjoy history told through individual lives rather than broad forces",
+          "You appreciate patient, detail-rich narrative nonfiction",
+          "You want a compact but immersive reading experience"
+        ],
+        "not_for": [
+          "The personal focus may feel too narrow for readers wanting systemic analysis — likely DNF in the early detail chapters",
+          "The patient pacing demands full attention and punishes skimming",
+          "Readers wanting broad scope will find this too intimate"
+        ],
+        "theme_tensions": [
+          "Can individual stories represent systemic historical forces?",
+          "Does personal narrative illuminate or obscure historical patterns?",
+          "How much context is needed for individual stories to be meaningful?"
+        ],
+        "emotional_journey": "Starts with intimate curiosity about ordinary lives, deepens into emotional investment in specific people, and ends with a quiet, earned perspective shift that stays with you.",
+        "reading_pace_profile": "Patient and immersive — reads best in long sessions where you can settle into the world. Early chapters are the hurdle; after you know the people, the book accelerates emotionally even as the pace stays steady.",
+        "vibe_tags": [
+          "narrative-history",
+          "detail-rich",
+          "slow-burn",
+          "intimate-scope",
+          "character-driven-nonfiction",
+          "compact-but-deep",
+          "patience-demanding"
+        ],
+        "difficulty_level": "medium",
+        "discussion_potential": "Generates debate about whether personal narrative can adequately represent systemic historical forces.",
+        "comparable_experience": "More intimate and patient than typical popular history — closer to a novel in its attention to individual lives."
+      }
+    }
+  ]
+}
