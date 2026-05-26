@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: v9.6 — format-hallucination priority, theme_tensions debug scope, vibe/fact calibration
+# Version: v9.7 — theme_tensions deterministic repair, narrower co-founder fact-risk, context memoization + resume-from-report
 """
 Generate AI editorial enrichment for top BookRecs books.
 
@@ -432,6 +432,8 @@ REPORT_FIELDS = [
 
 LIST_CACHE: Optional[Dict[str, Dict[str, Any]]] = None
 SERIES_CACHE: Optional[Dict[str, Dict[str, Any]]] = None
+# v9.7 — per-book context memoization. Survives transient Supabase/DNS failures within a run.
+BOOK_CONTEXT_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 def clean(value: Any) -> str:
@@ -771,9 +773,20 @@ def fetch_series(book_id: str, limit: int = 5) -> List[Dict[str, Any]]:
 
 def build_context(book: Dict[str, Any]) -> Dict[str, Any]:
     book_id = book["id"]
-    recommendations = fetch_recommendations(book_id)
-    lists = fetch_lists(book_id)
-    series = fetch_series(book_id)
+    # v9.7 — memoize per-book context. Avoids refetch on repeated processing in a run
+    # and provides a fallback path when later Supabase fetches fail.
+    cached = BOOK_CONTEXT_CACHE.get(clean(book_id))
+    if cached is not None:
+        return cached
+    try:
+        recommendations = fetch_recommendations(book_id)
+        lists = fetch_lists(book_id)
+        series = fetch_series(book_id)
+    except Exception as exc:
+        if _is_network_error(exc) and clean(book_id) in BOOK_CONTEXT_CACHE:
+            print(f"[context] network error for {book_id}; reusing cached context: {_short_error(exc)}")
+            return BOOK_CONTEXT_CACHE[clean(book_id)]
+        raise
     source_backed_count = sum(1 for r in recommendations if r.get("source_url", "").startswith("http"))
     recommender_names = [r["person_name"] for r in recommendations if r.get("person_name")]
     role_summary = summarize_roles(recommendations)
@@ -812,6 +825,8 @@ def build_context(book: Dict[str, Any]) -> Dict[str, Any]:
         "context_source_url_count": source_backed_count,
         "context_sampled_recommendation_count": len(recommendations),
     }
+    # v9.7 — cache successful build so a later failure can fall back without refetch.
+    BOOK_CONTEXT_CACHE[clean(book_id)] = context
     return context
 
 
@@ -1199,8 +1214,136 @@ def unsupported_fact_risk(public_text: str, source_context: str) -> Optional[str
     source_lowered = source_context.lower()
     for phrase in FACT_RISK_PHRASES:
         if phrase in lowered and phrase not in source_lowered:
+            # v9.7 — "co-founder"/"cofounder" is normal role language in business books.
+            # Only treat as an unsupported fact when it identifies a specific company by name.
+            if phrase in ("co-founder", "cofounder"):
+                if not _is_specific_cofounder_claim(public_text):
+                    continue
             return phrase
     return None
+
+
+def _is_specific_cofounder_claim(text: str) -> bool:
+    """v9.7 — Return True only when 'co-founder'/'cofounder' is used as a specific factual
+    claim about a real company (e.g., 'co-founder of Stripe'), not generic role language
+    (e.g., 'a co-founder thinking about scaling', 'co-founder of a startup')."""
+    generic_followers = {
+        "a", "an", "the", "any", "some", "this", "that",
+        "your", "his", "her", "their", "our", "my",
+        "early", "early-stage", "small", "startup", "company",
+    }
+    # "co-founder of <next_token>" — flag only when next token is a Capitalized proper noun
+    pattern = re.compile(r'\b(?:co-?founder)\s+of\s+([A-Za-z][A-Za-z0-9&.\'-]*)')
+    for m in pattern.finditer(text):
+        next_token = m.group(1)
+        if next_token.lower() in generic_followers:
+            continue
+        if next_token[0].isupper():
+            return True
+    return False
+
+
+def _deterministic_theme_tensions(list_names: List[str]) -> List[str]:
+    """v9.7 — deterministic theme-tension pool keyed by category signals.
+    Used to pad theme_tensions when AI returns fewer than 4 usable tensions,
+    so an otherwise strong row is not killed by theme_tensions_bad_list."""
+    ln_lower = " ".join(list_names).lower()
+    pool: List[str] = []
+    if "business" in ln_lower or "leadership" in ln_lower or "startup" in ln_lower or "entrepreneur" in ln_lower or "management" in ln_lower:
+        pool.extend([
+            "speed vs sustainability",
+            "intuition vs data-driven decisions",
+            "ambition vs personal cost",
+            "founder conviction vs team consensus",
+        ])
+    if "psychology" in ln_lower or "self help" in ln_lower or "personal development" in ln_lower or "behavioral" in ln_lower:
+        pool.extend([
+            "self-improvement vs self-acceptance",
+            "discipline vs spontaneity",
+            "individual agency vs systemic forces",
+            "insight vs action",
+        ])
+    if "philosophy" in ln_lower or "ethics" in ln_lower or "religion" in ln_lower:
+        pool.extend([
+            "principles vs practical compromise",
+            "freedom vs responsibility",
+            "tradition vs reinvention",
+        ])
+    if "fiction" in ln_lower or "literature" in ln_lower or "novel" in ln_lower or "fantasy" in ln_lower:
+        pool.extend([
+            "loyalty vs personal truth",
+            "duty vs desire",
+            "memory vs reinvention",
+        ])
+    if "science" in ln_lower or "history" in ln_lower or "nonfiction" in ln_lower or "popular science" in ln_lower:
+        pool.extend([
+            "evidence vs narrative",
+            "specialization vs synthesis",
+            "certainty vs ongoing inquiry",
+        ])
+    if not pool:
+        pool = [
+            "clarity vs complexity",
+            "ambition vs limits",
+            "individual vs system",
+            "rigor vs accessibility",
+        ]
+    seen: set = set()
+    out: List[str] = []
+    for p in pool:
+        if p not in seen:
+            seen.add(p)
+            out.append(p)
+    return out
+
+
+def _repair_theme_tensions(value: Any, context: Dict[str, Any]) -> Tuple[List[str], str]:
+    """v9.7 — coerce, split, dedupe, then pad theme_tensions deterministically up to 4-5 items.
+    Returns (items, repair_note). repair_note is empty when no repair was needed."""
+    note = ""
+    items: List[str] = []
+
+    if isinstance(value, list):
+        for item in value:
+            text = clean(item)
+            if text and text not in items:
+                items.append(text)
+    elif isinstance(value, str):
+        text = clean(value)
+        if text:
+            for sep in ["\n", "|", " / ", " · ", "; "]:
+                if sep in text:
+                    parts = [clean(p) for p in text.split(sep) if clean(p)]
+                    if len(parts) >= 2:
+                        items = parts
+                        note = "theme_tensions_repaired_from_string"
+                        break
+            if not items:
+                items = [text]
+                note = "theme_tensions_repaired_from_string"
+
+    cleaned_items: List[str] = []
+    for raw in items:
+        s = clean(raw)
+        if not s or s in cleaned_items:
+            continue
+        cleaned_items.append(s)
+
+    if len(cleaned_items) < 4:
+        list_names = [clean(l.get("name", "")) for l in context.get("lists", []) if clean(l.get("name", ""))]
+        fallbacks = _deterministic_theme_tensions(list_names)
+        for f in fallbacks:
+            if len(cleaned_items) >= 5:
+                break
+            if f not in cleaned_items:
+                cleaned_items.append(f)
+        if not note:
+            note = "theme_tensions_padded_deterministic"
+
+    if len(cleaned_items) > 5:
+        cleaned_items = cleaned_items[:5]
+
+    return cleaned_items, note
 
 
 def deterministic_source_quality_note(context: Dict[str, Any]) -> str:
@@ -1529,11 +1672,18 @@ def _find_reject_debug(cleaned: Dict[str, Any], reason: str, public_text: str) -
     # v9.6 — field-specific override: only scan the named field, not all PUBLIC_FIELDS
     search_fields = PUBLIC_FIELDS
     if "bad_list" in rl:
-        # Extract the specific field name from theme_tensions_bad_list, best_for_bad_list, etc.
-        parts = reason.split("_")
+        # v9.7 — for *_bad_list, debug must show the actual list value/count, never generic 'list'.
         field_part = reason.replace("_bad_list", "").strip()
         if field_part in PUBLIC_FIELDS:
-            search_fields = [field_part]
+            fv = cleaned.get(field_part, [])
+            if isinstance(fv, list):
+                items = [clean(x) for x in fv if clean(x)]
+                n = len(items)
+                preview = " | ".join(items)[:240] if items else "(empty list)"
+            else:
+                preview = clean(str(fv))[:240] if fv else "(not a list)"
+                n = -1
+            return field_part, f"{field_part}_count_{n}", f"value={preview}"
     reason_parts = reason.split("_")
     skip_prefixes = {"publisher", "hype", "banned", "unsupported", "format", "claim", "overclaim", "source", "medical", "or", "research", "proof", "prestige"}
     for i, part in enumerate(reason_parts):
@@ -1642,12 +1792,12 @@ def _check_title_format_mismatch(public_text: str, title: str) -> Optional[str]:
 
 
 def validate_output(data: Dict[str, Any], context: Dict[str, Any], quality_warnings: Optional[List[str]] = None) -> Tuple[bool, str, Dict[str, Any]]:
+    # v9.7 — theme_tensions is no longer strictly required; it is repaired deterministically below.
     required = [
         "quick_verdict",
         "editorial_summary",
         "best_for",
         "not_for",
-        "theme_tensions",
         "emotional_journey",
         "reading_pace_profile",
         "vibe_tags",
@@ -1658,13 +1808,18 @@ def validate_output(data: Dict[str, Any], context: Dict[str, Any], quality_warni
         if key not in data:
             return False, f"missing_{key}", data
 
+    # v9.7 — repair theme_tensions deterministically (handles missing, string, short lists)
+    repaired_tensions, tt_repair_note = _repair_theme_tensions(data.get("theme_tensions"), context)
+    if tt_repair_note and quality_warnings is not None and tt_repair_note not in quality_warnings:
+        quality_warnings.append(tt_repair_note)
+
     cleaned = {
         "quick_verdict": clean(data["quick_verdict"]),
         "editorial_summary": clean(data["editorial_summary"]),
         "best_for": data["best_for"],
         "not_for": data["not_for"],
-        "theme_tensions": data["theme_tensions"],
-        "key_themes": data["theme_tensions"],
+        "theme_tensions": repaired_tensions,
+        "key_themes": repaired_tensions,
         "emotional_journey": clean(data["emotional_journey"]),
         "reading_pace_profile": clean(data["reading_pace_profile"]),
         "vibe_tags": data["vibe_tags"],
@@ -1703,7 +1858,8 @@ def validate_output(data: Dict[str, Any], context: Dict[str, Any], quality_warni
     for field_name, min_items, max_items in [
         ("best_for", 3, 4),
         ("not_for", 3, 4),
-        ("theme_tensions", 3, 5),
+        # v9.7 — theme_tensions must be 4–5; repair has already padded it.
+        ("theme_tensions", 4, 5),
         ("vibe_tags", 5, 8),
     ]:
         ok, items = clean_list(cleaned[field_name], min_items, max_items, field_name)
@@ -2468,6 +2624,8 @@ def main() -> int:
     parser.add_argument("--mock-ai", action="store_true", help="Use fixture mock_ai_output instead of calling AI provider. Requires --fixture-file.")
     parser.add_argument("--concurrency", type=int, default=1, help="Number of concurrent books for dry-run/no-write mode.")
     parser.add_argument("--only-failed-from-report", default="", help="Rerun only books that failed in a previous CSV report.")
+    # v9.7 — resume support
+    parser.add_argument("--resume-from-report", default="", help="Skip books already present (any status) in this CSV report. Useful to resume a partial dry run after network failures.")
     parser.add_argument("--only-actions-from-report", default="", help="Format: REPORT.csv:action1,action2 (e.g. report.csv:needs_retry,keep_pending,reject).")
     parser.add_argument("--book-ids-file", default="", help="File with one book_id or slug per line to rerun.")
     parser.add_argument("--debug-failed-only-selection", action="store_true", help="Print each selected row during --only-failed-from-report parsing.")
@@ -2506,6 +2664,9 @@ def main() -> int:
         raise SystemExit("Cannot use both --only-actions-from-report and --book-ids-file together")
     if args.only_failed_from_report and args.only_actions_from_report:
         raise SystemExit("Cannot use both --only-failed-from-report and --only-actions-from-report together")
+    # v9.7 — resume-from-report is incompatible with selectors that already imply a fixed list
+    if args.resume_from_report and (args.only_failed_from_report or args.only_actions_from_report or args.book_ids_file):
+        raise SystemExit("--resume-from-report cannot be combined with --only-failed-from-report, --only-actions-from-report, or --book-ids-file")
     if args.write and not args.backup_before_write:
         raise SystemExit("--write requires --backup-before-write PATH so AI fields can be restored safely")
     # v7.5.2 — restore safety gates
@@ -3190,6 +3351,30 @@ def _run_fixture(args: argparse.Namespace, model: str, write_enabled: bool, mock
     return 0
 
 
+def _select_completed_keys(report_path: str) -> set:
+    """v9.7 — Collect book_id and slug keys already present in a partial report,
+    so a resumed run can skip them. Any row with a recognized status counts as done."""
+    keys: set = set()
+    try:
+        with open(report_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                status = (row.get("status") or "").strip()
+                if not status:
+                    continue
+                bid = (row.get("book_id") or "").strip()
+                slug = (row.get("slug") or "").strip()
+                if bid:
+                    keys.add(bid)
+                if slug:
+                    keys.add(slug)
+    except FileNotFoundError:
+        print(f"[resume] report not found: {report_path}; starting fresh.")
+    except Exception as exc:
+        print(f"[resume] could not read {report_path}: {exc}; starting fresh.")
+    return keys
+
+
 def _select_failed_book_slugs(report_path: str, debug: bool = False) -> List[str]:
     """Select only failed book slugs/IDs from a report CSV."""
     FAILED_STATUSES = {"rejected", "failed", "error", "json_error", "validation_failed", "empty_response"}
@@ -3298,6 +3483,15 @@ def _run_live(args: argparse.Namespace, model: str, write_enabled: bool) -> int:
         books = _fetch_books_by_slugs(slugs, fetch_retries=args.supabase_fetch_retries)
     else:
         books = fetch_books(args.limit, args.offset, only_missing=not args.include_existing, fetch_retries=args.supabase_fetch_retries)
+    # v9.7 — resume support: drop books already present (any status) in the partial report.
+    if args.resume_from_report:
+        completed_keys = _select_completed_keys(args.resume_from_report)
+        before = len(books)
+        books = [
+            b for b in books
+            if clean(b.get("id")) not in completed_keys and clean(b.get("slug")) not in completed_keys
+        ]
+        print(f"[resume] {before - len(books)} books already present in {args.resume_from_report}; {len(books)} remain.")
     total = len(books)
     print(f"Fetched {total} books for editorial enrichment.")
 
