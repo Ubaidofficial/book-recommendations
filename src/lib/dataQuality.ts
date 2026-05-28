@@ -292,3 +292,129 @@ export function repairNumericTitle(title: string | null | undefined): string {
   if (m) return m[1];
   return s;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Editorial field parsing — robust against shape variability and junk
+// ─────────────────────────────────────────────────────────────────────────────
+
+const KNOWN_ACRONYMS = new Set([
+  "CEO", "CFO", "CTO", "COO", "CIA", "FBI", "AI", "API", "DNA", "UX", "UI", "ML",
+  "MIT", "NSA", "PM", "CMO", "VP", "HR", "PR", "QA", "VC", "MBA", "PhD",
+]);
+
+/**
+ * Parse a best_for / not_for / key_themes value into a clean array of strings,
+ * regardless of how it arrives from production (PostgREST may return text, text[],
+ * JSON-encoded array string, or null depending on column type and write history).
+ *
+ * Rules:
+ *  - array of strings → use as-is
+ *  - JSON-encoded array string ('["a","b"]') → parse
+ *  - pipe-joined string ("a | b | c") → split on "|"
+ *  - newline-separated → split on \n
+ *  - semicolon-separated, ONLY when every part is meaningful → split on ";"
+ *  - otherwise → one item containing the whole sentence
+ *  - never spread a string into characters
+ *  - strip leading bullets ("-", "•", "*", "–", "—") and list numbers ("1.", "2)")
+ *  - drop items shorter than `minLen` unless they are a known acronym
+ *  - dedupe (case-insensitive)
+ *  - cap at `maxItems`
+ *  - if the resulting list looks like single-character junk (>50% items length 1),
+ *    return [] so the UI can hide the section instead of rendering huge empty cards
+ *
+ * Optional `maxItemLength` truncates each item with an ellipsis — useful for chips
+ * where parenthetical mega-phrases would otherwise dominate the layout.
+ */
+export function parseEditorialList(
+  raw: unknown,
+  opts: { maxItems?: number; minLen?: number; maxItemLength?: number } = {},
+): string[] {
+  const maxItems = opts.maxItems ?? 4;
+  const minLen = opts.minLen ?? 8;
+  const maxItemLength = opts.maxItemLength;
+  if (raw == null) return [];
+
+  // 1) Collect raw items into a flat string list, by shape.
+  let items: string[] = [];
+
+  if (Array.isArray(raw)) {
+    items = raw.filter((x): x is string => typeof x === "string");
+  } else if (typeof raw === "string") {
+    const s = raw.trim();
+    if (!s) return [];
+
+    // 1a) JSON-encoded array
+    if ((s.startsWith("[") && s.endsWith("]")) || (s.startsWith("{") && s.endsWith("}"))) {
+      try {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed)) {
+          items = parsed.filter((x): x is string => typeof x === "string");
+        }
+      } catch {
+        // fall through to delimiter detection
+      }
+    }
+    // 1b) Pipe-joined
+    if (items.length === 0 && s.includes("|")) {
+      items = s.split("|");
+    }
+    // 1c) Newline-separated (after pipe — pipe takes priority)
+    if (items.length === 0 && /\r?\n/.test(s)) {
+      items = s.split(/\r?\n/);
+    }
+    // 1d) Semicolon-separated — ONLY when each piece is reasonably long, to avoid
+    //     splitting natural sentences that contain a semicolon.
+    if (items.length === 0 && s.includes(";")) {
+      const parts = s.split(";").map((t) => t.trim()).filter(Boolean);
+      if (parts.length >= 2 && parts.every((p) => p.length >= minLen)) {
+        items = parts;
+      }
+    }
+    // 1e) Plain sentence → one item.  CRITICALLY: never split into characters.
+    if (items.length === 0) {
+      items = [s];
+    }
+  } else {
+    // not array, not string — give up
+    return [];
+  }
+
+  // 2) Clean each item.
+  const cleaned: string[] = [];
+  const seen = new Set<string>();
+  for (const r of items) {
+    let s = String(r ?? "").trim();
+    if (!s) continue;
+    // strip leading bullet glyphs
+    s = s.replace(/^[\-•–—*]+\s*/, "");
+    // strip list numbering "1." / "1)"
+    s = s.replace(/^\d+[.)]\s*/, "");
+    // strip wrapping quotes
+    s = s.replace(/^["“]+|["”]+$/g, "");
+    s = s.trim();
+    if (!s) continue;
+
+    const tooShort = s.length < minLen;
+    if (tooShort) {
+      // allow well-known acronyms ("CEO", "AI"), reject everything else short
+      if (!KNOWN_ACRONYMS.has(s.toUpperCase())) continue;
+    }
+    const key = s.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    if (maxItemLength && s.length > maxItemLength) {
+      s = s.slice(0, maxItemLength - 1).trimEnd() + "…";
+    }
+    cleaned.push(s);
+    if (cleaned.length >= maxItems) break;
+  }
+
+  // 3) Junk guard — if more than half the items are length 1 (the char-bullet bug),
+  //    return [] so the section hides instead of rendering a tall empty card.
+  if (cleaned.length > 0) {
+    const shortRatio = cleaned.filter((x) => x.length <= 1).length / cleaned.length;
+    if (shortRatio > 0.5) return [];
+  }
+  return cleaned;
+}

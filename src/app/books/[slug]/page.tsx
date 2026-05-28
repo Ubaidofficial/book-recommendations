@@ -24,6 +24,7 @@ import {
   cleanDescription,
   uniqueByNormalizedText,
   parseSourceUrls,
+  parseEditorialList,
 } from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -198,32 +199,35 @@ export default async function BookDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Editorial — surfaced only when the AI pipeline has populated it and the
-          status is not 'rejected' / not 'pending'. Draft status gets a small label
-          so reviewers know it hasn't been approved yet. */}
+      {/* Editorial — robust to shape variability. Uses parseEditorialList to handle
+          arrays / JSON-encoded strings / pipe / newline / plain sentences without
+          ever rendering character-by-character bullets. No public Draft label. */}
       {(() => {
         const status = (book.ai_quality_status || "").toLowerCase();
         if (!status || status === "rejected" || status === "pending") return null;
+
+        // TEMPORARY diagnostic — visible in Railway logs only. Tells us the real
+        // production data shape so any future regression has root cause in hand.
+        // Safe: server-side, never reaches the browser, no PII.
+        console.log(
+          `[book-editorial slug=${slug}] ai_quality_status=${status} ` +
+          `best_for_type=${typeof book.best_for} best_for_isArray=${Array.isArray(book.best_for)} ` +
+          `best_for_sample=${JSON.stringify(book.best_for).slice(0, 200)} ` +
+          `not_for_type=${typeof book.not_for} not_for_isArray=${Array.isArray(book.not_for)} ` +
+          `not_for_sample=${JSON.stringify(book.not_for).slice(0, 200)} ` +
+          `themes_type=${typeof book.key_themes} themes_isArray=${Array.isArray(book.key_themes)} ` +
+          `themes_sample=${JSON.stringify(book.key_themes).slice(0, 200)}`
+        );
+
         const summary = (book.editorial_summary || "").trim();
-        const bestForItems = (book.best_for || "").split("|").map((s) => s.trim()).filter(Boolean);
-        const notForItems = (book.not_for || "").split("|").map((s) => s.trim()).filter(Boolean);
-        const themes: string[] = Array.isArray(book.key_themes)
-          ? book.key_themes.filter((t): t is string => typeof t === "string" && t.trim().length > 0).map((t) => t.trim())
-          : typeof book.key_themes === "string"
-            ? book.key_themes.split("|").map((s) => s.trim()).filter(Boolean)
-            : [];
+        const bestForItems = parseEditorialList(book.best_for, { maxItems: 4, minLen: 8 });
+        const notForItems = parseEditorialList(book.not_for, { maxItems: 4, minLen: 8 });
+        const themes = parseEditorialList(book.key_themes, { maxItems: 6, minLen: 3, maxItemLength: 56 });
+
         if (!summary && bestForItems.length === 0 && notForItems.length === 0 && themes.length === 0) return null;
-        const isDraft = status === "draft" || status === "needs_review";
         return (
           <section className="mb-14">
-            <div className="flex items-baseline gap-3 mb-5">
-              <h2 className="text-xl font-bold text-ink tracking-tight">Editorial</h2>
-              {isDraft && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-medium" title="Draft editorial — pending human review">
-                  {status === "needs_review" ? "Needs review" : "Draft"}
-                </span>
-              )}
-            </div>
+            <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Editorial</h2>
             {summary && (
               <p className="text-base text-muted leading-relaxed mb-6 max-w-3xl">{summary}</p>
             )}
@@ -261,7 +265,7 @@ export default async function BookDetailPage({ params }: Props) {
               <div>
                 <h3 className="text-sm font-semibold text-ink mb-2">Key themes</h3>
                 <div className="flex flex-wrap gap-1.5">
-                  {themes.slice(0, 8).map((t, i) => (
+                  {themes.map((t, i) => (
                     <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-full bg-subtle text-ink text-xs">
                       {t}
                     </span>

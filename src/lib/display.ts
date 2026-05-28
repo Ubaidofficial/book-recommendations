@@ -134,13 +134,26 @@ const BROAD_CATEGORY_SLUGS = new Set([
 
 export type ListKind = "topic" | "meta" | "category" | "other";
 
+/**
+ * Classify a list slug for the badge UI.
+ *
+ *   best-*               → topic   (curated best-of, sourced from external lists)
+ *   most-recommended-books → meta  (featured)
+ *   *-in-order / *-books-in-order → other (series reading order, not a category)
+ *   anything else        → category  (broad/leaf taxonomy node — Fashion, Sociology,
+ *                                     even dirty merged forms like "fashionart")
+ *
+ * Defaulting to "category" (instead of "other → no badge") gives every non-best-*,
+ * non-meta, non-series-page list a meaningful label without inventing taxonomy.
+ */
 export function listKindFromSlug(slug: string | null | undefined): ListKind {
   const s = (slug || "").toLowerCase();
   if (!s) return "other";
   if (META_LIST_SLUGS.has(s)) return "meta";
+  if (s.endsWith("-in-order") || s.includes("books-in-order")) return "other";
   if (s.startsWith("best-")) return "topic";
-  if (BROAD_CATEGORY_SLUGS.has(s)) return "category";
-  return "other";
+  // any other slug is a category-like list (Fashion, Sociology, fashionart, etc.)
+  return "category";
 }
 
 export function listKindLabel(kind: ListKind): string {
