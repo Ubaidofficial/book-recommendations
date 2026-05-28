@@ -118,3 +118,143 @@ export function uniqueByNormalizedText<T>(items: T[], key: keyof T): T[] {
     return true;
   });
 }
+
+/**
+ * Parse a recommendation source_url that may contain one or more URLs joined in dirty ways.
+ *
+ * Handles:
+ *  - " | " separated (pipe joined)
+ *  - ",%20" / ", " / "," followed by http (comma joined, with or without URL-encoded space)
+ *  - adjacent concatenation: "http…http…" with no separator
+ *  - malformed single-slash prefix: "https:/twitter.com" -> "https://twitter.com"
+ *
+ * Does NOT split:
+ *  - web.archive.org URLs (the embedded http:// is part of the archive path)
+ *  - encoded params like `?ref_url=https%3A%2F%2F…` (no literal `://`, so untouched)
+ *
+ * Returns deduped, validated http(s) URLs (may be empty).
+ */
+export function parseSourceUrls(raw: string | null | undefined): string[] {
+  if (!raw || typeof raw !== "string") return [];
+  const s = raw.trim();
+  if (!s) return [];
+
+  // 1) explicit separators: pipe, or comma(+ optional %20/space) immediately before http
+  const initial = s.split(/\s*\|\s*|,\s*(?:%20)?\s*(?=https?:\/)/);
+
+  const out: string[] = [];
+  for (let chunk of initial) {
+    chunk = chunk.trim();
+    if (!chunk) continue;
+
+    // archive.org legitimately embeds a second http:// — keep whole
+    if (chunk.includes("web.archive.org")) {
+      out.push(chunk);
+      continue;
+    }
+
+    // 2) adjacent concatenation: insert a split before a literal http(s):// preceded by non-space.
+    //    encoded `%2F%2F` params never contain a literal `://`, so they survive untouched.
+    const subs = chunk.split(/(?<=\S)(?=https?:\/\/)/);
+    for (const sub of subs) {
+      const t = sub.trim();
+      if (t) out.push(t);
+    }
+  }
+
+  // 3) normalize + validate + dedupe
+  const seen = new Set<string>();
+  const final: string[] = [];
+  for (let u of out) {
+    u = u.trim().replace(/^,+/, "").replace(/,+$/, "").trim();
+    while (u.endsWith("%20")) u = u.slice(0, -3).trim();
+    // malformed single-slash prefix: "https:/twitter.com" -> "https://twitter.com"
+    u = u.replace(/^(https?):\/(?!\/)/i, "$1://");
+    if (!/^https?:\/\//i.test(u)) continue;
+    try {
+      // strict URL validation
+      // eslint-disable-next-line no-new
+      new URL(u);
+    } catch {
+      continue;
+    }
+    if (!seen.has(u)) {
+      seen.add(u);
+      final.push(u);
+    }
+  }
+  return final;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// List ranking — used by Appears In and related-list selection
+// ─────────────────────────────────────────────────────────────────────────────
+
+const BROAD_PARENT_SLUGS = new Set([
+  "nonfiction", "fiction", "social-sciences", "science", "history", "business",
+  "children", "psychology", "personal-development", "art", "philosophy", "hobbies",
+  "politics", "spirituality", "sports", "technology", "humor", "comics", "poetry",
+  "design", "nature", "sociology", "math", "physics", "biology", "education",
+  "food", "travel", "writing", "music", "film", "fashion", "gardening",
+]);
+
+const META_SLUGS = new Set(["most-recommended-books"]);
+
+export type RankedList = {
+  id: string;
+  slug: string;
+  title: string;
+  description?: string | null;
+  book_count?: number | null;
+  // optional join-info from book_lists
+  rank?: number | null;
+};
+
+/**
+ * Rank book→list memberships so "Appears In" prefers narrow topic lists.
+ *
+ * Priority tiers:
+ *   1. Topic lists (slug starts with "best-")
+ *   2. Other narrow lists (not broad parent, not meta)
+ *   3. Meta lists (most-recommended-books)
+ *   4. Broad parents (nonfiction/fiction/business/…)
+ *
+ * Within each tier, prefer:
+ *   - smaller book_count (more specific)
+ *   - lower membership rank (closer to position 1) if available
+ */
+export function rankBookAppearsInLists<T extends RankedList>(lists: T[], topN = 8): T[] {
+  const tier = (s: string): number => {
+    const slug = (s || "").toLowerCase();
+    if (slug.startsWith("best-")) return 1;
+    if (META_SLUGS.has(slug)) return 3;
+    if (BROAD_PARENT_SLUGS.has(slug)) return 4;
+    return 2;
+  };
+  const score = (l: T): [number, number, number] => [
+    tier(l.slug),
+    typeof l.book_count === "number" && l.book_count > 0 ? l.book_count : 1e9,
+    typeof l.rank === "number" && l.rank > 0 ? l.rank : 1e9,
+  ];
+  return [...lists]
+    .sort((a, b) => {
+      const [ta, ba, ra] = score(a);
+      const [tb, bb, rb] = score(b);
+      if (ta !== tb) return ta - tb;
+      if (ba !== bb) return ba - bb;
+      return ra - rb;
+    })
+    .slice(0, topN);
+}
+
+export function isBroadParentSlug(slug: string | null | undefined): boolean {
+  return BROAD_PARENT_SLUGS.has((slug || "").toLowerCase());
+}
+
+export function isMetaListSlug(slug: string | null | undefined): boolean {
+  return META_SLUGS.has((slug || "").toLowerCase());
+}
+
+export function isTopicListSlug(slug: string | null | undefined): boolean {
+  return (slug || "").toLowerCase().startsWith("best-");
+}

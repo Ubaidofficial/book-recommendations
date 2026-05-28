@@ -362,23 +362,106 @@ export async function getPersonRecommendationProof(
 
 export async function getListsPaginated(
   page = 1,
-  pageSize = 24
+  pageSize = 24,
+  sort: "book_count" | "title" = "book_count"
 ): Promise<PaginatedResult<BookList>> {
   try {
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
+    const col = sort === "title" ? "title" : "book_count";
+    const asc = sort === "title";
 
-    const { data, error } = await getSupabase()
+    // count: 'exact' returns the REAL total in `count`, not just the slice length.
+    const { data, count, error } = await getSupabase()
       .from("lists")
-      .select("*")
-      .order("book_count", { ascending: false })
+      .select("*", { count: "exact" })
+      .order(col, { ascending: asc })
       .range(from, to);
 
     if (error) { logQueryError("getListsPaginated", error); return { data: [], total: 0, page, pageSize }; }
-    return { data: data || [], total: (data || []).length, page, pageSize };
+    return { data: data || [], total: count || 0, page, pageSize };
   } catch (e) {
     logQueryError("getListsPaginated", e);
     return { data: [], total: 0, page, pageSize };
+  }
+}
+
+// Curated set of broad-parent slugs that are actually present in production after migration.
+// These appear at the top of /lists as "Main Categories".
+const BROAD_CATEGORY_SLUGS = [
+  "nonfiction", "fiction", "business", "science", "social-sciences", "history",
+  "psychology", "personal-development", "art", "philosophy", "fantasy",
+  "science-fiction", "romance", "mystery-crime", "thriller-suspense", "finance",
+  "leadership", "spirituality", "sports", "technology", "health", "politics",
+  "biography", "poetry", "music", "food", "travel", "design", "writing",
+  "programming", "management", "entrepreneurship",
+];
+
+export async function getBroadCategoryLists(limit = 12): Promise<BookList[]> {
+  try {
+    const { data, error } = await getSupabase()
+      .from("lists")
+      .select("*")
+      .in("slug", BROAD_CATEGORY_SLUGS)
+      .order("book_count", { ascending: false })
+      .limit(limit);
+    if (error) { logQueryError("getBroadCategoryLists", error); return []; }
+    return data || [];
+  } catch (e) {
+    logQueryError("getBroadCategoryLists", e);
+    return [];
+  }
+}
+
+/**
+ * Lightweight Fiction/Nonfiction classifier for `best-*` topic lists,
+ * driven by slug + title keywords. Avoids a schema change.
+ */
+export function classifyTopicList(slug: string, title?: string | null): "fiction" | "nonfiction" | "other" {
+  const s = `${slug || ""} ${title || ""}`.toLowerCase();
+  const fictionKw = /\b(fiction|fantasy|romance|mystery|thriller|horror|sci-fi|dystopian|comic|comics|manga|poetry|paranormal|time-travel|space-opera|epic-fantasy|urban-fantasy|gothic|steampunk|christian-fiction|cozy-mysteries|legal-thriller|saga)\b/;
+  const nonfictionKw = /\b(business|leadership|marketing|sales|finance|investing|economics|management|entrepreneur|startup|career|productivity|science|history|math|physics|biology|chemistry|astronomy|programming|technology|engineering|psychology|philosophy|self-help|self-improvement|personal-development|memoir|biography|autobiography|nutrition|cooking|food|gardening|design|art|architecture|fashion|photography|film|music|sports|fitness|parenting|relationships|education|writing|travel|nature|environment|spirituality|religion|buddhism|christianity|judaism|islam|hinduism|politics|sociology|anthropology|health|medicine|therapy)\b/;
+  if (fictionKw.test(s)) return "fiction";
+  if (nonfictionKw.test(s)) return "nonfiction";
+  return "other";
+}
+
+/**
+ * Topic-list query (slug LIKE 'best-%') with true total count + optional Fiction/Nonfiction filter.
+ * The filter is applied client-side after fetching a wider window — keeps query simple, no schema change.
+ */
+export async function getTopicLists(opts: {
+  limit?: number; offset?: number;
+  sort?: "book_count" | "title";
+  filter?: "all" | "fiction" | "nonfiction";
+} = {}): Promise<{ data: BookList[]; total: number }> {
+  const limit = opts.limit ?? 24;
+  const offset = opts.offset ?? 0;
+  const sort = opts.sort ?? "book_count";
+  const filter = opts.filter ?? "all";
+  const col = sort === "title" ? "title" : "book_count";
+  const asc = sort === "title";
+
+  try {
+    // When filtering, overfetch (×4) then narrow client-side; otherwise paginate directly.
+    const fetchLimit = filter === "all" ? limit : limit * 4;
+    const fetchFrom = filter === "all" ? offset : 0;
+    const fetchTo = fetchFrom + fetchLimit - 1;
+    const { data, count, error } = await getSupabase()
+      .from("lists")
+      .select("*", { count: "exact" })
+      .like("slug", "best-%")
+      .order(col, { ascending: asc })
+      .range(fetchFrom, fetchTo);
+    if (error) { logQueryError("getTopicLists", error); return { data: [], total: 0 }; }
+    let rows = data || [];
+    if (filter !== "all") {
+      rows = rows.filter(l => classifyTopicList(l.slug, l.title) === filter).slice(offset, offset + limit);
+    }
+    return { data: rows, total: count || 0 };
+  } catch (e) {
+    logQueryError("getTopicLists", e);
+    return { data: [], total: 0 };
   }
 }
 
@@ -414,36 +497,127 @@ export async function getListBySlug(slug: string): Promise<BookList | null> {
   }
 }
 
-// Books in a list (via book_lists junction table)
+/**
+ * Two-step fetch: avoids PostgREST embed quirks that can return empty for
+ * large/freshly-inserted memberships (the cause of the most-recommended-books empty grid).
+ * Step 1: get book_ids from book_lists. Step 2: fetch books by id.
+ */
 export async function getBooksForList(listId: string, limit = 48): Promise<Book[]> {
   try {
-    const { data: rows, error } = await getSupabase()
+    const { data: links, error: linkErr } = await getSupabase()
       .from("book_lists")
-      .select("rank, books(*)")
+      .select("book_id, rank")
       .eq("list_id", listId)
-      .order("rank", { ascending: true })
+      .order("rank", { ascending: true, nullsFirst: false })
       .limit(limit);
+    if (linkErr) { logQueryError("getBooksForList[links]", linkErr); return []; }
+    const ids: string[] = (links || [])
+      .map((r: { book_id: string | null }) => r.book_id)
+      .filter((x): x is string => !!x);
+    if (ids.length === 0) return [];
 
-    if (error) { logQueryError("getBooksForList", error); return []; }
-    return (rows || []).map((r: { books: unknown }) => r.books as Book).filter((b: Book) => b != null && b.id);
+    const { data: books, error: bookErr } = await getSupabase()
+      .from("books")
+      .select("*")
+      .in("id", ids);
+    if (bookErr) { logQueryError("getBooksForList[books]", bookErr); return []; }
+    // Preserve the rank order from the first query
+    const byId = new Map<string, Book>();
+    for (const b of (books || []) as Book[]) {
+      if (b && b.id) byId.set(b.id, b);
+    }
+    const ordered: Book[] = [];
+    for (const id of ids) {
+      const b = byId.get(id);
+      if (b) ordered.push(b);
+    }
+    return ordered;
   } catch (e) {
     logQueryError("getBooksForList", e);
     return [];
   }
 }
 
-// Related lists — other popular lists by book_count
+/**
+ * Smart related lists for a given list.
+ *
+ * For a topic list (`best-*`), find sibling topic lists by **co-membership**:
+ *   - fetch the first ~100 book_ids of THIS list
+ *   - find other lists those books appear in
+ *   - rank by shared-book count, prefer `best-*`, prefer smaller (more specific)
+ *   - de-prioritize broad parents and the meta list unless nothing else fits
+ *
+ * For broad/meta lists, fall back to top non-broad topic lists by book_count.
+ */
 export async function getRelatedLists(listId: string, limit = 6): Promise<BookList[]> {
   try {
-    const { data, error } = await getSupabase()
+    const supa = getSupabase();
+    // load this list's slug to decide the strategy
+    const { data: thisList } = await supa.from("lists").select("id,slug,book_count").eq("id", listId).single();
+    const slug = (thisList?.slug || "").toLowerCase();
+    const isTopic = slug.startsWith("best-");
+
+    if (isTopic) {
+      // Step A: top ~100 book_ids from THIS list
+      const { data: links } = await supa
+        .from("book_lists")
+        .select("book_id")
+        .eq("list_id", listId)
+        .limit(100);
+      const bookIds = (links || []).map((r: { book_id: string | null }) => r.book_id).filter((x): x is string => !!x);
+      if (bookIds.length === 0) {
+        // fallback: top best-* lists (excluding self)
+        const { data: fb } = await supa.from("lists").select("*").like("slug", "best-%").neq("id", listId).order("book_count", { ascending: false }).limit(limit);
+        return fb || [];
+      }
+
+      // Step B: which OTHER lists do those books also appear in?
+      const { data: coLinks } = await supa
+        .from("book_lists")
+        .select("list_id, book_id")
+        .in("book_id", bookIds)
+        .neq("list_id", listId)
+        .limit(5000);
+      const counts = new Map<string, number>();
+      for (const r of (coLinks || []) as Array<{ list_id: string }>) {
+        if (!r.list_id) continue;
+        counts.set(r.list_id, (counts.get(r.list_id) || 0) + 1);
+      }
+      if (counts.size === 0) {
+        const { data: fb } = await supa.from("lists").select("*").like("slug", "best-%").neq("id", listId).order("book_count", { ascending: false }).limit(limit);
+        return fb || [];
+      }
+      const candidateIds = Array.from(counts.keys());
+      const { data: cands } = await supa.from("lists").select("*").in("id", candidateIds);
+
+      // Rank: best-* first, smaller book_count first, by shared count desc as tiebreaker
+      const BROAD = new Set(BROAD_CATEGORY_SLUGS);
+      const META = "most-recommended-books";
+      const ranked = (cands || [])
+        .map((c: BookList) => {
+          const s = (c.slug || "").toLowerCase();
+          const tier = s.startsWith("best-") ? 1 : s === META ? 3 : BROAD.has(s) ? 4 : 2;
+          return { c, tier, shared: counts.get(c.id) || 0, bc: c.book_count || 1e9 };
+        })
+        .sort((a, b) => {
+          if (a.tier !== b.tier) return a.tier - b.tier;
+          if (a.shared !== b.shared) return b.shared - a.shared;
+          return a.bc - b.bc;
+        })
+        .slice(0, limit)
+        .map(x => x.c);
+      return ranked;
+    }
+
+    // Non-topic (broad/meta): show top best-* topic lists as discovery
+    const { data: fallback } = await supa
       .from("lists")
       .select("*")
+      .like("slug", "best-%")
       .neq("id", listId)
       .order("book_count", { ascending: false })
       .limit(limit);
-
-    if (error) { logQueryError("getRelatedLists", error); return []; }
-    return data || [];
+    return fallback || [];
   } catch (e) {
     logQueryError("getRelatedLists", e);
     return [];
@@ -597,16 +771,58 @@ export async function getRecommendationProof(
   }
 }
 
-export async function getListsForBook(bookId: string, limit = 5): Promise<BookList[]> {
+/**
+ * Returns book→list memberships ranked for "Appears In":
+ *   topic lists (best-*) first, then narrow lists, then meta, then broad parents;
+ *   within each tier, smaller book_count and lower membership rank win.
+ *
+ * Two-step fetch so it works regardless of PostgREST embed quirks. Fetches up to 200
+ * memberships, picks the top `limit` after ranking.
+ */
+export async function getListsForBook(bookId: string, limit = 8): Promise<BookList[]> {
   try {
-    const { data: rows, error } = await getSupabase()
+    const supa = getSupabase();
+    const { data: links, error: linkErr } = await supa
       .from("book_lists")
-      .select("lists(*)")
+      .select("list_id, rank")
       .eq("book_id", bookId)
-      .limit(limit);
+      .limit(200);
+    if (linkErr) { logQueryError("getListsForBook[links]", linkErr); return []; }
+    const rows = (links || []) as Array<{ list_id: string | null; rank: number | null }>;
+    const ids = rows.map(r => r.list_id).filter((x): x is string => !!x);
+    if (ids.length === 0) return [];
 
-    if (error) { logQueryError("getListsForBook", error); return []; }
-    return (rows || []).map((r: { lists: unknown }) => r.lists as BookList).filter((l: BookList) => l != null && l.id);
+    const { data: lists, error: listErr } = await supa.from("lists").select("*").in("id", ids);
+    if (listErr) { logQueryError("getListsForBook[lists]", listErr); return []; }
+    const rankByListId = new Map<string, number | null>();
+    for (const r of rows) if (r.list_id) rankByListId.set(r.list_id, r.rank);
+
+    // Rank tiers locally — best-* first, broad parents last.
+    const BROAD = new Set(BROAD_CATEGORY_SLUGS);
+    const META = "most-recommended-books";
+    const tier = (s: string): number => {
+      const slug = (s || "").toLowerCase();
+      if (slug.startsWith("best-")) return 1;
+      if (slug === META) return 3;
+      if (BROAD.has(slug)) return 4;
+      return 2;
+    };
+    const ranked = ((lists || []) as BookList[])
+      .filter(l => l && l.id)
+      .map(l => ({
+        l,
+        t: tier(l.slug),
+        bc: (typeof l.book_count === "number" && l.book_count > 0) ? l.book_count : 1e9,
+        r: rankByListId.get(l.id) ?? 1e9,
+      }))
+      .sort((a, b) => {
+        if (a.t !== b.t) return a.t - b.t;
+        if (a.bc !== b.bc) return a.bc - b.bc;
+        return (a.r as number) - (b.r as number);
+      })
+      .slice(0, limit)
+      .map(x => x.l);
+    return ranked;
   } catch (e) {
     logQueryError("getListsForBook", e);
     return [];

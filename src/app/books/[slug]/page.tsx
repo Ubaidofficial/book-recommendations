@@ -23,6 +23,7 @@ import {
   isUsefulDescription,
   cleanDescription,
   uniqueByNormalizedText,
+  parseSourceUrls,
 } from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -67,7 +68,7 @@ export default async function BookDetailPage({ params }: Props) {
       personId ? getBooksByAuthor(personId, 6) : Promise.resolve([]),
       seriesId ? getBooksBySeries(seriesId, 6) : Promise.resolve([]),
       getRecommendationProof(book.id, 6),
-      getListsForBook(book.id, 5),
+      getListsForBook(book.id, 8),
     ]);
   } catch (e) {
     console.error("[book-detail] Relation queries failed:", e);
@@ -203,7 +204,8 @@ export default async function BookDetailPage({ params }: Props) {
         {hasProof ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {proof.map((p, i) => {
-              const hasSource = isValidHttpUrl(p.source_url);
+              const sourceUrls = parseSourceUrls(p.source_url);
+              const hasSource = sourceUrls.length > 0;
               const hasQuote = p.quote && p.quote.trim().length >= 50;
               const conf = formatConfidence(p.confidence_score);
 
@@ -239,14 +241,42 @@ export default async function BookDetailPage({ params }: Props) {
 
                   <div className="flex items-center justify-between gap-2 text-xs mt-2">
                     {hasSource ? (
-                      <a
-                        href={p.source_url!}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-accent hover:underline font-medium"
-                      >
-                        View source →
-                      </a>
+                      sourceUrls.length === 1 ? (
+                        <a
+                          href={sourceUrls[0]}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-accent hover:underline font-medium"
+                        >
+                          View source →
+                        </a>
+                      ) : (
+                        <span className="flex items-center gap-1.5 flex-wrap">
+                          <a
+                            href={sourceUrls[0]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-accent hover:underline font-medium"
+                          >
+                            View source →
+                          </a>
+                          <span className="text-muted/60">
+                            +{sourceUrls.length - 1} more
+                          </span>
+                          {sourceUrls.slice(1).map((u, j) => (
+                            <a
+                              key={j}
+                              href={u}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={`Additional source ${j + 2}`}
+                              className="text-muted/60 hover:text-accent hover:underline"
+                            >
+                              [{j + 2}]
+                            </a>
+                          ))}
+                        </span>
+                      )
                     ) : p.source_name ? (
                       <span className="text-muted">{p.source_name}</span>
                     ) : null}

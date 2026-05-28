@@ -15,6 +15,7 @@ import {
   formatConfidence,
   isUsefulDescription,
   uniqueByNormalizedText,
+  parseSourceUrls,
 } from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -75,7 +76,7 @@ export default async function PersonDetailPage({ params }: Props) {
     .filter((p) => isValidHttpUrl(p.source_url) || p.source_name || (p.quote && p.quote.trim().length > 30))
     .slice(0, 10);
 
-  const hasFullProof = proofList.every((p) => isValidHttpUrl(p.source_url));
+  const hasFullProof = proofList.every((p) => parseSourceUrls(p.source_url).length > 0);
   const proofHeading = hasFullProof ? "Source & Proof" : "Recommendation Signals";
 
   return (
@@ -185,7 +186,8 @@ export default async function PersonDetailPage({ params }: Props) {
         {proofList.length > 0 ? (
           <div className="space-y-2">
             {proofList.map((p, i) => {
-              const hasSource = isValidHttpUrl(p.source_url);
+              const sourceUrls = parseSourceUrls(p.source_url);
+              const hasSource = sourceUrls.length > 0;
               const hasQuote = p.quote && p.quote.trim().length > 30;
               const conf = formatConfidence(p.confidence_score);
 
@@ -207,14 +209,40 @@ export default async function PersonDetailPage({ params }: Props) {
                   )}
                   <div className="flex items-center gap-3 shrink-0">
                     {hasSource ? (
-                      <a
-                        href={p.source_url!}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-accent hover:underline font-medium"
-                      >
-                        View source →
-                      </a>
+                      sourceUrls.length === 1 ? (
+                        <a
+                          href={sourceUrls[0]}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-accent hover:underline font-medium"
+                        >
+                          View source →
+                        </a>
+                      ) : (
+                        <span className="flex items-center gap-1.5 flex-wrap">
+                          <a
+                            href={sourceUrls[0]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-accent hover:underline font-medium"
+                          >
+                            View source →
+                          </a>
+                          <span className="text-xs text-muted/60">+{sourceUrls.length - 1} more</span>
+                          {sourceUrls.slice(1).map((u, j) => (
+                            <a
+                              key={j}
+                              href={u}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={`Additional source ${j + 2}`}
+                              className="text-xs text-muted/60 hover:text-accent hover:underline"
+                            >
+                              [{j + 2}]
+                            </a>
+                          ))}
+                        </span>
+                      )
                     ) : p.source_name ? (
                       <span className="text-xs text-muted">{p.source_name}</span>
                     ) : null}
