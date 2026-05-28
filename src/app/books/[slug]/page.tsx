@@ -198,6 +198,81 @@ export default async function BookDetailPage({ params }: Props) {
         </div>
       </div>
 
+      {/* Editorial — surfaced only when the AI pipeline has populated it and the
+          status is not 'rejected' / not 'pending'. Draft status gets a small label
+          so reviewers know it hasn't been approved yet. */}
+      {(() => {
+        const status = (book.ai_quality_status || "").toLowerCase();
+        if (!status || status === "rejected" || status === "pending") return null;
+        const summary = (book.editorial_summary || "").trim();
+        const bestForItems = (book.best_for || "").split("|").map((s) => s.trim()).filter(Boolean);
+        const notForItems = (book.not_for || "").split("|").map((s) => s.trim()).filter(Boolean);
+        const themes: string[] = Array.isArray(book.key_themes)
+          ? book.key_themes.filter((t): t is string => typeof t === "string" && t.trim().length > 0).map((t) => t.trim())
+          : typeof book.key_themes === "string"
+            ? book.key_themes.split("|").map((s) => s.trim()).filter(Boolean)
+            : [];
+        if (!summary && bestForItems.length === 0 && notForItems.length === 0 && themes.length === 0) return null;
+        const isDraft = status === "draft" || status === "needs_review";
+        return (
+          <section className="mb-14">
+            <div className="flex items-baseline gap-3 mb-5">
+              <h2 className="text-xl font-bold text-ink tracking-tight">Editorial</h2>
+              {isDraft && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-medium" title="Draft editorial — pending human review">
+                  {status === "needs_review" ? "Needs review" : "Draft"}
+                </span>
+              )}
+            </div>
+            {summary && (
+              <p className="text-base text-muted leading-relaxed mb-6 max-w-3xl">{summary}</p>
+            )}
+            {(bestForItems.length > 0 || notForItems.length > 0) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                {bestForItems.length > 0 && (
+                  <div className="rounded-xl border border-border bg-surface p-4">
+                    <h3 className="text-sm font-semibold text-ink mb-2">Best for</h3>
+                    <ul className="space-y-1.5">
+                      {bestForItems.map((item, i) => (
+                        <li key={i} className="text-sm text-muted leading-snug flex gap-2">
+                          <span className="text-accent shrink-0" aria-hidden>•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {notForItems.length > 0 && (
+                  <div className="rounded-xl border border-border bg-surface p-4">
+                    <h3 className="text-sm font-semibold text-ink mb-2">Not for</h3>
+                    <ul className="space-y-1.5">
+                      {notForItems.map((item, i) => (
+                        <li key={i} className="text-sm text-muted leading-snug flex gap-2">
+                          <span className="text-muted/40 shrink-0" aria-hidden>•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+            {themes.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-ink mb-2">Key themes</h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {themes.slice(0, 8).map((t, i) => (
+                    <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-full bg-subtle text-ink text-xs">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        );
+      })()}
+
       {/* Recommendation Proof / Signals */}
       <section className="mb-14">
         <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">{proofHeading}</h2>

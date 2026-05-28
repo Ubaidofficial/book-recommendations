@@ -151,3 +151,25 @@ export function listKindLabel(kind: ListKind): string {
     default: return "List";
   }
 }
+
+/**
+ * Full / disambiguating list title for use in browse and search cards where two
+ * rows might share the same short title (e.g. broad category "Fashion" vs the
+ * topic list "best-fashion-books"). Topic lists render as **"Best X Books"** so
+ * the two are visually distinct. Non-topic lists fall through to displayListTitle.
+ */
+export function displayListTitleFull(
+  rawTitle: string | null | undefined,
+  slug?: string | null,
+): string {
+  const kind = listKindFromSlug(slug);
+  if (kind !== "topic") return displayListTitle(rawTitle, slug);
+  // Build "Best <Name> Books" using the cleaned short name as the body.
+  const core = displayListTitle(rawTitle, slug);
+  if (!core) return "Best Books";
+  // If user already saved the full phrase, don't double-wrap.
+  const lc = core.toLowerCase();
+  const looksWrapped = lc.startsWith("best ") || lc.endsWith(" books");
+  if (looksWrapped) return core;
+  return `Best ${core} Books`;
+}

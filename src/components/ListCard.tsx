@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { displayListTitle, listKindFromSlug, listKindLabel, type ListKind } from "@/lib/display";
+import { displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel, type ListKind } from "@/lib/display";
 
 interface ListCardProps {
   title: string;
@@ -22,7 +22,11 @@ const KIND_BADGE_STYLE: Record<ListKind, string> = {
 
 export function ListCard({ title, slug, description, bookCount, curator, kind, hideKind }: ListCardProps) {
   const resolvedKind: ListKind = kind || listKindFromSlug(slug);
-  const displayName = displayListTitle(title, slug);
+  // Disambiguate browse/search rows: topic lists render as "Best X Books",
+  // categories/meta keep their short clean title.
+  const displayName = resolvedKind === "topic"
+    ? displayListTitleFull(title, slug)
+    : displayListTitle(title, slug);
   return (
     <Link
       href={`/lists/${slug}`}

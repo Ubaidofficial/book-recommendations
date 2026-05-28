@@ -19,6 +19,17 @@ export interface Book {
   meta_title: string | null;
   meta_description: string | null;
   created_at: string;
+  // AI editorial fields — present in the production schema since the editorial pipeline.
+  // `select("*")` already returns them; declaring here lets the UI render without casts.
+  editorial_summary?: string | null;
+  best_for?: string | null;          // pipe-joined items
+  not_for?: string | null;           // pipe-joined items
+  key_themes?: string[] | string | null;  // text[] in DB; tolerate string for safety
+  difficulty_level?: string | null;
+  recommendation_context?: string | null;
+  source_quality_note?: string | null;
+  ai_generated_at?: string | null;
+  ai_quality_status?: string | null;  // 'pending' | 'draft' | 'needs_review' | 'approved' | 'rejected'
 }
 
 export interface Person {
@@ -615,75 +626,176 @@ export async function getBooksForList(listId: string, limit = 48): Promise<Book[
   }
 }
 
+// ── Topic-similarity helpers used by getRelatedLists ─────────────────────────
+// Stop-tokens we strip when comparing slugs.
+const SLUG_STOPWORDS = new Set([
+  "best", "books", "book", "on", "of", "for", "the", "and", "to", "a", "an",
+  "in", "with", "your", "you", "about",
+]);
+
+// Curated cross-topic clusters. Used to bring in semantically related lists that
+// don't share a direct token (e.g. Fashion ↔ Photography ↔ Design).
+// Keep narrow and explicit — no invented taxonomy, just a small bias map.
+const TOPIC_CLUSTERS: Record<string, string[]> = {
+  // visual / lifestyle
+  "fashion": ["photography", "art", "design", "makeup", "style", "beauty", "coffee-table", "architecture"],
+  "photography": ["fashion", "art", "design", "coffee-table", "architecture", "film"],
+  "design": ["art", "fashion", "architecture", "photography", "typography", "branding"],
+  "art": ["fashion", "photography", "design", "architecture", "painting", "drawing", "art-history"],
+  "architecture": ["design", "art", "photography", "interior"],
+  "coffee-table": ["photography", "art", "design", "fashion", "travel"],
+  "makeup": ["fashion", "beauty", "style"],
+  // food / cooking
+  "cooking": ["food", "nutrition", "recipe", "baking", "wine"],
+  "food": ["cooking", "nutrition", "gardening", "recipe", "wine", "coffee"],
+  "wine": ["food", "cooking", "spirits"],
+  "nutrition": ["health", "cooking", "fitness", "running"],
+  "baking": ["cooking", "food", "dessert"],
+  // fitness / health
+  "running": ["fitness", "nutrition", "sports", "marathon"],
+  "fitness": ["running", "nutrition", "yoga", "sports", "health"],
+  "yoga": ["fitness", "meditation", "mindfulness", "health"],
+  "health": ["nutrition", "fitness", "wellness", "mental-health"],
+  // tech
+  "programming": ["software", "algorithms", "computer-science", "javascript", "python", "data-science"],
+  "ai": ["machine-learning", "data-science", "programming", "technology", "algorithms"],
+  "machine-learning": ["ai", "data-science", "algorithms", "programming"],
+  "technology": ["programming", "ai", "startup", "software"],
+  // business
+  "leadership": ["management", "ceo", "executive", "business", "strategy"],
+  "startup": ["entrepreneurship", "venture-capital", "business", "founder"],
+  "marketing": ["sales", "branding", "business", "advertising"],
+  "sales": ["marketing", "business", "negotiation"],
+};
+
+function slugTokens(slug: string): Set<string> {
+  const out = new Set<string>();
+  for (const t of (slug || "").toLowerCase().split(/[\s\-]+/)) {
+    if (t && !SLUG_STOPWORDS.has(t)) out.add(t);
+  }
+  return out;
+}
+
+function clusterTokensFor(slug: string): Set<string> {
+  const out = new Set<string>();
+  for (const t of slugTokens(slug)) {
+    const cluster = TOPIC_CLUSTERS[t];
+    if (!cluster) continue;
+    // Tokenize cluster entries the SAME way slug tokens are tokenized, so multi-word
+    // cluster names like "coffee-table" and "art-history" actually match slugs that
+    // contain those parts (best-coffee-table-books -> {coffee, table}).
+    for (const ct of cluster) {
+      for (const sub of ct.toLowerCase().split(/[\s\-]+/)) {
+        if (sub && !SLUG_STOPWORDS.has(sub)) out.add(sub);
+      }
+    }
+  }
+  return out;
+}
+
+function countShared(a: Set<string>, b: Set<string>): number {
+  let n = 0;
+  for (const t of a) if (b.has(t)) n++;
+  return n;
+}
+
 /**
  * Smart related lists for a given list.
  *
- * For a topic list (`best-*`), find sibling topic lists by **co-membership**:
- *   - fetch the first ~100 book_ids of THIS list
- *   - find other lists those books appear in
- *   - rank by shared-book count, prefer `best-*`, prefer smaller (more specific)
- *   - de-prioritize broad parents and the meta list unless nothing else fits
+ * For a topic list (`best-*`):
+ *   PRIMARY signal — slug-token similarity (direct token overlap × 3 + cluster overlap × 1).
+ *                    e.g. Fashion → Fashion History (direct), Photography/Art/Design (cluster).
+ *   SECONDARY      — co-membership: if token similarity returns < limit results, fill the rest
+ *                    with lists that share the most books with this one, excluding broad parents
+ *                    and the meta list, biased toward smaller (more specific) lists.
+ *   Co-membership is no longer the primary ranking, so unrelated-but-co-membership-y lists
+ *   (CEO / Wine appearing under Fashion) drop out unless nothing better exists.
  *
- * For broad/meta lists, fall back to top non-broad topic lists by book_count.
+ * For broad/meta lists, show top `best-*` topic lists as discovery (unchanged).
  */
 export async function getRelatedLists(listId: string, limit = 6): Promise<BookList[]> {
   try {
     const supa = getSupabase();
-    // load this list's slug to decide the strategy
     const { data: thisList } = await supa.from("lists").select("id,slug,book_count").eq("id", listId).single();
     const slug = (thisList?.slug || "").toLowerCase();
     const isTopic = slug.startsWith("best-");
 
     if (isTopic) {
-      // Step A: top ~100 book_ids from THIS list
+      const myTokens = slugTokens(slug);
+      const myCluster = clusterTokensFor(slug);
+
+      // Step 1 — pull all best-* topic lists once; rank locally by token similarity.
+      const { data: allTopic } = await supa
+        .from("lists")
+        .select("*")
+        .like("slug", "best-%")
+        .neq("id", listId)
+        .limit(2000);
+      const tokenScored = (allTopic || [])
+        .map((c: BookList) => {
+          const cTok = slugTokens(c.slug || "");
+          const direct = countShared(myTokens, cTok);
+          const cluster = myCluster.size ? countShared(myCluster, cTok) : 0;
+          const score = direct * 3 + cluster;
+          return { c, score, bc: c.book_count || 1e9 };
+        })
+        .filter((x) => x.score > 0)
+        .sort((a, b) => {
+          if (a.score !== b.score) return b.score - a.score;
+          return a.bc - b.bc;
+        });
+
+      const tokenPick = tokenScored.slice(0, limit).map((x) => x.c);
+      if (tokenPick.length >= limit) return tokenPick;
+
+      // Step 2 — top up via co-membership, but EXCLUDE broad parents and meta list,
+      // and exclude anything already chosen by token similarity.
+      const have = new Set(tokenPick.map((c) => c.id));
+      const BROAD = new Set(BROAD_CATEGORY_SLUGS);
+      const META = "most-recommended-books";
+
       const { data: links } = await supa
         .from("book_lists")
         .select("book_id")
         .eq("list_id", listId)
         .limit(100);
       const bookIds = (links || []).map((r: { book_id: string | null }) => r.book_id).filter((x): x is string => !!x);
-      if (bookIds.length === 0) {
-        // fallback: top best-* lists (excluding self)
-        const { data: fb } = await supa.from("lists").select("*").like("slug", "best-%").neq("id", listId).order("book_count", { ascending: false }).limit(limit);
-        return fb || [];
-      }
 
-      // Step B: which OTHER lists do those books also appear in?
-      const { data: coLinks } = await supa
-        .from("book_lists")
-        .select("list_id, book_id")
-        .in("book_id", bookIds)
-        .neq("list_id", listId)
-        .limit(5000);
-      const counts = new Map<string, number>();
-      for (const r of (coLinks || []) as Array<{ list_id: string }>) {
-        if (!r.list_id) continue;
-        counts.set(r.list_id, (counts.get(r.list_id) || 0) + 1);
+      let coRanked: BookList[] = [];
+      if (bookIds.length > 0) {
+        const { data: coLinks } = await supa
+          .from("book_lists")
+          .select("list_id, book_id")
+          .in("book_id", bookIds)
+          .neq("list_id", listId)
+          .limit(5000);
+        const counts = new Map<string, number>();
+        for (const r of (coLinks || []) as Array<{ list_id: string }>) {
+          if (!r.list_id) continue;
+          counts.set(r.list_id, (counts.get(r.list_id) || 0) + 1);
+        }
+        if (counts.size > 0) {
+          const candidateIds = Array.from(counts.keys()).filter((id) => !have.has(id));
+          if (candidateIds.length > 0) {
+            const { data: cands } = await supa.from("lists").select("*").in("id", candidateIds);
+            coRanked = ((cands || []) as BookList[])
+              .filter((c) => {
+                const s = (c.slug || "").toLowerCase();
+                if (s === META) return false;            // exclude meta from co-membership fill
+                if (BROAD.has(s)) return false;          // exclude broad parents
+                if (!s.startsWith("best-")) return false; // only other topic lists
+                return true;
+              })
+              .map((c) => ({ c, shared: counts.get(c.id) || 0, bc: c.book_count || 1e9 }))
+              .sort((a, b) => {
+                if (a.shared !== b.shared) return b.shared - a.shared;
+                return a.bc - b.bc;
+              })
+              .map((x) => x.c);
+          }
+        }
       }
-      if (counts.size === 0) {
-        const { data: fb } = await supa.from("lists").select("*").like("slug", "best-%").neq("id", listId).order("book_count", { ascending: false }).limit(limit);
-        return fb || [];
-      }
-      const candidateIds = Array.from(counts.keys());
-      const { data: cands } = await supa.from("lists").select("*").in("id", candidateIds);
-
-      // Rank: best-* first, smaller book_count first, by shared count desc as tiebreaker
-      const BROAD = new Set(BROAD_CATEGORY_SLUGS);
-      const META = "most-recommended-books";
-      const ranked = (cands || [])
-        .map((c: BookList) => {
-          const s = (c.slug || "").toLowerCase();
-          const tier = s.startsWith("best-") ? 1 : s === META ? 3 : BROAD.has(s) ? 4 : 2;
-          return { c, tier, shared: counts.get(c.id) || 0, bc: c.book_count || 1e9 };
-        })
-        .sort((a, b) => {
-          if (a.tier !== b.tier) return a.tier - b.tier;
-          if (a.shared !== b.shared) return b.shared - a.shared;
-          return a.bc - b.bc;
-        })
-        .slice(0, limit)
-        .map(x => x.c);
-      return ranked;
+      return [...tokenPick, ...coRanked].slice(0, limit);
     }
 
     // Non-topic (broad/meta): show top best-* topic lists as discovery
