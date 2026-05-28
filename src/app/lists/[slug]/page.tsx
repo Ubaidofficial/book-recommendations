@@ -40,11 +40,15 @@ export default async function ListDetailPage({ params }: Props) {
     booksPromise,
     getRelatedLists(list.id, 6),
   ]);
-  // Defensive junk-title filter for ALL lists; cheap clean numeric repair like "1984.0" -> "1984"
-  const books = booksRaw
-    .map((b) => ({ ...b, title: repairNumericTitle(b.title) }))
-    .filter((b) => isProbablyValidBookTitle(b.title))
-    .slice(0, 48);
+  // Defensive junk-title repair + filter for ALL lists. If the filter would empty
+  // the grid (e.g. unexpected data shape), keep the raw set so the page is never empty.
+  const repaired = booksRaw.map((b) => ({ ...b, title: repairNumericTitle(b.title) }));
+  const filtered = repaired.filter((b) => isProbablyValidBookTitle(b.title));
+  if (booksRaw.length > 0 && filtered.length === 0) {
+    console.warn(`[list=${list.slug}] title-hygiene filter removed all ${booksRaw.length} rows — falling back to raw set`);
+  }
+  const books = (filtered.length > 0 ? filtered : repaired).slice(0, 48);
+  console.log(`[list=${list.slug} id=${list.id} kind=${kind}] booksRaw=${booksRaw.length} filtered=${filtered.length} shown=${books.length}`);
 
   const jsonld = itemListJsonLd(list, books);
   const displayName = displayListTitle(list.title, list.slug);

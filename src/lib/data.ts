@@ -500,39 +500,74 @@ export async function getListBySlug(slug: string): Promise<BookList | null> {
 /**
  * Books for a meta/curated list sorted by recommendation strength.
  *
- * Used for `/lists/most-recommended-books` where the imported book_lists.rank is
- * arbitrary/null and produces a junk-looking order. We sort by the books table's
- * own `recommendation_count DESC` so the most-recommended books surface first.
+ * P0 fix: replaces the previous PostgREST `!inner` embed (which returned 0 rows
+ * in production for /lists/most-recommended-books) with the same two-step pattern
+ * that already works for getBooksForList:
+ *   Step 1 — paginate ALL book_id values from book_lists for this list.
+ *   Step 2 — fetch the books table in chunks (URL-length safe), then sort by
+ *            recommendation_count DESC client-side, tiebreak by rating DESC.
  *
- * Implementation: inner-join via PostgREST embed reverse-side filter, ordering
- * the parent (`books`) table directly. Then we OVERFETCH and apply
- * `isProbablyValidBookTitle` client-side to skip the junk numeric/date titles
- * from the dirty import, before truncating to `limit`.
+ * Diagnostic counts are logged at every stage (visible in Railway runtime logs)
+ * so future regressions show their root cause without guessing.
  */
 export async function getBooksForListByRecommendations(listId: string, limit = 48): Promise<Book[]> {
+  const tag = `[meta-rec list=${listId}]`;
   try {
     const supa = getSupabase();
-    // Overfetch (×3) so junk filtering still leaves us enough rows.
-    const window = Math.min(200, limit * 3);
-    const { data, error } = await supa
-      .from("books")
-      .select("*, book_lists!inner(list_id)")
-      .eq("book_lists.list_id", listId)
-      .order("recommendation_count", { ascending: false, nullsFirst: false })
-      .limit(window);
-    if (error) { logQueryError("getBooksForListByRecommendations", error); return []; }
-    // Inline import to keep this file's existing import block intact
-    const { isProbablyValidBookTitle } = await import("./dataQuality");
-    const clean = ((data || []) as Array<Book & { book_lists?: unknown }>)
-      .filter((b) => b && b.id && isProbablyValidBookTitle(b.title))
-      .slice(0, limit)
-      // strip the embed payload before returning
-      .map(({ ...rest }) => {
-        const out = { ...rest } as Book & { book_lists?: unknown };
-        delete out.book_lists;
-        return out as Book;
-      });
-    return clean;
+
+    // Step 1: paginate ALL book_ids for this list.
+    const allBookIds: string[] = [];
+    let offset = 0;
+    const linkPageSize = 1000;
+    while (true) {
+      const { data, error } = await supa
+        .from("book_lists")
+        .select("book_id")
+        .eq("list_id", listId)
+        .range(offset, offset + linkPageSize - 1);
+      if (error) { logQueryError(`getBooksForListByRecommendations[links offset=${offset}]`, error); break; }
+      if (!data || data.length === 0) break;
+      for (const r of data as Array<{ book_id: string | null }>) {
+        if (r.book_id) allBookIds.push(r.book_id);
+      }
+      if (data.length < linkPageSize) break;
+      offset += data.length;
+      if (allBookIds.length > 20000) break;   // hard ceiling — defensive
+    }
+    console.log(`${tag} book_lists.book_ids loaded=${allBookIds.length}`);
+    if (allBookIds.length === 0) return [];
+
+    // Step 2: fetch books in URL-safe id chunks.
+    const allBooks: Book[] = [];
+    const chunkSize = 200;
+    for (let i = 0; i < allBookIds.length; i += chunkSize) {
+      const chunk = allBookIds.slice(i, i + chunkSize);
+      const { data, error } = await supa
+        .from("books")
+        .select("*")
+        .in("id", chunk);
+      if (error) {
+        logQueryError(`getBooksForListByRecommendations[books chunk=${i / chunkSize}]`, error);
+        continue;
+      }
+      if (data) allBooks.push(...(data as Book[]));
+    }
+    console.log(`${tag} books fetched=${allBooks.length} (from ${allBookIds.length} ids)`);
+
+    // Sort: recommendation_count desc, tiebreak rating desc.
+    allBooks.sort((a, b) => {
+      const ra = typeof a.recommendation_count === "number" ? a.recommendation_count : 0;
+      const rb = typeof b.recommendation_count === "number" ? b.recommendation_count : 0;
+      if (ra !== rb) return rb - ra;
+      const ya = typeof a.rating === "number" ? a.rating : 0;
+      const yb = typeof b.rating === "number" ? b.rating : 0;
+      return yb - ya;
+    });
+
+    const result = allBooks.slice(0, limit);
+    const top = result.slice(0, 10).map((b) => `${b.title} (${b.recommendation_count ?? 0})`);
+    console.log(`${tag} returning=${result.length} top10=${JSON.stringify(top)}`);
+    return result;
   } catch (e) {
     logQueryError("getBooksForListByRecommendations", e);
     return [];
