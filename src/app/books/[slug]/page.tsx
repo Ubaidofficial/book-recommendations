@@ -393,28 +393,61 @@ export default async function BookDetailPage({ params }: Props) {
         )}
       </section>
 
-      {/* Appears in Lists — topic lists first; categories deduped against topic-name overlaps
-          ("Action & Adventure" topic hides the "Action & Adventure" category); broad parents
-          hidden entirely once 6+ specific lists exist; final list capped at 8. */}
+      {/* Appears in Lists — single-pass dedupe across ALL kinds by normalized display label,
+          keeping the higher-priority entry (topic > meta > other > category); same priority
+          ties broken by lower pre-rank index, then smaller book_count. Broad parents
+          (Fiction/Nonfiction/History/…) are hidden once we have ≥5 useful specific cards.
+          Final list capped at 8. */}
       {hasLists && (() => {
-        const enriched = lists.map((l) => ({
+        // Priority: lower number wins on duplicate-label collisions.
+        const PRIORITY: Record<ReturnType<typeof listKindFromSlug>, number> = {
+          topic: 1, meta: 2, other: 3, category: 4,
+        };
+        // The 10 broad-parent slugs explicitly called out for suppression on this page.
+        const BROAD_APPEARS_IN_SLUGS = new Set([
+          "fiction", "nonfiction", "history", "social-sciences", "business",
+          "philosophy", "science", "art", "personal-development", "psychology",
+        ]);
+
+        const enriched = lists.map((l, idx) => ({
           l,
+          idx,                                                         // pre-rank position
           kind: listKindFromSlug(l.slug),
           displayName: displayListTitle(l.title, l.slug),
+          isBroad: BROAD_APPEARS_IN_SLUGS.has((l.slug || "").toLowerCase()),
         }));
-        // Build set of normalized topic names; categories duplicating them get dropped.
-        const topicNames = new Set(
-          enriched.filter((x) => x.kind === "topic").map((x) => x.displayName.toLowerCase().trim())
-        );
-        const afterDedupe = enriched.filter((x) => {
-          if (x.kind !== "category") return true;
-          return !topicNames.has(x.displayName.toLowerCase().trim());
+
+        // Single-pass dedupe by normalized display label across ALL kinds.
+        const bestByLabel = new Map<string, typeof enriched[number]>();
+        for (const x of enriched) {
+          const key = x.displayName.toLowerCase().trim();
+          if (!key) continue;
+          const cur = bestByLabel.get(key);
+          if (!cur) { bestByLabel.set(key, x); continue; }
+          const curP = PRIORITY[cur.kind];
+          const xP = PRIORITY[x.kind];
+          if (xP < curP) { bestByLabel.set(key, x); continue; }
+          if (xP === curP) {
+            // Same kind & label collision — keep the better pre-rank, then smaller book_count.
+            if (x.idx < cur.idx) { bestByLabel.set(key, x); continue; }
+            if (x.idx === cur.idx) {
+              const curBc = cur.l.book_count || 1e9;
+              const xBc = x.l.book_count || 1e9;
+              if (xBc < curBc) bestByLabel.set(key, x);
+            }
+          }
+        }
+        const deduped = Array.from(bestByLabel.values());
+
+        const usefulSpecific = deduped.filter((x) => x.kind !== "category").length;
+        const tierRank = (k: ReturnType<typeof listKindFromSlug>) => PRIORITY[k];
+        const ordered = [...deduped].sort((a, b) => {
+          const t = tierRank(a.kind) - tierRank(b.kind);
+          return t !== 0 ? t : a.idx - b.idx;        // preserve pre-rank within tier
         });
-        const specific = afterDedupe.filter((x) => x.kind === "topic" || x.kind === "meta" || x.kind === "other");
-        const tierRank = (k: ReturnType<typeof listKindFromSlug>) => k === "topic" ? 1 : k === "other" ? 2 : k === "meta" ? 3 : 4;
-        const ordered = [...afterDedupe].sort((a, b) => tierRank(a.kind) - tierRank(b.kind));
-        const showBroad = specific.length < 6;
-        const finalList = (showBroad ? ordered : ordered.filter((x) => x.kind !== "category")).slice(0, 8);
+        const finalList = ordered
+          .filter((x) => !(usefulSpecific >= 5 && x.kind === "category" && x.isBroad))
+          .slice(0, 8);
         const tierBadgeStyle: Record<string, string> = {
           topic: "bg-accent-light text-accent",
           meta: "bg-amber-100 text-amber-800",
