@@ -38,7 +38,7 @@ export function ListCard({ title, slug, description, bookCount, curator, kind, h
           </span>
         )}
       </div>
-      {!hideKind && (
+      {!hideKind && resolvedKind !== "other" && (
         <div className="flex items-center gap-2 mb-2 text-[11px]">
           <span className={`inline-flex items-center px-2 py-0.5 rounded-full font-medium ${KIND_BADGE_STYLE[resolvedKind]}`}>
             {listKindLabel(resolvedKind)}

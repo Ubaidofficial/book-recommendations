@@ -27,6 +27,13 @@ const FULL_TITLE_ALIASES: Record<string, string> = {
   "non-fiction": "Nonfiction",
   "nonfiction": "Nonfiction",
   "teen & young": "Teen & Young Adult",
+  // singular → plural / clearer label (display-only; DB row stays as-is)
+  "comic": "Comics",
+  "humor": "Humor",
+  "cookbook": "Cookbooks",
+  "graphic novel": "Graphic Novels",
+  "ya": "Young Adult",
+  "lgbt": "LGBTQ",
 };
 
 // Broader categories that appear as concatenated SUFFIXES on imported titles.

@@ -1,0 +1,5 @@
+production_book_id,slug,title,current_cover_image_url,rebuild_cover_image_url,match_method,confidence,in_best_fashion_books,in_most_recommended_books
+43dd9c72-aeb4-4214-bc8a-9745b88031ef,give-war-a-chance-p-j-o-rourke,Give War a Chance,,Give War a Chance.png,full_fold,high,false,true
+505722e0-716d-4c47-8b8e-d66f367774ff,the-collected-poems-of-w-b-yeats-w-b-yeats,The Collected Poems of W. B. Yeats,,The Collected Poems of W.B. Yeats.png,full_fold,high,false,true
+6ce3d744-21b8-4af6-9ece-af878af7e81e,the-art-of-manipulation-r-b-sparkman,The Art of Manipulation,,The Art of Manipulation.png,full_fold,high,false,true
+e591765e-ba7f-4b26-9e08-c84ab2bcf3d7,the-trial-of-socrates-i-f-stone,The Trial of Socrates,,The Trial of Socrates.png,full_fold,high,false,true

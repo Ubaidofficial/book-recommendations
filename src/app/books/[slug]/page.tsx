@@ -332,9 +332,11 @@ export default async function BookDetailPage({ params }: Props) {
                 >
                   <div className="flex items-start justify-between gap-2 mb-1">
                     <p className="text-sm font-semibold text-ink">{displayListTitle(l.title, l.slug)}</p>
-                    <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${tierBadgeStyle[kind]}`}>
-                      {tierLabel[kind]}
-                    </span>
+                    {kind !== "other" && (
+                      <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${tierBadgeStyle[kind]}`}>
+                        {tierLabel[kind]}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-muted">{l.book_count} books</p>
                 </Link>

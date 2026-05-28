@@ -235,12 +235,42 @@ export default async function ListsPage({ searchParams }: Props) {
       />
 
       {meta && (
-        <Section
-          title="Curated"
-          subtitle="A meta-list of the most recommended books across all sources."
-          lists={[meta]}
-          kindForAll="meta"
-        />
+        <section className="mb-12">
+          <div className="flex items-baseline justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-ink tracking-tight">Featured</h2>
+              <p className="text-sm text-muted mt-1">A meta-list of the books that show up most often across every source we track.</p>
+            </div>
+          </div>
+          <Link
+            href={`/lists/${meta.slug}`}
+            className="group block rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-6 hover:shadow-lg hover:border-amber-300 transition-all duration-200"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="shrink-0 mt-0.5 w-9 h-9 rounded-full bg-amber-100 flex items-center justify-center" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-5 h-5 text-amber-700" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-medium">Curated</span>
+                  </div>
+                  <h3 className="font-semibold text-base text-ink group-hover:text-accent transition-colors">{meta.title}</h3>
+                  <p className="text-sm text-muted leading-relaxed mt-1 line-clamp-2">
+                    {meta.description || "Hand-picked across every recommendation source — the books that show up most often."}
+                  </p>
+                </div>
+              </div>
+              {meta.book_count > 0 && (
+                <span className="shrink-0 inline-flex items-center px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-medium">
+                  {meta.book_count.toLocaleString()} books
+                </span>
+              )}
+            </div>
+          </Link>
+        </section>
       )}
 
       <Section
