@@ -47,6 +47,86 @@ const BROADER_SUFFIXES = [
 // Tokens that should always render in ALL CAPS.
 const ACRONYMS = new Set(["CEO", "CFO", "CTO", "COO", "CIA", "FBI", "AI", "API", "DNA", "UX", "UI", "SaaS"]);
 
+// English "small words" that are lowercase in title case unless they're the first
+// token (or follow a colon/em-dash). Kept conservative — only the universally-safe ones.
+const TITLE_CASE_SMALL_WORDS = new Set([
+  "a", "an", "the", "and", "but", "or", "nor", "for",
+  "of", "to", "in", "on", "at", "with", "by", "from", "as", "vs",
+]);
+
+/**
+ * Smart title case for display-only book / list titles.
+ *   - Lowercases recognised small words (a, the, and, of, to, …) **unless** the word
+ *     is the first token of the title, follows a colon, or is an acronym.
+ *   - Leaves apostrophised words ("Knight's"), all-caps acronyms (CEO), and any title
+ *     that doesn't look already-title-cased completely alone.
+ *
+ *   "Good To Great"                      -> "Good to Great"
+ *   "The Way Of The Peaceful Warrior"    -> "The Way of the Peaceful Warrior"
+ *   "How To Win Friends And Influence …" -> "How to Win Friends and Influence …"
+ *   "1984"                               -> "1984"           (left alone)
+ *   "iPhone in 30 days"                  -> "iPhone in 30 days" (not all-caps, untouched)
+ */
+export function smartTitleCase(input: string | null | undefined): string {
+  const s = String(input || "").trim();
+  if (!s) return "";
+
+  // Heuristic: only apply if the title looks ALREADY title-cased — every "word" that
+  // starts with a letter has its first letter uppercased. This prevents us from
+  // mangling titles that the author wrote with intentional casing (e.g. "bell hooks").
+  const words = s.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return s;
+  const lookalreadyTitleCased = words.every((w) => {
+    const first = w.match(/[A-Za-z]/);
+    return !first || first[0] === first[0].toUpperCase();
+  });
+  if (!lookalreadyTitleCased) return s;
+
+  // Walk tokens (preserve whitespace), lowercase small words unless first or post-colon.
+  const tokens = s.split(/(\s+)/);
+  let lastNonSpaceIndex = -1;
+  let forceCapsNext = true; // first non-space token is capitalised
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    if (/^\s+$/.test(tok)) {
+      out.push(tok);
+      continue;
+    }
+    const lower = tok.toLowerCase();
+    const upper = tok.toUpperCase();
+    if (ACRONYMS.has(upper)) {
+      out.push(upper);
+    } else if (!forceCapsNext && TITLE_CASE_SMALL_WORDS.has(lower)) {
+      out.push(lower);
+    } else {
+      out.push(tok);
+    }
+    forceCapsNext = /[:?!—–-]$/.test(tok);   // word after colon/em-dash/question mark gets capped
+    lastNonSpaceIndex = i;
+  }
+  // Always cap the LAST real word too (style convention).
+  if (lastNonSpaceIndex >= 0) {
+    const last = out[lastNonSpaceIndex];
+    if (last.length > 0 && /^[a-z]/.test(last) && !ACRONYMS.has(last.toUpperCase())) {
+      // Don't recapitalise if it's a small word we just lowercased? Convention says cap last word anyway.
+      out[lastNonSpaceIndex] = last.charAt(0).toUpperCase() + last.slice(1);
+    }
+  }
+  return out.join("");
+}
+
+/**
+ * Display-only book title normalisation: applies smartTitleCase so titles like
+ * "Good To Great" render as "Good to Great". DOES NOT mutate DB. Pass-through for
+ * anything that doesn't look like a title-cased string.
+ */
+export function displayBookTitle(raw: string | null | undefined): string {
+  const s = (raw || "").trim();
+  if (!s) return "";
+  return smartTitleCase(s);
+}
+
 /**
  * Display-only normalization for a list title.
  *   - Empty title → derive from slug ("best-fashion-books" → "Fashion")
@@ -114,6 +194,14 @@ export function displayListTitle(
     .split(/(\s+|&|-)/)
     .map((tok) => (ACRONYMS.has(tok.toUpperCase()) ? tok.toUpperCase() : tok))
     .join("");
+
+  // 7. global "Non Fiction" → "Nonfiction" anywhere in the title (catches
+  //    multi-word labels like "Non Fiction Adventure" → "Nonfiction Adventure")
+  t = t.replace(/\bNon[\s-]Fiction\b/gi, "Nonfiction");
+
+  // 8. smart title-case for already-title-cased strings (lowercase small words like
+  //    "of", "to", "and" unless they're the first / last word). Safe no-op otherwise.
+  t = smartTitleCase(t);
 
   return t.trim().replace(/\s+/g, " ");
 }

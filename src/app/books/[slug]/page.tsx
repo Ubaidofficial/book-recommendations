@@ -14,7 +14,7 @@ import {
 } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { bookJsonLd } from "@/lib/jsonld";
-import { displayTitle, displayListTitle, listKindFromSlug } from "@/lib/display";
+import { displayTitle, displayListTitle, listKindFromSlug, displayBookTitle } from "@/lib/display";
 import {
   isValidHttpUrl,
   isValidRating,
@@ -25,6 +25,7 @@ import {
   uniqueByNormalizedText,
   parseSourceUrls,
   parseEditorialList,
+  sanitizeEditorialText,
 } from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -42,7 +43,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ? book.description
       : undefined;
   return pageMetadata({
-    title: book.meta_title || (book.author ? `${book.title} by ${book.author}` : book.title),
+    title: book.meta_title || (book.author ? `${displayBookTitle(book.title)} by ${book.author}` : displayBookTitle(book.title)),
     description: desc || "",
     path: `/books/${book.slug}`,
     image: isValidHttpUrl(book.cover_image_url) ? book.cover_image_url : undefined,
@@ -115,7 +116,7 @@ export default async function BookDetailPage({ params }: Props) {
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
       {jsonld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />}
-      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Books", href: "/books" }, { label: book.title }]} />
+      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Books", href: "/books" }, { label: displayBookTitle(book.title) }]} />
 
       <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-8 md:gap-10 mb-14">
         <div className="max-w-[180px] mx-auto md:max-w-full">
@@ -123,12 +124,12 @@ export default async function BookDetailPage({ params }: Props) {
             {hasCover ? (
               <SafeImage
                 src={book.cover_image_url}
-                alt={book.title}
+                alt={displayBookTitle(book.title)}
                 className="w-full h-full object-cover"
                 fallback={
                   <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-accent/5 to-accent/10 p-4">
                     <span className="text-lg font-bold text-accent/50 text-center leading-tight mb-2">
-                      {book.title}
+                      {displayBookTitle(book.title)}
                     </span>
                     <svg className="w-6 h-6 text-accent/25 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -139,7 +140,7 @@ export default async function BookDetailPage({ params }: Props) {
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-accent/5 to-accent/10 p-4">
                 <span className="text-lg font-bold text-accent/50 text-center leading-tight mb-2">
-                  {book.title}
+                  {displayBookTitle(book.title)}
                 </span>
                 <svg className="w-6 h-6 text-accent/25 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -169,7 +170,7 @@ export default async function BookDetailPage({ params }: Props) {
             )}
           </div>
 
-          <h1 className="text-2xl md:text-4xl font-bold text-ink mb-2 tracking-tight">{book.title}</h1>
+          <h1 className="text-2xl md:text-4xl font-bold text-ink mb-2 tracking-tight">{displayBookTitle(book.title)}</h1>
           {book.subtitle && <p className="text-base text-muted mb-2">{book.subtitle}</p>}
 
           {hasAuthor && (
@@ -219,12 +220,16 @@ export default async function BookDetailPage({ params }: Props) {
           `themes_sample=${JSON.stringify(book.key_themes).slice(0, 200)}`
         );
 
-        const summary = (book.editorial_summary || "").trim();
-        const bestForItems = parseEditorialList(book.best_for, { maxItems: 4, minLen: 8 });
-        const notForItems = parseEditorialList(book.not_for, { maxItems: 4, minLen: 8 });
-        const themes = parseEditorialList(book.key_themes, { maxItems: 6, minLen: 3, maxItemLength: 56 });
+        // Display-only sanitiser strips reader-unfriendly jargon ("DNF") from rendered text.
+        const summary = sanitizeEditorialText((book.editorial_summary || "").trim());
+        const bestForItems = parseEditorialList(book.best_for, { maxItems: 4, minLen: 8 })
+          .map((s) => sanitizeEditorialText(s));
+        const notForItems = parseEditorialList(book.not_for, { maxItems: 4, minLen: 8 })
+          .map((s) => sanitizeEditorialText(s));
+        // Themes: cap at 6, parser keeps the full text — render-time truncation adds a tooltip.
+        const themesRaw = parseEditorialList(book.key_themes, { maxItems: 6, minLen: 3 });
 
-        if (!summary && bestForItems.length === 0 && notForItems.length === 0 && themes.length === 0) return null;
+        if (!summary && bestForItems.length === 0 && notForItems.length === 0 && themesRaw.length === 0) return null;
         return (
           <section className="mb-14">
             <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Editorial</h2>
@@ -261,18 +266,29 @@ export default async function BookDetailPage({ params }: Props) {
                 )}
               </div>
             )}
-            {themes.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold text-ink mb-2">Key themes</h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {themes.map((t, i) => (
-                    <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-full bg-subtle text-ink text-xs">
-                      {t}
-                    </span>
-                  ))}
+            {themesRaw.length > 0 && (() => {
+              const MAX_CHIP_CHARS = 50;
+              return (
+                <div>
+                  <h3 className="text-sm font-semibold text-ink mb-2">Key themes</h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {themesRaw.map((full, i) => {
+                      const truncated = full.length > MAX_CHIP_CHARS;
+                      const shown = truncated ? full.slice(0, MAX_CHIP_CHARS - 1).trimEnd() + "…" : full;
+                      return (
+                        <span
+                          key={i}
+                          className="inline-flex items-center px-2.5 py-1 rounded-full bg-subtle text-ink text-xs"
+                          title={truncated ? full : undefined}
+                        >
+                          {shown}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </section>
         );
       })()}
@@ -377,16 +393,28 @@ export default async function BookDetailPage({ params }: Props) {
         )}
       </section>
 
-      {/* Appears in Lists — topic lists first; broad parents hidden when 6+ specific lists exist */}
+      {/* Appears in Lists — topic lists first; categories deduped against topic-name overlaps
+          ("Action & Adventure" topic hides the "Action & Adventure" category); broad parents
+          hidden entirely once 6+ specific lists exist; final list capped at 8. */}
       {hasLists && (() => {
-        const enriched = lists.map((l) => ({ l, kind: listKindFromSlug(l.slug) }));
-        const specific = enriched.filter((x) => x.kind === "topic" || x.kind === "meta" || x.kind === "other");
-        const broad = enriched.filter((x) => x.kind === "category");
-        // sort topic before meta (already pre-ranked by getListsForBook, but enforce here too)
+        const enriched = lists.map((l) => ({
+          l,
+          kind: listKindFromSlug(l.slug),
+          displayName: displayListTitle(l.title, l.slug),
+        }));
+        // Build set of normalized topic names; categories duplicating them get dropped.
+        const topicNames = new Set(
+          enriched.filter((x) => x.kind === "topic").map((x) => x.displayName.toLowerCase().trim())
+        );
+        const afterDedupe = enriched.filter((x) => {
+          if (x.kind !== "category") return true;
+          return !topicNames.has(x.displayName.toLowerCase().trim());
+        });
+        const specific = afterDedupe.filter((x) => x.kind === "topic" || x.kind === "meta" || x.kind === "other");
         const tierRank = (k: ReturnType<typeof listKindFromSlug>) => k === "topic" ? 1 : k === "other" ? 2 : k === "meta" ? 3 : 4;
-        const ordered = [...enriched].sort((a, b) => tierRank(a.kind) - tierRank(b.kind));
+        const ordered = [...afterDedupe].sort((a, b) => tierRank(a.kind) - tierRank(b.kind));
         const showBroad = specific.length < 6;
-        const finalList = showBroad ? ordered : ordered.filter((x) => x.kind !== "category");
+        const finalList = (showBroad ? ordered : ordered.filter((x) => x.kind !== "category")).slice(0, 8);
         const tierBadgeStyle: Record<string, string> = {
           topic: "bg-accent-light text-accent",
           meta: "bg-amber-100 text-amber-800",
@@ -403,14 +431,14 @@ export default async function BookDetailPage({ params }: Props) {
           <section className="mb-14">
             <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Appears In</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {finalList.map(({ l, kind }) => (
+              {finalList.map(({ l, kind, displayName }) => (
                 <Link
                   key={l.id}
                   href={`/lists/${l.slug}`}
                   className="p-3.5 rounded-xl border border-border bg-surface hover:shadow-md hover:border-accent/20 transition-all"
                 >
                   <div className="flex items-start justify-between gap-2 mb-1">
-                    <p className="text-sm font-semibold text-ink">{displayListTitle(l.title, l.slug)}</p>
+                    <p className="text-sm font-semibold text-ink">{displayName}</p>
                     {kind !== "other" && (
                       <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${tierBadgeStyle[kind]}`}>
                         {tierLabel[kind]}

@@ -281,6 +281,34 @@ export function isProbablyValidBookTitle(title: string | null | undefined): bool
 }
 
 /**
+ * Display-only sanitiser for editorial text. Replaces the bookish jargon "DNF"
+ * with plain-English equivalents so public readers aren't confronted with it.
+ *   - "you'll (likely) DNF"     → "you'll likely put it down"
+ *   - "likely DNF point"        → "likely drop-off point"
+ *   - "likely DNF"              → "likely lose interest"
+ *   - "DNF point"               → "drop-off point"
+ *   - "DNF if …"                → "lose interest if …"
+ *   - bare "DNF" / "dnf"        → "lose interest"
+ *
+ * Does NOT mutate stored data. Apply at render time only. Conservative: meaning is
+ * preserved, no aggressive rewriting beyond the specific jargon term.
+ */
+export function sanitizeEditorialText(text: string | null | undefined): string {
+  if (!text) return "";
+  let s = String(text);
+  // Order matters — more specific phrases first.
+  s = s.replace(/\byou(?:'|’)ll\s+likely\s+DNF\b/gi, "you'll likely put it down");
+  s = s.replace(/\byou(?:'|’)ll\s+DNF\b/gi, "you'll put it down");
+  s = s.replace(/\blikely\s+DNF\s+point\b/gi, "likely drop-off point");
+  s = s.replace(/\blikely\s+DNF\b/gi, "likely lose interest");
+  s = s.replace(/\bDNF\s+point\b/gi, "drop-off point");
+  s = s.replace(/\bDNF\s+if\b/gi, "lose interest if");
+  s = s.replace(/\bDNF\b/g, "lose interest");
+  s = s.replace(/\bdnf\b/g, "lose interest");
+  return s;
+}
+
+/**
  * Where reasonable, repair a numeric-looking title like "1984.0" into "1984".
  * Only repairs strings of the form integer + ".0" (the common Excel-as-float export).
  * Returns the original string when no safe repair applies.
