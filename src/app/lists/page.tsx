@@ -31,12 +31,16 @@ function Section({
   href,
   lists,
   empty,
+  kindForAll,
+  hideKind,
 }: {
   title: string;
   subtitle?: string;
   href?: string;
   lists: BookList[];
   empty?: string;
+  kindForAll?: "topic" | "meta" | "category";
+  hideKind?: boolean;
 }) {
   if (!lists || lists.length === 0) {
     if (!empty) return null;
@@ -69,6 +73,8 @@ function Section({
             description={list.description}
             bookCount={list.book_count}
             curator={list.curator}
+            kind={kindForAll}
+            hideKind={hideKind}
           />
         ))}
       </div>
@@ -194,13 +200,18 @@ export default async function ListsPage({ searchParams }: Props) {
   }
 
   // ── Default: sectioned discovery hub ──────────────────────────
-  const [broad, popular, fiction, nonfiction, meta] = await Promise.all([
+  // Overfetch fiction/nonfiction so we can dedupe IDs already shown in "Popular".
+  const [broad, popular, fictionAll, nonfictionAll, meta] = await Promise.all([
     getBroadCategoryLists(12),
     getTopicLists({ limit: 12, sort: "book_count" }),
-    getTopicLists({ limit: 8, filter: "fiction" }),
-    getTopicLists({ limit: 8, filter: "nonfiction" }),
+    getTopicLists({ limit: 24, filter: "fiction" }),
+    getTopicLists({ limit: 24, filter: "nonfiction" }),
     getListBySlug("most-recommended-books"),
   ]);
+
+  const popularIds = new Set(popular.data.map((l) => l.id));
+  const fiction = fictionAll.data.filter((l) => !popularIds.has(l.id)).slice(0, 8);
+  const nonfiction = nonfictionAll.data.filter((l) => !popularIds.has(l.id)).slice(0, 8);
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
@@ -219,6 +230,8 @@ export default async function ListsPage({ searchParams }: Props) {
         href="/lists?page=1&sort=book_count"
         lists={broad}
         empty="No category lists yet."
+        kindForAll="category"
+        hideKind
       />
 
       {meta && (
@@ -226,26 +239,30 @@ export default async function ListsPage({ searchParams }: Props) {
           title="Curated"
           subtitle="A meta-list of the most recommended books across all sources."
           lists={[meta]}
+          kindForAll="meta"
         />
       )}
 
       <Section
         title="Popular Topic Lists"
-        subtitle="Specific best-of lists — Leadership, Sales, Sci-Fi, Photography, and more."
+        subtitle="Specific best-of lists by popularity — Leadership, Sales, Sci-Fi, Photography, and more."
         href="/lists?page=1&sort=book_count"
         lists={popular.data}
+        kindForAll="topic"
       />
 
       <Section
-        title="Fiction Lists"
-        subtitle="Fine-grained fiction subcategories."
-        lists={fiction.data}
+        title="More Fiction Lists"
+        subtitle="Additional fiction topic lists not already shown above."
+        lists={fiction}
+        kindForAll="topic"
       />
 
       <Section
-        title="Nonfiction Lists"
-        subtitle="Fine-grained nonfiction subcategories."
-        lists={nonfiction.data}
+        title="More Nonfiction Lists"
+        subtitle="Additional nonfiction topic lists not already shown above."
+        lists={nonfiction}
+        kindForAll="topic"
       />
 
       <section className="mt-10 pt-8 border-t border-border text-center">

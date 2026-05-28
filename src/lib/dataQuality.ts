@@ -258,3 +258,37 @@ export function isMetaListSlug(slug: string | null | undefined): boolean {
 export function isTopicListSlug(slug: string | null | undefined): boolean {
   return (slug || "").toLowerCase().startsWith("best-");
 }
+
+/**
+ * Heuristic guard against obviously-not-a-book titles imported from dirty sources.
+ * Filters out:
+ *   - pure numeric strings: "1421", "1944.0", "2034.0"
+ *   - bare datetime stamps: "2001-03-05 00:00:00", "2023-06-24 00:00:00"
+ *   - empty / single-char / whitespace
+ *
+ * Returns true for anything that looks like a real title (default-allow).
+ * DISPLAY-side filter only — does not delete or modify any row.
+ */
+export function isProbablyValidBookTitle(title: string | null | undefined): boolean {
+  if (!title) return false;
+  const s = String(title).trim();
+  if (s.length < 2) return false;
+  // pure number with optional decimals: 1421, 1944.0
+  if (/^\d+(?:\.\d+)?$/.test(s)) return false;
+  // date or datetime: 2001-03-05, 2001-03-05 00:00:00
+  if (/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?$/.test(s)) return false;
+  return true;
+}
+
+/**
+ * Where reasonable, repair a numeric-looking title like "1984.0" into "1984".
+ * Only repairs strings of the form integer + ".0" (the common Excel-as-float export).
+ * Returns the original string when no safe repair applies.
+ */
+export function repairNumericTitle(title: string | null | undefined): string {
+  const s = String(title || "").trim();
+  if (!s) return s;
+  const m = s.match(/^(\d{1,5})\.0+$/);
+  if (m) return m[1];
+  return s;
+}

@@ -14,7 +14,7 @@ import {
 } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { bookJsonLd } from "@/lib/jsonld";
-import { displayTitle } from "@/lib/display";
+import { displayTitle, displayListTitle, listKindFromSlug } from "@/lib/display";
 import {
   isValidHttpUrl,
   isValidRating,
@@ -251,31 +251,29 @@ export default async function BookDetailPage({ params }: Props) {
                           View source →
                         </a>
                       ) : (
-                        <span className="flex items-center gap-1.5 flex-wrap">
-                          <a
-                            href={sourceUrls[0]}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-accent hover:underline font-medium"
-                          >
-                            View source →
-                          </a>
-                          <span className="text-muted/60">
-                            +{sourceUrls.length - 1} more
-                          </span>
-                          {sourceUrls.slice(1).map((u, j) => (
-                            <a
-                              key={j}
-                              href={u}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label={`Additional source ${j + 2}`}
-                              className="text-muted/60 hover:text-accent hover:underline"
-                            >
-                              [{j + 2}]
-                            </a>
-                          ))}
-                        </span>
+                        <details className="relative group/srcs">
+                          <summary className="list-none cursor-pointer text-accent hover:underline font-medium select-none [&::-webkit-details-marker]:hidden">
+                            View sources ({sourceUrls.length}) ▾
+                          </summary>
+                          <div className="absolute left-0 top-full mt-1 z-20 w-72 max-w-[80vw] rounded-lg border border-border bg-surface shadow-lg p-2 space-y-1">
+                            {sourceUrls.map((u, j) => {
+                              let host = u;
+                              try { host = new URL(u).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
+                              return (
+                                <a
+                                  key={j}
+                                  href={u}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block text-xs text-accent hover:underline truncate"
+                                  title={u}
+                                >
+                                  {j + 1}. {host}
+                                </a>
+                              );
+                            })}
+                          </div>
+                        </details>
                       )
                     ) : p.source_name ? (
                       <span className="text-muted">{p.source_name}</span>
@@ -300,24 +298,51 @@ export default async function BookDetailPage({ params }: Props) {
         )}
       </section>
 
-      {/* Appears in Lists */}
-      {hasLists && (
-        <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Appears In</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {lists.map((list) => (
-              <Link
-                key={list.id}
-                href={`/lists/${list.slug}`}
-                className="p-3.5 rounded-xl border border-border bg-surface hover:shadow-md hover:border-accent/20 transition-all"
-              >
-                <p className="text-sm font-semibold text-ink mb-1">{displayTitle(list.title)}</p>
-                <p className="text-xs text-muted">{list.book_count} books</p>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Appears in Lists — topic lists first; broad parents hidden when 6+ specific lists exist */}
+      {hasLists && (() => {
+        const enriched = lists.map((l) => ({ l, kind: listKindFromSlug(l.slug) }));
+        const specific = enriched.filter((x) => x.kind === "topic" || x.kind === "meta" || x.kind === "other");
+        const broad = enriched.filter((x) => x.kind === "category");
+        // sort topic before meta (already pre-ranked by getListsForBook, but enforce here too)
+        const tierRank = (k: ReturnType<typeof listKindFromSlug>) => k === "topic" ? 1 : k === "other" ? 2 : k === "meta" ? 3 : 4;
+        const ordered = [...enriched].sort((a, b) => tierRank(a.kind) - tierRank(b.kind));
+        const showBroad = specific.length < 6;
+        const finalList = showBroad ? ordered : ordered.filter((x) => x.kind !== "category");
+        const tierBadgeStyle: Record<string, string> = {
+          topic: "bg-accent-light text-accent",
+          meta: "bg-amber-100 text-amber-800",
+          category: "bg-subtle text-muted",
+          other: "bg-subtle text-muted",
+        };
+        const tierLabel: Record<string, string> = {
+          topic: "Topic",
+          meta: "Curated",
+          category: "Category",
+          other: "List",
+        };
+        return (
+          <section className="mb-14">
+            <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Appears In</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {finalList.map(({ l, kind }) => (
+                <Link
+                  key={l.id}
+                  href={`/lists/${l.slug}`}
+                  className="p-3.5 rounded-xl border border-border bg-surface hover:shadow-md hover:border-accent/20 transition-all"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <p className="text-sm font-semibold text-ink">{displayListTitle(l.title, l.slug)}</p>
+                    <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${tierBadgeStyle[kind]}`}>
+                      {tierLabel[kind]}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted">{l.book_count} books</p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Series Context */}
       {hasSeries && safeSeriesBooks.length > 0 && (

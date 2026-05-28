@@ -1,9 +1,10 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getListBySlug, getBooksForList, getRelatedLists } from "@/lib/data";
+import { getListBySlug, getBooksForList, getBooksForListByRecommendations, getRelatedLists } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
-import { displayTitle } from "@/lib/display";
+import { displayListTitle, listKindFromSlug, listKindLabel } from "@/lib/display";
+import { isProbablyValidBookTitle, repairNumericTitle } from "@/lib/dataQuality";
 import { itemListJsonLd } from "@/lib/jsonld";
 import { BookCard, Breadcrumbs, EmptyState } from "@/components";
 
@@ -15,9 +16,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const list = await getListBySlug(slug);
   if (!list) return { robots: "noindex, follow" };
+  const displayName = displayListTitle(list.title, list.slug);
   return pageMetadata({
-    title: displayTitle(list.title),
-    description: list.description || `A curated collection of books in ${displayTitle(list.title)}.`,
+    title: displayName,
+    description: list.description || `A curated collection of books in ${displayName}.`,
     path: `/lists/${list.slug}`,
     robots: robotsDirective(list),
   });
@@ -28,13 +30,24 @@ export default async function ListDetailPage({ params }: Props) {
   const list = await getListBySlug(slug);
   if (!list) notFound();
 
-  const [books, relatedLists] = await Promise.all([
-    getBooksForList(list.id, 48),
+  const kind = listKindFromSlug(list.slug);
+  // Meta list: sort by books.recommendation_count and filter junk numeric/date titles.
+  // Other lists: keep the imported rank order.
+  const booksPromise = kind === "meta"
+    ? getBooksForListByRecommendations(list.id, 60)
+    : getBooksForList(list.id, 48);
+  const [booksRaw, relatedLists] = await Promise.all([
+    booksPromise,
     getRelatedLists(list.id, 6),
   ]);
+  // Defensive junk-title filter for ALL lists; cheap clean numeric repair like "1984.0" -> "1984"
+  const books = booksRaw
+    .map((b) => ({ ...b, title: repairNumericTitle(b.title) }))
+    .filter((b) => isProbablyValidBookTitle(b.title))
+    .slice(0, 48);
 
   const jsonld = itemListJsonLd(list, books);
-  const displayName = displayTitle(list.title);
+  const displayName = displayListTitle(list.title, list.slug);
   const hasBooks = books.length > 0;
   const hasDescription = list.description && list.description.length > 0;
   const hasRelated = relatedLists.length > 0;
@@ -49,6 +62,9 @@ export default async function ListDetailPage({ params }: Props) {
       <div className="mb-10">
         <div className="flex items-start gap-3 flex-wrap mb-3">
           <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">{displayName}</h1>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-subtle text-muted text-[11px] font-medium shrink-0 mt-2">
+            {listKindLabel(kind)}
+          </span>
           {list.book_count > 0 && (
             <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium shrink-0 mt-1">
               {list.book_count} books
@@ -104,7 +120,7 @@ export default async function ListDetailPage({ params }: Props) {
                 className="p-3.5 rounded-xl border border-border bg-surface hover:shadow-md hover:border-accent/20 transition-all"
               >
                 <div className="flex items-start justify-between gap-2 mb-1">
-                  <p className="text-sm font-semibold text-ink">{displayTitle(rl.title)}</p>
+                  <p className="text-sm font-semibold text-ink">{displayListTitle(rl.title, rl.slug)}</p>
                   {rl.book_count > 0 && (
                     <span className="text-xs text-muted shrink-0">{rl.book_count} books</span>
                   )}

@@ -219,29 +219,29 @@ export default async function PersonDetailPage({ params }: Props) {
                           View source →
                         </a>
                       ) : (
-                        <span className="flex items-center gap-1.5 flex-wrap">
-                          <a
-                            href={sourceUrls[0]}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-accent hover:underline font-medium"
-                          >
-                            View source →
-                          </a>
-                          <span className="text-xs text-muted/60">+{sourceUrls.length - 1} more</span>
-                          {sourceUrls.slice(1).map((u, j) => (
-                            <a
-                              key={j}
-                              href={u}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label={`Additional source ${j + 2}`}
-                              className="text-xs text-muted/60 hover:text-accent hover:underline"
-                            >
-                              [{j + 2}]
-                            </a>
-                          ))}
-                        </span>
+                        <details className="relative">
+                          <summary className="list-none cursor-pointer text-xs text-accent hover:underline font-medium select-none [&::-webkit-details-marker]:hidden">
+                            View sources ({sourceUrls.length}) ▾
+                          </summary>
+                          <div className="absolute right-0 top-full mt-1 z-20 w-72 max-w-[80vw] rounded-lg border border-border bg-surface shadow-lg p-2 space-y-1">
+                            {sourceUrls.map((u, j) => {
+                              let host = u;
+                              try { host = new URL(u).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
+                              return (
+                                <a
+                                  key={j}
+                                  href={u}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block text-xs text-accent hover:underline truncate"
+                                  title={u}
+                                >
+                                  {j + 1}. {host}
+                                </a>
+                              );
+                            })}
+                          </div>
+                        </details>
                       )
                     ) : p.source_name ? (
                       <span className="text-xs text-muted">{p.source_name}</span>

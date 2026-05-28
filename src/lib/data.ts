@@ -498,6 +498,48 @@ export async function getListBySlug(slug: string): Promise<BookList | null> {
 }
 
 /**
+ * Books for a meta/curated list sorted by recommendation strength.
+ *
+ * Used for `/lists/most-recommended-books` where the imported book_lists.rank is
+ * arbitrary/null and produces a junk-looking order. We sort by the books table's
+ * own `recommendation_count DESC` so the most-recommended books surface first.
+ *
+ * Implementation: inner-join via PostgREST embed reverse-side filter, ordering
+ * the parent (`books`) table directly. Then we OVERFETCH and apply
+ * `isProbablyValidBookTitle` client-side to skip the junk numeric/date titles
+ * from the dirty import, before truncating to `limit`.
+ */
+export async function getBooksForListByRecommendations(listId: string, limit = 48): Promise<Book[]> {
+  try {
+    const supa = getSupabase();
+    // Overfetch (×3) so junk filtering still leaves us enough rows.
+    const window = Math.min(200, limit * 3);
+    const { data, error } = await supa
+      .from("books")
+      .select("*, book_lists!inner(list_id)")
+      .eq("book_lists.list_id", listId)
+      .order("recommendation_count", { ascending: false, nullsFirst: false })
+      .limit(window);
+    if (error) { logQueryError("getBooksForListByRecommendations", error); return []; }
+    // Inline import to keep this file's existing import block intact
+    const { isProbablyValidBookTitle } = await import("./dataQuality");
+    const clean = ((data || []) as Array<Book & { book_lists?: unknown }>)
+      .filter((b) => b && b.id && isProbablyValidBookTitle(b.title))
+      .slice(0, limit)
+      // strip the embed payload before returning
+      .map(({ ...rest }) => {
+        const out = { ...rest } as Book & { book_lists?: unknown };
+        delete out.book_lists;
+        return out as Book;
+      });
+    return clean;
+  } catch (e) {
+    logQueryError("getBooksForListByRecommendations", e);
+    return [];
+  }
+}
+
+/**
  * Two-step fetch: avoids PostgREST embed quirks that can return empty for
  * large/freshly-inserted memberships (the cause of the most-recommended-books empty grid).
  * Step 1: get book_ids from book_lists. Step 2: fetch books by id.
