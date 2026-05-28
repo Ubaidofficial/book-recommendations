@@ -34,6 +34,8 @@ const FULL_TITLE_ALIASES: Record<string, string> = {
   "graphic novel": "Graphic Novels",
   "ya": "Young Adult",
   "lgbt": "LGBTQ",
+  // truncated-word repair from dirty imports
+  "ificial intelligence": "Artificial Intelligence",
 };
 
 // Broader categories that appear as concatenated SUFFIXES on imported titles.

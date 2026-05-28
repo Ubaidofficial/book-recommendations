@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: v9.9 — serialize best_for/not_for as arrays for text[] columns (stops future char-by-char corruption)
+# Version: v9.11 — theme quality filter (sentence-fragment / generic / overlong themes) + prompt-contract guidance
 """
 Generate AI editorial enrichment for top BookRecs books.
 
@@ -1305,9 +1305,77 @@ def _deterministic_theme_tensions(list_names: List[str]) -> List[str]:
     return out
 
 
+# v9.11 — theme quality filter for AI-returned items.
+# Rejects sentence-fragments, leading-article phrases, themes >10 words, themes ending
+# in sentence punctuation with multiple words, themes that look like running prose, and
+# generic placeholders the user explicitly listed as forbidden in unrelated-book contexts.
+_THEME_SENTENCE_STARTERS = (
+    "the book ", "the contrast ", "the author ", "the story ", "the writer ",
+    "the reader ", "the way ", "it shows ", "it explores ", "it argues ",
+    "this book ", "this story ", "newport's ", "knight's ", "the chapter ",
+    "the section ", "in this book ", "the central ", "the main ",
+)
+_THEME_VAGUE_GENERICS = {
+    # the user's explicit ban list of repeat-across-unrelated-books themes
+    "principles vs practical compromise",
+    "freedom vs responsibility",
+    "tradition vs reinvention",
+    "loyalty vs personal truth",
+    "duty vs desire",
+    # also vague single-tokens that recycle widely
+    "personal growth", "life lessons", "human nature", "self-improvement",
+    "life and death", "love and loss",
+}
+
+
+def _is_low_quality_theme(t: str) -> bool:
+    """v9.11 — Return True for sentence-fragment / generic / overly-long themes.
+    Themes should be short (2–5 words, up to ~8) and book-specific. Used to filter AI
+    output BEFORE deterministic padding kicks in; padding remains the last-resort safety net."""
+    if not t:
+        return True
+    s = t.strip()
+    if not s:
+        return True
+    low = s.lower()
+    # 1) generic recycled themes
+    if low in _THEME_VAGUE_GENERICS:
+        return True
+    # 2) leading-article sentence-fragment patterns
+    for starter in _THEME_SENTENCE_STARTERS:
+        if low.startswith(starter):
+            return True
+    # 3) word-count cap — 10+ words is almost always running prose, not a tag.
+    words = low.split()
+    if len(words) > 10:
+        return True
+    # 4) ending punctuation suggesting a sentence
+    if s.endswith("...") or s.endswith("…"):
+        return True
+    if s.endswith(".") and len(words) > 5:
+        return True
+    # 5) any comma combined with >7 words = running prose
+    if "," in s and len(words) > 7:
+        return True
+    return False
+
+
+def _filter_theme_quality(items: List[str]) -> Tuple[List[str], List[str]]:
+    """Split incoming items into (kept, dropped)."""
+    kept: List[str] = []
+    dropped: List[str] = []
+    for it in items:
+        if _is_low_quality_theme(it):
+            dropped.append(it)
+        else:
+            kept.append(it)
+    return kept, dropped
+
+
 def _repair_theme_tensions(value: Any, context: Dict[str, Any]) -> Tuple[List[str], str]:
     """v9.7 — coerce, split, dedupe, then pad theme_tensions deterministically up to 4-5 items.
-    Returns (items, repair_note). repair_note is empty when no repair was needed."""
+    v9.11 — also filter out low-quality AI themes (sentence fragments, generic recycled phrases,
+    >10-word running-prose). Padding remains the safety net so clean_list never fails on theme count."""
     note = ""
     items: List[str] = []
 
@@ -1337,6 +1405,15 @@ def _repair_theme_tensions(value: Any, context: Dict[str, Any]) -> Tuple[List[st
             continue
         cleaned_items.append(s)
 
+    # v9.11 — quality filter applied BEFORE deterministic padding so the AI's bad themes
+    # are removed and the score evaluator sees a smaller (but cleaner) starting set.
+    if cleaned_items:
+        cleaned_items, dropped = _filter_theme_quality(cleaned_items)
+        if dropped and not note:
+            note = "theme_tensions_low_quality_filtered"
+        elif dropped:
+            note = note + ";theme_tensions_low_quality_filtered" if "low_quality" not in note else note
+
     if len(cleaned_items) < 4:
         list_names = [clean(l.get("name", "")) for l in context.get("lists", []) if clean(l.get("name", ""))]
         fallbacks = _deterministic_theme_tensions(list_names)
@@ -1347,6 +1424,8 @@ def _repair_theme_tensions(value: Any, context: Dict[str, Any]) -> Tuple[List[st
                 cleaned_items.append(f)
         if not note:
             note = "theme_tensions_padded_deterministic"
+        elif "padded" not in note:
+            note = note + ";theme_tensions_padded_deterministic"
 
     if len(cleaned_items) > 5:
         cleaned_items = cleaned_items[:5]
@@ -2471,12 +2550,17 @@ def evaluate_reader_fit_quality(cleaned: Dict[str, Any], book: Dict[str, Any], c
 
 
 def update_book(book_id: str, enrichment: Dict[str, Any], status: str = "draft") -> None:
+    """v9.10 — best_for / not_for / key_themes are text[] columns in production.
+    Previously this function joined arrays back into pipe-strings before PATCH, which
+    Postgres iterated character-by-character into the array column. The fix is to
+    send proper JSON arrays. `_to_editorial_list` accepts list/tuple/str/JSON-string
+    inputs and always returns a clean List[str]."""
     url, _ = supabase_base()
     payload = {
         "editorial_summary": enrichment["editorial_summary"],
-        "best_for": " | ".join(enrichment["best_for"]),
-        "not_for": " | ".join(enrichment["not_for"]),
-        "key_themes": enrichment["key_themes"],
+        "best_for": _to_editorial_list(enrichment["best_for"]),
+        "not_for": _to_editorial_list(enrichment["not_for"]),
+        "key_themes": _to_editorial_list(enrichment["key_themes"]),
         "difficulty_level": enrichment["difficulty_level"],
         "recommendation_context": enrichment["recommendation_context"],
         "source_quality_note": enrichment["source_quality_note"],
@@ -2658,6 +2742,10 @@ def main() -> int:
     parser.add_argument("--editorial-contract-file", default="docs/ai-editorial/COMPACT_PROMPT_CONTRACT.md", help="Path to compact prompt contract markdown (default: docs/ai-editorial/COMPACT_PROMPT_CONTRACT.md).")
     # v9.9 — regression test for the new list serializer used in _write_book_update
     parser.add_argument("--selftest-list-serializer", action="store_true", help="Run inline regression tests for _to_editorial_list (no DB writes).")
+    parser.add_argument("--selftest-theme-quality", action="store_true", help="Run inline regression tests for _is_low_quality_theme (no DB writes).")
+    # v9.10 — deterministic promote-from-report: write already-accepted dry-run candidates without re-calling the AI.
+    parser.add_argument("--promote-accepted-from-report", default="", help="Path to a dry-run CSV. Promotes recommended_action=accept_candidate rows with score>=4.7 directly from the report. NO AI calls.")
+    parser.add_argument("--confirm-promote-accepted", action="store_true", help="Required second gate for live promote write. Without this, --write in promote mode refuses.")
     args = parser.parse_args()
 
     if args.mock_ai and not args.fixture_file:
@@ -2703,6 +2791,14 @@ def main() -> int:
     # v9.9 — selftest for the list serializer (no DB writes)
     if args.selftest_list_serializer:
         return _selftest_editorial_list_serializer()
+
+    # v9.10 — deterministic promote-from-report (no AI calls)
+    if args.promote_accepted_from_report:
+        return _run_promote_accepted(args)
+
+    # v9.11 — theme quality selftest (no DB writes, no AI calls)
+    if args.selftest_theme_quality:
+        return _selftest_theme_quality()
 
     # v8.6 — report analysis tooling (exits after completion, no generation)
     if args.analyze_report:
@@ -3745,6 +3841,396 @@ def _selftest_editorial_list_serializer() -> int:
             fails += 1
     print(f"\n{'OK' if fails == 0 else 'FAIL'}: {len(cases) - fails}/{len(cases)} passed")
     return 0 if fails == 0 else 1
+
+
+def _selftest_theme_quality() -> int:
+    """v9.11 — regression tests for _is_low_quality_theme. Exits 0 on pass, 1 on fail."""
+    # (theme, expected_low_quality)
+    cases: List[Tuple[str, bool]] = [
+        # Good short themes — pass through
+        ("deep focus", False),
+        ("AI alignment", False),
+        ("social proof", False),
+        ("attention residue", False),
+        ("scarcity", False),
+        # Acceptable "X vs Y" — both sides short
+        ("speed vs sustainability", False),
+        ("intuition vs data", False),
+        # Sentence-fragment AI themes (must reject)
+        ("The contrast between the romantic ideal of crafted work and modern knowledge labor", True),
+        ("Newport's advice is empowering for solo workers", True),
+        ("The book argues that focus is the new IQ.", True),
+        ("It shows how distraction has costs", True),
+        ("This book explains why deep work matters", True),
+        # Generic recycled themes the user banned for unrelated books
+        ("principles vs practical compromise", True),
+        ("freedom vs responsibility", True),
+        ("tradition vs reinvention", True),
+        ("loyalty vs personal truth", True),
+        ("duty vs desire", True),
+        # Vague single-tokens
+        ("personal growth", True),
+        ("life lessons", True),
+        # Too-long themes
+        ("a long winded theme that runs to many words and clearly is prose not a tag at all", True),
+        # Edge: empty
+        ("", True),
+    ]
+    fails = 0
+    for t, expected in cases:
+        got = _is_low_quality_theme(t)
+        ok = got == expected
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] '{t[:60]}' -> low_quality={got} (expected {expected})")
+        if not ok:
+            fails += 1
+    print(f"\n{'OK' if fails == 0 else 'FAIL'}: {len(cases) - fails}/{len(cases)} passed")
+    return 0 if fails == 0 else 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v9.10 — Deterministic promote-from-report
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Hard-reject reason tokens that disqualify a row from promotion regardless of score.
+_PROMOTE_HARD_REJECT_TOKENS = [
+    "unsupported_format_claim",
+    "unsupported_medical_or_research_claim",
+    "unsupported_proof_or_prestige_claim",
+    "source_overclaim",
+    "public_recommender_name_leak",
+    "possible_public_recommender_name_leak",
+    "_bad_list",
+    "max_retries_exhausted",
+    "ai_json_parse_failed",
+    "ai_json_repair_failed",
+    "internal_language_",
+    "overclaims_verification",
+    "fields_not_distinct",
+    "generic_ai_or_publisher_copy",
+]
+
+# Eligible row statuses. accept_candidate writes typically come from dry_run_update
+# or generated_but_weak with action=accept_candidate.
+_PROMOTE_ELIGIBLE_STATUSES = {"dry_run_update", "updated", "ok_after_retry", "generated_but_weak"}
+
+_PROMOTE_CANDIDATE_FIELDS = (
+    "editorial_summary", "best_for", "not_for", "key_themes",
+    "difficulty_level", "recommendation_context", "source_quality_note",
+)
+
+
+def _promote_parse_raw_candidate(raw: str) -> Dict[str, Any]:
+    """Best-effort parse of the raw_output snapshot (truncated to ~1000 chars) into
+    a partial candidate dict. Tolerates trailing truncation by retrying with closed braces."""
+    if not raw or not raw.strip():
+        return {}
+    text = raw.strip()
+    # Strip a leading "{...}" wrapper if present
+    try:
+        obj = json.loads(text)
+        return obj if isinstance(obj, dict) else {}
+    except Exception:
+        pass
+    # Retry with a closing brace appended (handles truncation at character 1000)
+    if text.startswith("{") and not text.endswith("}"):
+        for closing in ("}", "\"}", "\"]}", "]}"):
+            try:
+                obj = json.loads(text + closing)
+                if isinstance(obj, dict):
+                    return obj
+            except Exception:
+                continue
+    # Try to extract the largest valid JSON object substring
+    m = re.search(r"\{[\s\S]+\}", text)
+    if m:
+        try:
+            obj = json.loads(m.group(0))
+            if isinstance(obj, dict):
+                return obj
+        except Exception:
+            pass
+    return {}
+
+
+def _promote_extract_candidate(row: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:
+    """Return (candidate_dict, source_label) where source ∈ {public_columns, raw_output, mixed, none}.
+    Prefers public columns when non-empty; falls back to raw_output values for missing fields."""
+    candidate: Dict[str, Any] = {}
+    used_columns = False
+    for k in _PROMOTE_CANDIDATE_FIELDS:
+        v = row.get(k)
+        if isinstance(v, str):
+            v = v.strip()
+        if v:
+            candidate[k] = v
+            used_columns = True
+    used_raw = False
+    raw_obj = _promote_parse_raw_candidate(row.get("raw_output") or "")
+    if raw_obj:
+        for k in _PROMOTE_CANDIDATE_FIELDS:
+            if candidate.get(k):
+                continue
+            v = raw_obj.get(k)
+            if v not in (None, ""):
+                candidate[k] = v
+                used_raw = True
+    if used_columns and used_raw:
+        source = "mixed"
+    elif used_columns:
+        source = "public_columns"
+    elif used_raw:
+        source = "raw_output"
+    else:
+        source = "none"
+    return candidate, source
+
+
+def _promote_build_plan_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate one report row + extract its candidate. Returns a plan dict with
+    .status ∈ {would_promote, skipped} and full candidate ready for write."""
+    book_id = (row.get("book_id") or "").strip()
+    slug = (row.get("slug") or "").strip()
+    title = (row.get("title") or "").strip()
+    action = (row.get("recommended_action") or "").strip().lower()
+    status_orig = (row.get("status") or "").strip()
+    reason = (row.get("reason") or "").strip()
+    try:
+        score = float(row.get("overall_icp_score") or 0)
+    except (TypeError, ValueError):
+        score = 0.0
+
+    plan: Dict[str, Any] = {
+        "book_id": book_id, "slug": slug, "title": title,
+        "recommended_action": action, "overall_icp_score": score,
+        "status_orig": status_orig, "reason_orig": reason,
+        "status": "would_promote", "reason": "",
+        "source": "none", "candidate": {},
+        "best_for_count": 0, "not_for_count": 0, "key_themes_count": 0,
+    }
+
+    if not book_id:
+        plan["status"] = "skipped"; plan["reason"] = "missing book_id"; return plan
+    if action != "accept_candidate":
+        plan["status"] = "skipped"; plan["reason"] = f"recommended_action='{action}' (not accept_candidate)"; return plan
+    if score < 4.7:
+        plan["status"] = "skipped"; plan["reason"] = f"overall_icp_score {score} below 4.7"; return plan
+    if status_orig not in _PROMOTE_ELIGIBLE_STATUSES:
+        plan["status"] = "skipped"; plan["reason"] = f"status '{status_orig}' not eligible"; return plan
+    # generated_but_weak permitted ONLY when action is accept_candidate (already enforced above)
+
+    rl = reason.lower()
+    # The benign-quality-reason scoring rows are e.g. "quality_below_accept_threshold; score=4.7".
+    # Any HARD-reject token in reason disqualifies regardless of score.
+    for tok in _PROMOTE_HARD_REJECT_TOKENS:
+        if tok in rl:
+            plan["status"] = "skipped"; plan["reason"] = f"reason contains hard-reject token '{tok}'"; return plan
+
+    candidate, source = _promote_extract_candidate(row)
+    plan["source"] = source
+    if not candidate:
+        plan["status"] = "skipped"; plan["reason"] = "no candidate fields recoverable from row"; return plan
+
+    # Validate + normalize via _to_editorial_list
+    summary = (candidate.get("editorial_summary") or "").strip() if isinstance(candidate.get("editorial_summary"), str) else ""
+    bf = _to_editorial_list(candidate.get("best_for", ""))
+    nf = _to_editorial_list(candidate.get("not_for", ""))
+    kt = _to_editorial_list(candidate.get("key_themes", ""))
+    diff = (candidate.get("difficulty_level") or "").strip() if isinstance(candidate.get("difficulty_level"), str) else ""
+    rc = (candidate.get("recommendation_context") or "").strip() if isinstance(candidate.get("recommendation_context"), str) else ""
+    sqn = (candidate.get("source_quality_note") or "").strip() if isinstance(candidate.get("source_quality_note"), str) else ""
+
+    plan["best_for_count"] = len(bf)
+    plan["not_for_count"] = len(nf)
+    plan["key_themes_count"] = len(kt)
+
+    errors: List[str] = []
+    if not summary: errors.append("editorial_summary empty")
+    if len(bf) < 2: errors.append(f"best_for has {len(bf)} items (need >=2)")
+    if len(nf) < 2: errors.append(f"not_for has {len(nf)} items (need >=2)")
+    if len(kt) < 2: errors.append(f"key_themes has {len(kt)} items (need >=2)")
+    if not diff: errors.append("difficulty_level empty")
+    if not rc: errors.append("recommendation_context empty")
+    if not sqn: errors.append("source_quality_note empty")
+    if errors:
+        plan["status"] = "skipped"; plan["reason"] = "validation: " + "; ".join(errors); return plan
+
+    plan["candidate"] = {
+        "editorial_summary": summary,
+        "best_for": bf, "not_for": nf, "key_themes": kt,
+        "difficulty_level": diff,
+        "recommendation_context": rc,
+        "source_quality_note": sqn,
+    }
+    return plan
+
+
+def _promote_fetch_book_ai_state(book_id: str) -> Optional[Dict[str, Any]]:
+    """Read-only fetch of the target row's current AI state for idempotency check."""
+    rows = safe_get("books", {
+        "select": "id,slug,title,ai_quality_status,editorial_summary",
+        "id": f"eq.{book_id}", "limit": "1",
+    })
+    return rows[0] if rows else None
+
+
+def _promote_backup(book_ids: List[str], backup_path: str) -> int:
+    """Backup current AI fields for the target rows before any write. Block if fails."""
+    if not book_ids:
+        print(f"[promote] no promotable rows to back up")
+        return 0
+    backup_cols = ["id", "slug", "title", "editorial_summary", "best_for", "not_for",
+                   "key_themes", "difficulty_level", "recommendation_context",
+                   "source_quality_note", "ai_generated_at", "ai_quality_status"]
+    select = ",".join(backup_cols)
+    fetched: List[Dict[str, Any]] = []
+    for bid in book_ids:
+        rows = safe_get("books", {"select": select, "id": f"eq.{bid}", "limit": "1"})
+        if rows:
+            fetched.append(rows[0])
+    if len(fetched) != len(book_ids):
+        raise SystemExit(f"[promote] backup fetch incomplete: got {len(fetched)} of {len(book_ids)} target rows — aborting before any write")
+    parent_dir = os.path.dirname(backup_path)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+    with open(backup_path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=backup_cols)
+        w.writeheader()
+        for r in fetched:
+            out = {}
+            for k in backup_cols:
+                v = r.get(k)
+                if isinstance(v, (list, dict)):
+                    out[k] = json.dumps(v, ensure_ascii=False)
+                elif v is None:
+                    out[k] = ""
+                else:
+                    out[k] = v
+            w.writerow(out)
+    print(f"[promote] backup wrote {len(fetched)} rows -> {backup_path}")
+    return len(fetched)
+
+
+def _run_promote_accepted(args: argparse.Namespace) -> int:
+    """v9.10 — deterministic promote-from-report. Writes already-accepted dry-run
+    candidates ONLY; never calls the AI provider; never touches non-AI fields."""
+    report_path = args.promote_accepted_from_report
+    if not os.path.exists(report_path):
+        raise SystemExit(f"[promote] report not found: {report_path}")
+
+    write_enabled = bool(args.write)
+    if write_enabled:
+        if not args.confirm_promote_accepted:
+            raise SystemExit("[promote] --write requires --confirm-promote-accepted")
+        if not args.backup_before_write:
+            raise SystemExit("[promote] --write requires --backup-before-write PATH")
+        validate_supabase_env()
+
+    quality_status = (args.quality_status or "draft").strip() or "draft"
+    include_existing = bool(args.include_existing)
+    out_report = args.report or DEFAULT_REPORT
+
+    with open(report_path, "r", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    if not rows:
+        raise SystemExit(f"[promote] report is empty: {report_path}")
+
+    accepted_rows = [r for r in rows if (r.get("recommended_action") or "").strip().lower() == "accept_candidate"]
+    print(f"[promote] mode: {'LIVE WRITE' if write_enabled else 'DRY-RUN'}")
+    print(f"[promote] report               : {report_path}")
+    print(f"[promote] rows read            : {len(rows)}")
+    print(f"[promote] accept_candidate rows: {len(accepted_rows)}")
+    print(f"[promote] no AI calls will be made")
+    if not accepted_rows:
+        raise SystemExit(f"[promote] no accept_candidate rows in {report_path}")
+
+    # Build plan for each accepted row (validation + candidate extraction)
+    plans: List[Dict[str, Any]] = [_promote_build_plan_row(r) for r in accepted_rows]
+    pre_promotable = [p for p in plans if p["status"] == "would_promote"]
+    print(f"[promote] post-validation promotable: {len(pre_promotable)}")
+
+    # Idempotency check (live only — needs DB read). In dry-run we still print the same
+    # would_promote count and leave the idempotency check to actual write time.
+    if write_enabled:
+        for p in pre_promotable:
+            existing = _promote_fetch_book_ai_state(p["book_id"])
+            if existing:
+                cur_status = (existing.get("ai_quality_status") or "").strip().lower()
+                cur_summary = (existing.get("editorial_summary") or "").strip()
+                if cur_status in ("draft", "approved", "needs_review") and cur_summary and not include_existing:
+                    p["status"] = "skipped"
+                    p["reason"] = f"existing ai_quality_status='{cur_status}' with content; pass --include-existing to overwrite"
+
+    promotable_now = [p for p in plans if p["status"] == "would_promote"]
+    backup_path = args.backup_before_write if write_enabled else ""
+
+    # Backup BEFORE any write
+    if write_enabled and promotable_now:
+        _promote_backup([p["book_id"] for p in promotable_now], backup_path)
+
+    # Perform writes
+    if write_enabled:
+        for p in promotable_now:
+            try:
+                update_book(p["book_id"], p["candidate"], status=quality_status)
+                p["status"] = "promoted"
+                p["reason"] = f"wrote ai_quality_status='{quality_status}'"
+            except Exception as exc:
+                p["status"] = "failed"
+                p["reason"] = f"write error: {exc}"
+
+    # Build per-row report
+    report_rows: List[Dict[str, Any]] = []
+    for p in plans:
+        report_rows.append({
+            "book_id": p["book_id"],
+            "slug": p["slug"],
+            "title": p["title"],
+            "status": p["status"],
+            "recommended_action": p["recommended_action"],
+            "overall_icp_score": p["overall_icp_score"],
+            "reason": p["reason"] or p["reason_orig"],
+            "source": p["source"],
+            "best_for_count": p["best_for_count"],
+            "not_for_count": p["not_for_count"],
+            "key_themes_count": p["key_themes_count"],
+            "write_enabled": write_enabled,
+            "backup_path": backup_path,
+        })
+    report_fields = ["book_id", "slug", "title", "status", "recommended_action",
+                     "overall_icp_score", "reason", "source",
+                     "best_for_count", "not_for_count", "key_themes_count",
+                     "write_enabled", "backup_path"]
+    parent_dir = os.path.dirname(out_report)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+    with open(out_report, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=report_fields)
+        w.writeheader()
+        for r in report_rows:
+            w.writerow(r)
+
+    # Summary
+    import collections as _coll
+    counts = _coll.Counter(p["status"] for p in plans)
+    print(f"\n[promote] summary:")
+    print(f"  rows_read           : {len(rows)}")
+    print(f"  accept_candidate    : {len(accepted_rows)}")
+    print(f"  promoted            : {counts.get('promoted', 0)}")
+    print(f"  would_promote       : {counts.get('would_promote', 0)}")
+    print(f"  skipped             : {counts.get('skipped', 0)}")
+    print(f"  failed              : {counts.get('failed', 0)}")
+    print(f"  write_enabled       : {write_enabled}")
+    print(f"  report              : {out_report}")
+    if backup_path:
+        print(f"  backup              : {backup_path}")
+    if any(p["status"] == "skipped" for p in plans):
+        print(f"\n  skip reasons (first 10):")
+        for p in plans:
+            if p["status"] == "skipped":
+                print(f"    - [{p.get('slug') or p['book_id']}] {p['reason']}")
+    print(f"\n[promote] NO AI CALLS WERE MADE.")
+    return 0
 
 
 def _run_audit(args: argparse.Namespace) -> int:

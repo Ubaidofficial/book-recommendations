@@ -29,6 +29,23 @@ import {
 } from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
+// Detail-page cover fallback — calmer than the previous oversized-purple version.
+// Subtle neutral gradient, small icon, readable but non-dominant title, "Cover unavailable" caption.
+function DetailCoverFallback({ title }: { title: string }) {
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-between bg-gradient-to-br from-subtle to-subtle/40 border-b border-border/60 p-3 text-center">
+      <span className="mt-1 text-[10px] uppercase tracking-wider text-muted/60">Cover unavailable</span>
+      <div className="flex flex-col items-center justify-center flex-1 px-2">
+        <svg className="w-7 h-7 text-muted/40 mb-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        <span className="text-sm font-medium text-ink/70 leading-snug line-clamp-5">{title}</span>
+      </div>
+      <span className="text-[10px] text-transparent select-none" aria-hidden>spacer</span>
+    </div>
+  );
+}
+
 interface Props {
   params: Promise<{ slug: string }>;
 }
@@ -82,11 +99,29 @@ export default async function BookDetailPage({ params }: Props) {
   const safeProof = rawProof.filter((p: RecommendationProof | null | undefined) => p != null && p.person != null && p.person.id);
 
   // Deduplicate quotes
-  const proof = uniqueByNormalizedText(safeProof, "quote");
+  const dedupedProof = uniqueByNormalizedText(safeProof, "quote");
+
+  // Re-rank: prefer quote-backed + source-backed cards. Then cap weak (no-quote, no-source)
+  // entries so the section doesn't look like 6 equally weighty signals when only generic ones exist.
+  const proofScored = dedupedProof.map((p) => {
+    const hasQuote = !!(p.quote && p.quote.trim().length >= 50);
+    const hasSource = parseSourceUrls(p.source_url).length > 0;
+    const conf = typeof p.confidence_score === "number" ? p.confidence_score : 0;
+    const strength = (hasQuote ? 3 : 0) + (hasSource ? 2 : 0);
+    return { p, strength, hasQuote, hasSource, conf };
+  }).sort((a, b) => {
+    if (a.strength !== b.strength) return b.strength - a.strength;
+    return (b.conf || 0) - (a.conf || 0);
+  });
+  const strongCount = proofScored.filter((x) => x.strength > 0).length;
+  // Display cap: when 3+ strong signals exist, show up to 6. When 1–2 strong, allow
+  // a few weak as filler (max 4 total). When zero strong, show at most 3 weak.
+  const proofCap = strongCount >= 3 ? 6 : strongCount > 0 ? 4 : 3;
+  const proof = proofScored.slice(0, proofCap).map((x) => x.p);
 
   // Determine proof quality
   const hasProof = proof.length > 0;
-  const proofWithSource = proof.filter((p) => isValidHttpUrl(p.source_url));
+  const proofWithSource = proof.filter((p) => parseSourceUrls(p.source_url).length > 0);
   const showVerifiedBadge = proofWithSource.length >= 2;
   // Conservative labels until DB source quality is audited
   const proofHeading = "Recommendation Signals";
@@ -94,10 +129,11 @@ export default async function BookDetailPage({ params }: Props) {
 
   const hasCover = isValidHttpUrl(book.cover_image_url);
   const showRating = isValidRating(book.rating);
+  // Display-only description hygiene: if the row doesn't pass isUsefulDescription
+  // (placeholder text, scraped junk, too short, non-English) we hide the description
+  // block entirely rather than show internal review text to the public.
   const showDescription = isUsefulDescription(book.description);
-  const descriptionText = showDescription
-    ? cleanDescription(book.description)
-    : "Description is being reviewed for this book.";
+  const descriptionText = showDescription ? cleanDescription(book.description) : "";
 
   // Author line
   const hasAuthor = book.author && book.author.trim().length > 0;
@@ -126,26 +162,10 @@ export default async function BookDetailPage({ params }: Props) {
                 src={book.cover_image_url}
                 alt={displayBookTitle(book.title)}
                 className="w-full h-full object-cover"
-                fallback={
-                  <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-accent/5 to-accent/10 p-4">
-                    <span className="text-lg font-bold text-accent/50 text-center leading-tight mb-2">
-                      {displayBookTitle(book.title)}
-                    </span>
-                    <svg className="w-6 h-6 text-accent/25 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                  </div>
-                }
+                fallback={<DetailCoverFallback title={displayBookTitle(book.title)} />}
               />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-accent/5 to-accent/10 p-4">
-                <span className="text-lg font-bold text-accent/50 text-center leading-tight mb-2">
-                  {displayBookTitle(book.title)}
-                </span>
-                <svg className="w-6 h-6 text-accent/25 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-              </div>
+              <DetailCoverFallback title={displayBookTitle(book.title)} />
             )}
           </div>
         </div>
@@ -194,9 +214,11 @@ export default async function BookDetailPage({ params }: Props) {
             </Link>
           )}
 
-          <div className="prose prose-base text-muted max-w-none leading-relaxed">
-            <p>{descriptionText}</p>
-          </div>
+          {showDescription && (
+            <div className="prose prose-base text-muted max-w-none leading-relaxed">
+              <p>{descriptionText}</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -397,7 +419,8 @@ export default async function BookDetailPage({ params }: Props) {
           keeping the higher-priority entry (topic > meta > other > category); same priority
           ties broken by lower pre-rank index, then smaller book_count. Broad parents
           (Fiction/Nonfiction/History/…) are hidden once we have ≥5 useful specific cards.
-          Final list capped at 8. */}
+          Final list capped at 8. Fiction and Nonfiction are never shown together — the
+          contradiction is resolved by slug-keyword inference, else both are hidden. */}
       {hasLists && (() => {
         // Priority: lower number wins on duplicate-label collisions.
         const PRIORITY: Record<ReturnType<typeof listKindFromSlug>, number> = {
@@ -409,6 +432,18 @@ export default async function BookDetailPage({ params }: Props) {
           "philosophy", "science", "art", "personal-development", "psychology",
         ]);
 
+        // Heuristic: infer whether the book is fiction or nonfiction from its OTHER lists'
+        // slug tokens. Used to resolve the Fiction-vs-Nonfiction contradiction.
+        const fictionKw = /(^|-)(fiction|fantasy|romance|mystery|thriller|horror|dystopian|comics?|manga|poetry|paranormal|time-travel|space-opera|steampunk|saga|novel|sci-fi)(-|$)/;
+        const nonfictionKw = /(^|-)(biography|autobiography|memoir|business|leadership|ceo|history|science|math|physics|biology|psychology|philosophy|self-help|personal-development|finance|investing|technology|programming|cookbook|nutrition|fitness|sports|parenting|health|spirituality|religion|writing|design|architecture|photography|travel|nature|gardening|management|marketing|sales|strategy|startup)(-|$)/;
+        const otherSlugs = lists.map((l) => (l.slug || "").toLowerCase());
+        const hasFictionSignal = otherSlugs.some((s) => fictionKw.test(s));
+        const hasNonfictionSignal = otherSlugs.some((s) => nonfictionKw.test(s));
+        const inferredType: "fiction" | "nonfiction" | "unknown" =
+          hasFictionSignal && !hasNonfictionSignal ? "fiction"
+            : hasNonfictionSignal && !hasFictionSignal ? "nonfiction"
+              : "unknown";
+
         const enriched = lists.map((l, idx) => ({
           l,
           idx,                                                         // pre-rank position
@@ -417,9 +452,22 @@ export default async function BookDetailPage({ params }: Props) {
           isBroad: BROAD_APPEARS_IN_SLUGS.has((l.slug || "").toLowerCase()),
         }));
 
+        // Resolve Fiction-vs-Nonfiction contradiction BEFORE dedupe so it doesn't leak through.
+        const hasFictionCard = enriched.some((x) => x.kind === "category" && (x.l.slug || "").toLowerCase() === "fiction");
+        const hasNonfictionCard = enriched.some((x) => x.kind === "category" && (x.l.slug || "").toLowerCase() === "nonfiction");
+        const dropFiction = hasFictionCard && hasNonfictionCard && inferredType === "nonfiction";
+        const dropNonfiction = hasFictionCard && hasNonfictionCard && inferredType === "fiction";
+        const dropBothFN = hasFictionCard && hasNonfictionCard && inferredType === "unknown";
+        const beforeFN = enriched.filter((x) => {
+          const s = (x.l.slug || "").toLowerCase();
+          if (s === "fiction" && (dropFiction || dropBothFN)) return false;
+          if (s === "nonfiction" && (dropNonfiction || dropBothFN)) return false;
+          return true;
+        });
+
         // Single-pass dedupe by normalized display label across ALL kinds.
-        const bestByLabel = new Map<string, typeof enriched[number]>();
-        for (const x of enriched) {
+        const bestByLabel = new Map<string, typeof beforeFN[number]>();
+        for (const x of beforeFN) {
           const key = x.displayName.toLowerCase().trim();
           if (!key) continue;
           const cur = bestByLabel.get(key);

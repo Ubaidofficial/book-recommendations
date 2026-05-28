@@ -83,6 +83,15 @@ const SCRAPED_JUNK_PATTERNS = [
   /books\s*read\s*section/i,
   /description\s*not\s*available/i,
   /no\s*description\s*available/i,
+  // Internal/placeholder review text that must never reach public pages
+  /description\s*is\s*being\s*reviewed/i,
+  /description\s*pending/i,
+  /description\s*coming\s*soon/i,
+  /placeholder\s*description/i,
+  /under\s*review/i,
+  /coming\s*soon[\s.]*$/i,
+  /^\s*to\s*be\s*added/i,
+  /^\s*tbd[\s.]*$/i,
   /^\s*$/,
 ];
 
