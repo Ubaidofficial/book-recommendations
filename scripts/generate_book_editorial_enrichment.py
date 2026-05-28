@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: v9.7 — theme_tensions deterministic repair, narrower co-founder fact-risk, context memoization + resume-from-report
+# Version: v9.9 — serialize best_for/not_for as arrays for text[] columns (stops future char-by-char corruption)
 """
 Generate AI editorial enrichment for top BookRecs books.
 
@@ -323,7 +323,15 @@ UNSUPPORTED_MEDICAL_PHRASES = [
     "therapeutic context",
     "therapists and patients",
     "patients",
-    "client",
+    # v9.8 — bare "client" removed: it's normal business/coaching language outside therapy.
+    # Only reject when "client" appears inside an explicit medical/therapy/clinical frame.
+    "clients in therapy",
+    "clinical clients",
+    "therapists and clients",
+    "treating clients",
+    "client outcomes",
+    "client trauma",
+    "mental health clients",
     "therapy",
     "neuroscience",
     "scientific dive",
@@ -2648,6 +2656,8 @@ def main() -> int:
     parser.add_argument("--promote-regression-cases", default="", help="Read regression_case_candidates.json and print copy-paste fixture skeletons.")
     # v9.4 — compact contract loader
     parser.add_argument("--editorial-contract-file", default="docs/ai-editorial/COMPACT_PROMPT_CONTRACT.md", help="Path to compact prompt contract markdown (default: docs/ai-editorial/COMPACT_PROMPT_CONTRACT.md).")
+    # v9.9 — regression test for the new list serializer used in _write_book_update
+    parser.add_argument("--selftest-list-serializer", action="store_true", help="Run inline regression tests for _to_editorial_list (no DB writes).")
     args = parser.parse_args()
 
     if args.mock_ai and not args.fixture_file:
@@ -2689,6 +2699,10 @@ def main() -> int:
         GLOBAL_CONTRACT_TEXT = load_editorial_contract(args.editorial_contract_file)
     else:
         print("[contract] No contract file specified. Using hardcoded prompt.")
+
+    # v9.9 — selftest for the list serializer (no DB writes)
+    if args.selftest_list_serializer:
+        return _selftest_editorial_list_serializer()
 
     # v8.6 — report analysis tooling (exits after completion, no generation)
     if args.analyze_report:
@@ -3611,17 +3625,126 @@ def _finish_live_run(args: argparse.Namespace, rows: List[Dict[str, Any]], total
     return 0
 
 
+def _to_editorial_list(value: Any) -> List[str]:
+    """v9.9 — Coerce any incoming best_for/not_for value into a clean list of strings
+    suitable for a `text[]` Supabase column.
+
+    The previous behaviour (writing a raw pipe-joined string) caused Postgres to
+    serialize the string CHARACTER-BY-CHARACTER into the array column. This helper
+    matches the long-standing `key_themes` shape so all three list columns land as
+    proper arrays.
+
+    Accepts:
+      - list / tuple of strings  -> clean, dedupe (case-insensitive)
+      - JSON-encoded array string '["a","b"]' -> parse
+      - pipe-joined string "a | b | c" -> split on " | " (preferred) or "|"
+      - plain prose                -> return as one-item list  (NEVER split into chars)
+      - None / "" / "[]"           -> []
+    """
+    # 1) list/tuple → as-is (cleaned)
+    if isinstance(value, (list, tuple)):
+        out: List[str] = []
+        seen: set = set()
+        for x in value:
+            s = clean(x)
+            if not s:
+                continue
+            k = s.lower()
+            if k in seen:
+                continue
+            seen.add(k)
+            out.append(s)
+        return out
+
+    # 2) anything other than string → empty
+    if not isinstance(value, str):
+        return []
+
+    s = value.strip()
+    if not s:
+        return []
+
+    # 3) JSON-encoded array
+    if s.startswith("[") and s.endswith("]"):
+        try:
+            parsed = json.loads(s)
+            if isinstance(parsed, list):
+                return _to_editorial_list(parsed)
+        except Exception:
+            pass
+
+    def _looks_char_corrupted(parts: List[str]) -> bool:
+        # Real char-corruption produces MANY items (hundreds of single chars).
+        # A legit short list like "a | b | c" has only a few items, even when each is short.
+        if len(parts) < 5:
+            return False
+        short = sum(1 for p in parts if len(p) <= 1)
+        return short / len(parts) > 0.5
+
+    # 4) Pipe-joined — prefer the canonical " | " split that the CSV report uses.
+    if " | " in s:
+        items = [t.strip() for t in s.split(" | ") if t.strip()]
+        if items:
+            if _looks_char_corrupted(items):
+                return []
+            return _to_editorial_list(items)
+    # Fallback: bare "|" split.
+    if "|" in s:
+        parts = [t.strip() for t in s.split("|") if t.strip()]
+        if parts:
+            if _looks_char_corrupted(parts):
+                return []
+            return _to_editorial_list(parts)
+
+    # 5) Plain prose → one item (never spread to chars).
+    return [s]
+
+
 def _write_book_update(book: Dict[str, Any], row: Dict[str, Any], quality_status: str) -> None:
     cleaned_data = {
         "editorial_summary": clean(row.get("editorial_summary", "")),
-        "best_for": row.get("best_for", ""),
-        "not_for": row.get("not_for", ""),
-        "key_themes": (row.get("key_themes", "") or "").split("|"),
+        # v9.9 — best_for/not_for must be arrays. Previously sent as raw strings, which
+        # corrupted into per-character arrays for `text[]` columns in production.
+        "best_for": _to_editorial_list(row.get("best_for", "")),
+        "not_for": _to_editorial_list(row.get("not_for", "")),
+        "key_themes": _to_editorial_list(row.get("key_themes", "")),
         "difficulty_level": row.get("difficulty_level", "unknown"),
         "recommendation_context": clean(row.get("recommendation_context", "")),
         "source_quality_note": clean(row.get("source_quality_note", "")),
     }
     update_book(book["id"], cleaned_data, status=quality_status)
+
+
+def _selftest_editorial_list_serializer() -> int:
+    """Inline regression tests for _to_editorial_list. Invoke via `--selftest-list-serializer`.
+    Exits 0 on pass, 1 on fail. No DB writes."""
+    cases: List[Tuple[str, Any, List[str]]] = [
+        ("None",                              None,                                                              []),
+        ("empty string",                      "",                                                                []),
+        ("plain pipe-joined",                 "a | b | c",                                                       ["a", "b", "c"]),
+        ("CSV-style pipe-joined sentences",
+            "A first-time founder ... | A senior marketer ... | An ex-runner ...",
+            ["A first-time founder ...", "A senior marketer ...", "An ex-runner ..."]),
+        ("already a list",                    ["a", "b", "c"],                                                   ["a", "b", "c"]),
+        ("list with empties + dupes",         ["a", "", "A", "b", None, "  ", "B"],                              ["a", "b"]),
+        ("JSON-encoded array string",         '["a","b","c"]',                                                   ["a", "b", "c"]),
+        ("plain prose, NO pipes",             "A founder navigating board dynamics.",                            ["A founder navigating board dynamics."]),
+        ("char-corrupted display form (the bug)",
+            "A |   | f | i | r | s | t",                                                                         []),
+        ("empty JSON array",                  "[]",                                                              []),
+        ("bare-pipe with whitespace",         " a  |  b  ",                                                      ["a", "b"]),
+        ("non-string non-list",               42,                                                                []),
+    ]
+    fails = 0
+    for name, inp, expected in cases:
+        got = _to_editorial_list(inp)
+        ok = got == expected
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] {name}: got={got!r} expected={expected!r}")
+        if not ok:
+            fails += 1
+    print(f"\n{'OK' if fails == 0 else 'FAIL'}: {len(cases) - fails}/{len(cases)} passed")
+    return 0 if fails == 0 else 1
 
 
 def _run_audit(args: argparse.Namespace) -> int:
