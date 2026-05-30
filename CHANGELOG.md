@@ -383,3 +383,11 @@
 - Fixed safe mashed phrases such as twentyfirst century, Englishspeaking, SlaughterhouseFive, Mythical ManMonth, and Liu Cixin.Set.
 - Left Piketty, Gulag Archipelago, and Outsiders mojibake rows in manual review.
 - PATCH limited to description only; no slug, title, cover, schema, editorial, or AI writes.
+
+## 2026-05-30 — Missing Cover Recovery
+
+### Changed
+- Added gated missing-cover recovery tooling.
+- Backfilled cover for Why Are We Yelling? after preview, manual approval, backup, and drift-check gates.
+- Held low-confidence / unmatched cover candidates for manual review.
+- PATCH limited to cover_image_url only; no title, slug, description, schema, editorial, or AI writes.
