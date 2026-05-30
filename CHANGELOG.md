@@ -375,3 +375,11 @@
 - Normalized 9 live book titles after preview and drift-check gates.
 - Fixed mashed title casing/hyphenation for Capital in the Twenty-First Century, Dear Life, The Hundred-Year Walk, Pre-Suasion, Slaughterhouse-Five, The Demon-Haunted World, The Long Goodbye, The Mythical Man-Month, and duplicate Three-Body Problem row.
 - PATCH limited to title/subtitle only; no slug, cover, description, schema, or AI writes.
+
+## 2026-05-30 — Description Artifact Repair
+
+### Changed
+- Repaired 54 deterministic description artifacts after live preview, backup, and drift-check gates.
+- Fixed safe mashed phrases such as twentyfirst century, Englishspeaking, SlaughterhouseFive, Mythical ManMonth, and Liu Cixin.Set.
+- Left Piketty, Gulag Archipelago, and Outsiders mojibake rows in manual review.
+- PATCH limited to description only; no slug, title, cover, schema, editorial, or AI writes.
