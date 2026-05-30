@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-05-24 — Data Quality Dashboard UX
+
+### Changed
+- Dashboard subtitle: "Diagnostic sample from problem queries. Counts below are sample counts, not full database totals."
+- Summary card labels: Sample Rows, Valid Covers in Sample, Local Covers in Sample, Missing Descriptions, Suspicious Descriptions, Invalid Ratings, With Recommendations
+- Added info box at top: "Internal QA only — used to choose which pages are safe to index"
+- Problem rows: book titles link to `/books/{slug}`, author hidden when empty, bare ratings suppressed to "invalid/suppressed", cover shows "missing" / "local filename" / truncated URL
+- High-rec issues row: issues joined with "·" separator
+
 ## 2026-05-24 — Internal Data Quality Audit
 
 ### Added
