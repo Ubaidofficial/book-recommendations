@@ -391,3 +391,11 @@
 - Backfilled cover for Why Are We Yelling? after preview, manual approval, backup, and drift-check gates.
 - Held low-confidence / unmatched cover candidates for manual review.
 - PATCH limited to cover_image_url only; no title, slug, description, schema, editorial, or AI writes.
+
+## 2026-05-30 — Top 500 Description Backfill
+
+### Changed
+- Backfilled high-confidence descriptions for top-500 books with empty or junk descriptions.
+- Reduced top-500 bad/short descriptions from 36 to 23.
+- Used preview, manual approval, backup, and drift-check gates.
+- PATCH limited to description only; no slug, title, cover, schema, editorial, or AI writes.
