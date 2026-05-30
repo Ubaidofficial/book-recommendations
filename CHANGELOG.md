@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-05-31 — Browse Books page: real pagination, category chips, sort, search
+
+### Root cause (before)
+The `/books` page had four cosmetic-only controls that did nothing:
+- **Cap at 24**: page only ever called `getBooksPaginated(1, 24)` — no `page`/`pageSize` URL wiring.
+- **Wrong total**: `getBooksPaginated` returned `total = data.length` (the page slice, not the catalogue count), so pagination math was impossible even if the rest worked.
+- **Dead chips**: category buttons were hard-coded `<button>` elements with no `href`/no handler. Array index `i === 0` permanently marked "All" active.
+- **Dead sort**: `<select>` had no `value`/`onChange`/no form.
+- **Fake "next page"**: literal text "More coming soon" instead of a Page-2 link.
+- **Search cap**: `searchBooks(q, 24)` — same 24-row cap.
+
+### Fixed
+- **URL-driven state** — `/books?q=…&category=…&sort=…&page=…`. The page reads all four params, validates them, and renders accordingly. Active chip is derived from the URL (unknown values fall back to "All" so bad URLs don't produce silent empty grids).
+- **Real pagination** — page size 48. `Prev` / `Next` are real `<Link>`s that preserve the active query state. Works without JS.
+- **Category chips become real filters** — chip → list_slug mapping verified against production:
+  - Fiction → `fiction` (4,717 books)
+  - Non-Fiction → `nonfiction` (7,816 books)
+  - Science Fiction → `science-fiction` (550)
+  - Classics → `best-classic-books` (58)
+  - History → `history` (1,656)
+  - Self-Help → `personal-development` (1,001)
+- **Sort dropdown** — `Most Recommended` (default), `Highest Rated`, `Title A-Z`. Persists in URL. Implemented via small new `SortSelect` client island that navigates on change and resets `page` to 1 (new ordering invalidates prior offset).
+- **Search works beyond first 24** — new paginated `searchBooksPaginated` returns true `count`. Works in combination with sort + paging.
+- **Real catalogue total** — `getBooksPaginated` switched to `count:'exact'`, so the "X books" indicator and pagination math now reflect the actual ~98,845 catalogue size.
+- **Graceful empty state** — mode-aware messages ("No books match …", "No books found in …", default).
+
+### New helpers in `src/lib/data.ts`
+- `searchBooksPaginated(q, page, pageSize, sort)` — title/author search with real `count:'exact'`.
+- `getBooksByListSlugPaginated(listSlug, page, pageSize, sort)` — category browse using the existing two-step pattern (paginate ALL membership book_ids → fetch books in URL-safe chunks → client-side sort → page slice). Bounded at 10,000 member books (largest current category Nonfiction is ~7,800 — fits with headroom).
+- **Why not a PostgREST `!inner` embed**: probed in production — `order(col, { foreignTable: 'books' })` only orders the embedded representation, not the parent `book_lists` row slice. Confirmed live on Fiction: `the-republic-plato` (rec=13) appeared *after* `death-s-end` (rec=5) under that pattern. Two-step is the only path that gives a correct page slice today.
+
+### New client component
+- `src/components/SortSelect.tsx` — small client island for the sort dropdown. Reads current params, updates the URL with `router.push`, drops `page` on change.
+
+### Scope discipline
+- **Frontend + data-layer only.** No DB writes. No schema changes. No editorial-pipeline files touched. No AI calls. No Amazon affiliate changes.
+
 ## 2026-05-31 — Book detail discovery Phase 1 (reading-fit strip, similar books, why-recommended)
 
 ### Added

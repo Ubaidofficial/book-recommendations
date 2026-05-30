@@ -106,14 +106,16 @@ export async function getBooksPaginated(
     const col = sort === "title" ? "title" : sort;
     const asc = sort === "title";
 
-    const { data, error } = await getSupabase()
+    // count: 'exact' returns the REAL catalogue total in `count` — previously this
+    // returned `data.length` (the page slice), which made pagination math impossible.
+    const { data, count, error } = await getSupabase()
       .from("books")
-      .select("*")
-      .order(col, { ascending: asc })
+      .select("*", { count: "exact" })
+      .order(col, { ascending: asc, nullsFirst: false })
       .range(from, to);
 
     if (error) { logQueryError("getBooksPaginated", error); return { data: [], total: 0, page, pageSize }; }
-    return { data: data || [], total: (data || []).length, page, pageSize };
+    return { data: data || [], total: count || 0, page, pageSize };
   } catch (e) {
     logQueryError("getBooksPaginated", e);
     return { data: [], total: 0, page, pageSize };
@@ -1236,6 +1238,148 @@ export async function searchBooks(q: string, limit = 8): Promise<Book[]> {
   } catch (e) {
     logQueryError("searchBooks", e);
     return [];
+  }
+}
+
+/**
+ * Paginated title/author search used by /books. Returns true `total` via
+ * count:'exact' so the Browse page can compute page count instead of capping
+ * at the first slice.
+ */
+export async function searchBooksPaginated(
+  q: string,
+  page = 1,
+  pageSize = 48,
+  sort: "recommendation_count" | "rating" | "title" = "recommendation_count"
+): Promise<PaginatedResult<Book>> {
+  if (!q || q.length < 2) return { data: [], total: 0, page, pageSize };
+  try {
+    const pattern = `%${q}%`;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const col = sort === "title" ? "title" : sort;
+    const asc = sort === "title";
+
+    const { data, count, error } = await getSupabase()
+      .from("books")
+      .select("*", { count: "exact" })
+      .or(`title.ilike.${pattern},author.ilike.${pattern}`)
+      .order(col, { ascending: asc, nullsFirst: false })
+      .range(from, to);
+
+    if (error) { logQueryError("searchBooksPaginated", error); return { data: [], total: 0, page, pageSize }; }
+    return { data: data || [], total: count || 0, page, pageSize };
+  } catch (e) {
+    logQueryError("searchBooksPaginated", e);
+    return { data: [], total: 0, page, pageSize };
+  }
+}
+
+/**
+ * Paginated category browse driven by a list slug. Used by /books?category=...
+ *
+ * Why the two-step pattern instead of `book_lists!inner(books(*))` with an
+ * embedded sort: PostgREST's `order(..., { foreignTable: 'books' })` only
+ * orders the embedded representation, not the parent `book_lists` row slice.
+ * Production probe on the Fiction list confirmed this: rec=13 (Republic)
+ * appeared after rec=5 with the embedded sort. So we resolve list_id, fetch
+ * ALL membership book_ids, fetch those books in URL-safe chunks, sort
+ * client-side by the requested criterion, and return the requested page.
+ *
+ * Bounded at 10,000 member books — the largest current category (Nonfiction
+ * ~7800) fits comfortably; the cap is defensive against future runaway lists.
+ *
+ * TODO: this is a defensive cap, NOT real pagination. Replace with true DB-side
+ * pagination once we have an indexed `books.category_slug[]` column (or a
+ * materialized `category_books` view ordered by recommendation_count) so that
+ * a category with >10k members can be paginated without enumerating every
+ * member row per page load. Right now broad categories load all member ids on
+ * every page hit and sort in JS — fine at current scale, not at 10×.
+ */
+export async function getBooksByListSlugPaginated(
+  listSlug: string,
+  page = 1,
+  pageSize = 48,
+  sort: "recommendation_count" | "rating" | "title" = "recommendation_count"
+): Promise<PaginatedResult<Book>> {
+  try {
+    const supa = getSupabase();
+
+    // Resolve slug → id.
+    const { data: list, error: listErr } = await supa
+      .from("lists")
+      .select("id, book_count")
+      .eq("slug", listSlug)
+      .single();
+    if (listErr || !list) {
+      logQueryError("getBooksByListSlugPaginated[list]", listErr);
+      return { data: [], total: 0, page, pageSize };
+    }
+
+    // Step 1: paginate ALL membership book_ids.
+    // TODO(perf): HARD_CAP exists because we have no indexed category column on
+    // `books` today — for now we always materialize every member id in JS to do
+    // proper sorting. When `books.category_slug[]` (or equivalent index) lands,
+    // delete this loop and slice the page directly in Postgres.
+    const allBookIds: string[] = [];
+    let offset = 0;
+    const linkPageSize = 1000;
+    const HARD_CAP = 10000;
+    while (true) {
+      const { data, error } = await supa
+        .from("book_lists")
+        .select("book_id")
+        .eq("list_id", list.id)
+        .range(offset, offset + linkPageSize - 1);
+      if (error) { logQueryError(`getBooksByListSlugPaginated[links offset=${offset}]`, error); break; }
+      if (!data || data.length === 0) break;
+      for (const r of data as Array<{ book_id: string | null }>) {
+        if (r.book_id) allBookIds.push(r.book_id);
+      }
+      if (data.length < linkPageSize) break;
+      offset += data.length;
+      if (allBookIds.length >= HARD_CAP) break;
+    }
+    if (allBookIds.length === 0) return { data: [], total: 0, page, pageSize };
+
+    // Step 2: fetch books in URL-safe id chunks.
+    const allBooks: Book[] = [];
+    const chunkSize = 200;
+    for (let i = 0; i < allBookIds.length; i += chunkSize) {
+      const chunk = allBookIds.slice(i, i + chunkSize);
+      const { data, error } = await supa.from("books").select("*").in("id", chunk);
+      if (error) {
+        logQueryError(`getBooksByListSlugPaginated[books chunk=${i / chunkSize}]`, error);
+        continue;
+      }
+      if (data) allBooks.push(...(data as Book[]));
+    }
+
+    // Step 3: sort client-side by requested criterion (tiebreaks chosen to keep
+    // results stable across paginations).
+    allBooks.sort((a, b) => {
+      if (sort === "title") {
+        return (a.title || "").localeCompare(b.title || "");
+      }
+      if (sort === "rating") {
+        const dr = (b.rating || 0) - (a.rating || 0);
+        if (dr !== 0) return dr;
+        return (b.recommendation_count || 0) - (a.recommendation_count || 0);
+      }
+      // recommendation_count (default)
+      const drc = (b.recommendation_count || 0) - (a.recommendation_count || 0);
+      if (drc !== 0) return drc;
+      return (b.rating || 0) - (a.rating || 0);
+    });
+
+    // Step 4: paginate sorted result.
+    const total = allBooks.length;
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize;
+    return { data: allBooks.slice(from, to), total, page, pageSize };
+  } catch (e) {
+    logQueryError("getBooksByListSlugPaginated", e);
+    return { data: [], total: 0, page, pageSize };
   }
 }
 
