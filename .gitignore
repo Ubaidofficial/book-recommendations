@@ -3,3 +3,29 @@ node_modules
 .env
 .env.local
 .DS_Store
+
+# Generated reports / data artifacts
+editorial_*.csv
+audit_*.csv
+restore_*.csv
+test_actions_report.csv
+ai_fields_backup_before_restore.csv
+pending_after_first_write_v9_8.txt
+v9_*_book_ids.txt
+
+# Rebuild / backup artifacts
+backups/
+reports/
+rebuild_v1/
+rebuild_v2/*.csv
+rebuild_v2/*.md
+
+# Python cache
+__pycache__/
+**/__pycache__/
+
+# Next build metadata
+tsconfig.tsbuildinfo
+book_editorial_enrichment_*.csv
+editorial_*.log
+CLAUDE_*.md
