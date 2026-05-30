@@ -368,3 +368,10 @@
 - People counts use junction table queries
 - List/series books loaded via junction tables
 - Supabase client uses lazy initialization
+
+## 2026-05-30 — Manual Title Quality Fixes
+
+### Changed
+- Normalized 9 live book titles after preview and drift-check gates.
+- Fixed mashed title casing/hyphenation for Capital in the Twenty-First Century, Dear Life, The Hundred-Year Walk, Pre-Suasion, Slaughterhouse-Five, The Demon-Haunted World, The Long Goodbye, The Mythical Man-Month, and duplicate Three-Body Problem row.
+- PATCH limited to title/subtitle only; no slug, cover, description, schema, or AI writes.
