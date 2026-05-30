@@ -399,3 +399,16 @@
 - Reduced top-500 bad/short descriptions from 36 to 23.
 - Used preview, manual approval, backup, and drift-check gates.
 - PATCH limited to description only; no slug, title, cover, schema, editorial, or AI writes.
+
+## 2026-05-30 — Top 500 Description and Cover Quality Pass
+
+### Changed
+- Backfilled high-confidence descriptions for top-500 books with empty or junk descriptions.
+- Reduced top-500 bad/short descriptions from 36 to 23.
+- Verified top-500 live covers have zero missing rows.
+- Added stricter gated top-500 description backfill tooling with manual-review routing for edition-sensitive/classic/religious rows.
+- PATCH operations were limited to description or cover_image_url only; no slug, title, schema, editorial, or AI writes.
+
+### Held
+- Remaining 23 top-500 bad descriptions require manual/source-backed review.
+- Top-500 editorial enrichment remains largely pending.
