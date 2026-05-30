@@ -11,6 +11,7 @@ export interface Book {
   author_slug: string;
   cover_image_url: string;
   amazon_url?: string | null;
+  page_count?: number | null;
   description: string;
   rating: number;
   recommendation_count: number;
@@ -200,6 +201,79 @@ export async function getRelatedBooks(
     return data || [];
   } catch (e) {
     logQueryError("getRelatedBooks", e);
+    return [];
+  }
+}
+
+/**
+ * Similar books via list/topic co-membership.
+ *
+ * Two-step pattern (same shape that already works for getBooksForList and
+ * getRelatedLists): (1) collect every list_id this book belongs to; (2) find
+ * other books that share at least one of those lists. Rank by shared-list count
+ * (more co-memberships = more topical overlap), tiebreak by recommendation_count.
+ *
+ * No schema change, no AI. Frontend-only consumer is the book detail page's
+ * "Similar books" section.
+ */
+export async function getSimilarBooksByLists(bookId: string, limit = 8): Promise<Book[]> {
+  try {
+    const supa = getSupabase();
+
+    // Step 1: this book's list memberships.
+    const { data: myLinks, error: linkErr } = await supa
+      .from("book_lists")
+      .select("list_id")
+      .eq("book_id", bookId)
+      .limit(200);
+    if (linkErr) { logQueryError("getSimilarBooksByLists[my-links]", linkErr); return []; }
+    const listIds = (myLinks || [])
+      .map((r: { list_id: string | null }) => r.list_id)
+      .filter((x): x is string => !!x);
+    if (listIds.length === 0) return [];
+
+    // Step 2: other books in those same lists (excludes this book).
+    const { data: coLinks, error: coErr } = await supa
+      .from("book_lists")
+      .select("book_id, list_id")
+      .in("list_id", listIds)
+      .neq("book_id", bookId)
+      .limit(5000);
+    if (coErr) { logQueryError("getSimilarBooksByLists[co-links]", coErr); return []; }
+
+    // Step 3: count shared-list memberships per other book.
+    const sharedCount = new Map<string, number>();
+    for (const r of (coLinks || []) as Array<{ book_id: string | null }>) {
+      if (!r.book_id) continue;
+      sharedCount.set(r.book_id, (sharedCount.get(r.book_id) || 0) + 1);
+    }
+    if (sharedCount.size === 0) return [];
+
+    // Step 4: top candidates by shared-list count (overfetch then refine with rec_count tiebreak).
+    const topCandidateIds = Array.from(sharedCount.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit * 3)
+      .map(([id]) => id);
+
+    const { data: books, error: bookErr } = await supa
+      .from("books")
+      .select("*")
+      .in("id", topCandidateIds);
+    if (bookErr) { logQueryError("getSimilarBooksByLists[books]", bookErr); return []; }
+
+    const enriched = ((books || []) as Book[])
+      .filter((b) => b != null && !!b.id)
+      .map((b) => ({ b, shared: sharedCount.get(b.id) || 0 }))
+      .sort((a, b) => {
+        if (a.shared !== b.shared) return b.shared - a.shared;
+        const ra = typeof a.b.recommendation_count === "number" ? a.b.recommendation_count : 0;
+        const rb = typeof b.b.recommendation_count === "number" ? b.b.recommendation_count : 0;
+        return rb - ra;
+      });
+
+    return enriched.slice(0, limit).map((x) => x.b);
+  } catch (e) {
+    logQueryError("getSimilarBooksByLists", e);
     return [];
   }
 }

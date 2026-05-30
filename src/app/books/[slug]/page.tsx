@@ -7,6 +7,7 @@ import {
   getBooksBySeries,
   getRecommendationProof,
   getListsForBook,
+  getSimilarBooksByLists,
   getPersonIdBySlug,
   getSeriesIdBySlug,
   type Book,
@@ -81,13 +82,15 @@ export default async function BookDetailPage({ params }: Props) {
   let seriesBooks: Awaited<ReturnType<typeof getBooksBySeries>> = [];
   let rawProof: Awaited<ReturnType<typeof getRecommendationProof>> = [];
   let lists: Awaited<ReturnType<typeof getListsForBook>> = [];
+  let listSimilarBooks: Awaited<ReturnType<typeof getSimilarBooksByLists>> = [];
 
   try {
-    [authorBooks, seriesBooks, rawProof, lists] = await Promise.all([
+    [authorBooks, seriesBooks, rawProof, lists, listSimilarBooks] = await Promise.all([
       personId ? getBooksByAuthor(personId, 6) : Promise.resolve([]),
       seriesId ? getBooksBySeries(seriesId, 6) : Promise.resolve([]),
       getRecommendationProof(book.id, 6),
       getListsForBook(book.id, 8),
+      getSimilarBooksByLists(book.id, 12),
     ]);
   } catch (e) {
     console.error("[book-detail] Relation queries failed:", e);
@@ -141,11 +144,63 @@ export default async function BookDetailPage({ params }: Props) {
   const hasLists = lists.length > 0;
   const hasSeries = book.series && book.series_slug;
 
-  // Consolidate similar books
+  // Consolidate similar books — list/topic co-membership first (strongest topical
+  // signal), then fall back to series + author so the section always has 6–8 cards
+  // when possible. Deduped against the current book and against itself.
+  const safeListSimilar = (listSimilarBooks || []).filter(
+    (b: Book | null | undefined) => b != null && !!b.id && b.id !== book.id
+  );
   const similarIds = new Set<string>();
-  const similarBooks = [...safeSeriesBooks, ...safeAuthorBooks]
+  const similarBooks = [...safeListSimilar, ...safeSeriesBooks, ...safeAuthorBooks]
     .filter((b) => b.id !== book.id && !similarIds.has(b.id) && (similarIds.add(b.id), true))
-    .slice(0, 6);
+    .slice(0, 8);
+
+  // Reading-fit strip: parsed up-front so we can decide whether to render the strip.
+  // Themes come from key_themes via the same parser used in the Editorial section,
+  // capped at 2 here to act as a "main vibe" preview (full list still appears below).
+  const fitStripThemes = parseEditorialList(book.key_themes, { maxItems: 2, minLen: 3 })
+    .map((s) => sanitizeEditorialText(s))
+    .filter((s) => s && s.length <= 50);
+  const fitStripDifficulty = (book.difficulty_level || "").trim();
+  // Length bucket: Short (<250) / Medium (250–450) / Long (>450). Renders only when
+  // `book.page_count` is a positive integer. Population is sparse in production
+  // (~113 / 98,845 rows at time of writing) so the badge hides on most pages — that's
+  // expected, not a bug.
+  const rawPageCount =
+    typeof book.page_count === "number" && Number.isFinite(book.page_count) && book.page_count > 0
+      ? Math.round(book.page_count)
+      : null;
+  const lengthBucket: "Short" | "Medium" | "Long" | null = rawPageCount == null
+    ? null
+    : rawPageCount < 250 ? "Short"
+      : rawPageCount > 450 ? "Long"
+        : "Medium";
+  const showFitStrip = !!fitStripDifficulty || fitStripThemes.length > 0 || lengthBucket != null;
+
+  // "Why recommended" deterministic summary — no AI, no DB. Uses the existing
+  // pre-ranked lists from getListsForBook (topic > narrow > meta > broad) and
+  // the recommendation_count column. Empty if both signals are absent.
+  const whyRecParts: string[] = [];
+  const recCount = typeof book.recommendation_count === "number" ? book.recommendation_count : 0;
+  if (recCount > 0) {
+    whyRecParts.push(
+      `Recommended by ${recCount.toLocaleString()} source${recCount === 1 ? "" : "s"}`
+    );
+  }
+  const whyRecListNames = (lists || [])
+    .slice(0, 3)
+    .map((l) => displayListTitle(l.title, l.slug))
+    .filter((s): s is string => !!s && s.length > 0);
+  if (whyRecListNames.length > 0) {
+    const joined =
+      whyRecListNames.length === 1
+        ? whyRecListNames[0]
+        : whyRecListNames.length === 2
+          ? `${whyRecListNames[0]} and ${whyRecListNames[1]}`
+          : `${whyRecListNames.slice(0, -1).join(", ")}, and ${whyRecListNames[whyRecListNames.length - 1]}`;
+    whyRecParts.push(`appears in ${joined}`);
+  }
+  const whyRecSentence = whyRecParts.length > 0 ? whyRecParts.join(" and ") + "." : null;
 
   const jsonld = bookJsonLd(book);
 
@@ -227,6 +282,37 @@ export default async function BookDetailPage({ params }: Props) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
               </a>
+            </div>
+          )}
+
+          {/* Reading-fit strip — quick "is this for me?" pills.
+              Uses existing fields only: difficulty_level, page_count, key_themes.
+              Length bucket boundaries: <250 Short, 250–450 Medium, >450 Long.
+              Renders only when at least one signal is present. */}
+          {showFitStrip && (
+            <div className="flex flex-wrap items-center gap-2 mb-4">
+              {fitStripDifficulty && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-subtle text-ink text-xs font-medium">
+                  <span className="text-muted">Difficulty:</span>
+                  <span>{fitStripDifficulty.charAt(0).toUpperCase() + fitStripDifficulty.slice(1)}</span>
+                </span>
+              )}
+              {lengthBucket && rawPageCount != null && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-subtle text-ink text-xs font-medium">
+                  <span className="text-muted">Length:</span>
+                  <span>{lengthBucket}</span>
+                  <span className="text-muted">·</span>
+                  <span className="text-muted">{rawPageCount.toLocaleString()} pages</span>
+                </span>
+              )}
+              {fitStripThemes.map((t, i) => (
+                <span
+                  key={`fit-theme-${i}`}
+                  className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium"
+                >
+                  {t}
+                </span>
+              ))}
             </div>
           )}
 
@@ -330,6 +416,19 @@ export default async function BookDetailPage({ params }: Props) {
           </section>
         );
       })()}
+
+      {/* Why recommended — deterministic one-sentence summary built from existing
+          signals: recommendation_count + the top 3 list memberships from
+          getListsForBook (already ranked: topic > narrow > meta > broad).
+          No AI, no DB writes. Hidden when neither signal is present. */}
+      {whyRecSentence && (
+        <section className="mb-10">
+          <div className="rounded-xl border border-border bg-surface p-4 md:p-5 max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">Why recommended</p>
+            <p className="text-sm md:text-base text-ink leading-relaxed">{whyRecSentence}</p>
+          </div>
+        </section>
+      )}
 
       {/* Recommendation Proof / Signals */}
       <section className="mb-14">
@@ -574,10 +673,12 @@ export default async function BookDetailPage({ params }: Props) {
         </section>
       )}
 
-      {/* Related Books */}
+      {/* Similar Books — list/topic co-membership first, then series + author fallback.
+          Deduped and capped at 8. Section appears even when series/author are empty
+          as long as co-membership returns results. */}
       {similarBooks.length > 0 && (
         <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">What to read next</h2>
+          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Similar books</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {similarBooks.map((b) => (
               <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} />

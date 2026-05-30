@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-05-31 — Book detail discovery Phase 1 (reading-fit strip, similar books, why-recommended)
+
+### Added
+- **Reading-fit strip** on `/books/[slug]` — compact pills above the description showing `Difficulty: {level}` (from `books.difficulty_level`), `Length: {Short|Medium|Long} · {N} pages` (from `books.page_count`), and up to 2 top key themes (from `books.key_themes`). Purely a quick-glance "is this for me?" preview; the full theme list still renders in the Editorial section below.
+- **"Why recommended" card** — deterministic one-sentence summary above the Recommendation Signals section. Format: `Recommended by N source(s) and appears in {list1}, {list2}, and {list3}.` Built from `books.recommendation_count` + the top 3 entries from the existing `getListsForBook` (already ranked: topic > narrow > meta > broad). Hidden when neither signal is present.
+- **Similar books section** — replaces "What to read next". Now sourced primarily from list/topic co-membership via new `getSimilarBooksByLists(bookId, limit)` helper, with series + author fills as fallback. Deduped against the current book. Cap raised from 6 to 8.
+
+### Type changes
+- `Book` interface in `src/lib/data.ts`: added `page_count?: number | null`. The column already exists in the production `books` table (verified via direct probe: ~113 / 98,845 rows populated) and `select("*")` was already returning it — this only types it so the UI can render the Length badge.
+
+### Length-bucket thresholds
+- Short: `< 250` pages
+- Medium: `250–450` pages
+- Long: `> 450` pages
+- Renders only when `book.page_count` is a positive finite number. Population is sparse in production today (~0.11% of catalogue), so the badge hides on most pages — that's expected, not a bug.
+
+### New helper (`src/lib/data.ts`)
+- `getSimilarBooksByLists(bookId, limit = 8)` — two-step fetch matching the pattern already used by `getBooksForList`/`getRelatedLists`:
+  1. Pull this book's `book_lists` memberships.
+  2. Find other books in those same lists, count shared memberships per book, fetch the top N.
+  3. Rank by shared-list count, tiebreak by `recommendation_count` desc.
+- No schema change. No PostgREST `!inner` embed (avoids the same empty-grid quirk that bit `getBooksForList` earlier this cycle).
+
+### Scope discipline
+- **Frontend + data-layer only.** No DB writes. No schema changes. No AI calls. No editorial-pipeline files touched. No Amazon affiliate changes. No mutation of any production data.
+- All new signals are derived deterministically from columns/relations that already populate today.
+
 ## 2026-05-31 — Amazon buy CTA on book detail pages
 
 ### Added
