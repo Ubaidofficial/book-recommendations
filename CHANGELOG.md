@@ -412,3 +412,12 @@
 ### Held
 - Remaining 23 top-500 bad descriptions require manual/source-backed review.
 - Top-500 editorial enrichment remains largely pending.
+
+## 2026-05-30 — Top 25 Editorial Draft Pilot
+
+### Changed
+- Ran top-25 editorial enrichment dry-runs with DeepSeek.
+- Promoted 5 accepted editorial candidates to draft status after report validation and manual approval.
+- Promoted books: The Alchemist, Principles, The Selfish Gene, Why We Sleep, and The Hard Thing About Hard Things.
+- Held weak/rejected candidates pending prompt/validator improvements.
+- No broad editorial write; only accepted candidates were promoted.
