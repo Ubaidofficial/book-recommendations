@@ -1,4 +1,4 @@
-# Compact Prompt Contract (v9.3)
+# Compact Prompt Contract (v9.13)
 
 ## Principle
 
@@ -34,15 +34,15 @@ ABSOLUTE RULES:
 
 FIELD JOBS:
 - quick_verdict: One blunt read-if + skip-if sentence. Must answer: when is this the right book? when is this the wrong book? what makes someone bounce?
-- editorial_summary: reading experience + useful part + annoying/limiting part (70-95 words). Not a neutral book report
+- editorial_summary: reading experience + useful part + annoying/limiting part (70-95 words, roughly 4-6 sentences). Not a neutral book report. Under 70 words is too thin; over 95 is bloat. Count and trim before output.
 - best_for: Three specific reader situations. Each MUST include a concrete person + concrete life/work situation + concrete reason this book fits now. Bad: 'business readers.' Good: 'a PM inside a legacy company trying to explain why a low-margin competitor matters before leadership takes it seriously'. **Stay concrete but plausible** — name a role and the context they're navigating; avoid theatrical or cartoonishly specific scenarios ("a solo entrepreneur who just lost their third client this quarter"). Role/context first, dramatic biography never.
-- not_for: Three mismatch warnings. At least one must identify a likely drop-off point (the moment readers tend to put the book down). Name the friction: slow, repetitive, ideological, abstract, dated, dense, anecdote-heavy, emotionally heavy. **In the user-facing text itself, write in plain English** — "you'll likely put it down when…" / "you'll lose interest if…" — never the jargon "DNF".
+- not_for: Three mismatch warnings. At least one must identify a likely drop-off point (the moment readers tend to put the book down). Name the friction: slow, repetitive, ideological, abstract, dated, dense, anecdote-heavy, emotionally heavy, preachy, moralizing, tedious, drags, tough-love, self-congratulatory. **In the user-facing text itself, write in plain English** — "you'll likely put it down when…" / "you'll lose interest if…" / "annoying if you prefer…" — never the jargon "DNF". **For aphoristic/short/anecdotal books that don't have chapter-shaped drag points** (Meditations, Four Agreements, anecdotal memoirs): pick the moment readers usually bounce *qualitatively* — e.g. "tedious if you wanted modern psychology grounding", "you'll lose patience when the same idea is restated four ways". A specific reader-mismatch sentence counts; you don't need to name a chapter number. **If the reader wants exercises and the book is not a workbook, say "no exercises" or "lacks hands-on exercises" — that negation does NOT mean the book is a workbook.**
 - emotional_journey: How it feels to move through the book. MUST include start feeling, mid-book friction, ending aftertaste, and wrong-reader emotional reaction. Bad: 'engaging and inspiring.' Good: 'starts like a jolt, gets irritating when the author's certainty hardens, and ends either as useful provocation or overconfident sermon'
 - reading_pace_profile: how it reads (dense, skimmable, one-sitting, read in chunks, early chapters are the hurdle, etc.)
 - vibe_tags: 5-8 lowercase hyphenated tags, no hype/prestige
 - theme_tensions / key_themes: 4-5 SHORT (2–5 words each, hard cap ~8 words), book-SPECIFIC tags. Format: noun phrases or "X vs Y" only when both sides are specific to THIS book. **Never write sentence fragments, never start with "The book...", "The contrast...", "It shows...", "Newport's advice...", "This book...", "The author...".** **Never reuse generic placeholders across unrelated books**: `principles vs practical compromise`, `freedom vs responsibility`, `tradition vs reinvention`, `loyalty vs personal truth`, `duty vs desire`. Good examples — Deep Work: deep focus, shallow work, attention residue, digital minimalism, distraction resistance. Life 3.0: AI alignment, automation risk, intelligence explosion, machine goals, technology governance. Influence: social proof, reciprocity, commitment bias, scarcity, authority cues.
 - discussion_potential: what readers will actually argue about. Bad: 'great for discussion.' Good: 'people will argue whether the book is empowering or just repackaged individualism'
-- comparable_experience: compare reading experience, not status. No prestige comparisons
+- comparable_experience: compare reading experience, not status. No prestige comparisons. **Compare to a *genre* or *era* of reading experience without claiming this book is prestigious**: OK — "feels like leafing through a 19th-century commonplace book", "reads like a long magazine essay", "like a TED talk in print". Not OK — "a classic of the genre", "a seminal text".
 
 STYLE:
 - Prefer: "useful if…" "likely to lose you when…" "best when you want…" "annoying if…" "better as a slow read than a skim…" "this helps most when…"

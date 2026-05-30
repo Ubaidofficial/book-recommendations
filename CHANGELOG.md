@@ -1,5 +1,69 @@
 # Changelog
 
+## 2026-05-31 — Editorial Pipeline v9.13–v9.17.1 (validator/prompt fixes + 49 new drafts)
+
+### Pipeline changes (scripts/generate_book_editorial_enrichment.py)
+
+**v9.13** — narrow over-strict validators (no quality threshold change):
+- `_is_negated_context`: added friction-aware mismatch openers (`lose interest if`, `looking for`, `annoying if`, `you'll bounce`, `skip if you`, …) so the format-claim check correctly treats "lose interest if you're looking for exercises" as negation.
+- `_is_comparison_context` (new helper): 30-char lookback for comparison openers (`like a`, `similar to a`, `feels like a`, `reads like a`). Skips proof/fact-risk rejection when the phrase is part of a comparison rather than a claim about the book itself.
+- `DNF_TOKENS`: expanded from 18 to 38 tokens — added contract-approved sanitized DNF phrasings (`lose interest`, `tedious`, `preachy`, `tough love`, etc.) so non-narrative books can satisfy the rule without using the banned literal "DNF".
+- `contains_recommender_name`: new `_is_non_person_name` guard skips list-label-shaped strings (`Book Recommendations (7 Books)`, `Reading List`, etc.) from the recommender-leak check.
+
+**v9.14** — fix evaluator/contract DNF mismatch:
+- Evaluator `dnf_signals` rewritten to recognize contract-approved sanitized phrasings (`you'll likely put it down`, `you'll lose patience`, `put it down when`, …). Previously the evaluator only matched DNF-literal strings the contract forbids — capping the dimension at 4.5 even for contract-perfect output.
+- DNF cap raised from 4.5 to 5.0 for rows with both sanitized signal AND friction token AND chapter anchor.
+- `SCORE_DRIVER_DIMS` extended with `dnf_warning_quality` and `not_for_specificity` so surgical-retry can target them.
+- Surgical instructions added for both new dims.
+- Surgical length-only repair path for `summary_length_out_of_range`.
+- Brief-item penalty narrowed: now fires only when majority of items are <8 words (was: any one).
+- Contract (`docs/ai-editorial/COMPACT_PROMPT_CONTRACT.md`): explicit length budget (70-95 words, 4-6 sentences); explicit not_for guidance for aphoristic books; comparable_experience genre/era guidance.
+
+**v9.15** — narrow 3 false positives surfaced in fresh-25:
+- `proof` carveout for `social proof` / `burden of proof` / `proof of work` / `proof of concept` / `proof of life` / `living proof` / `proof of stake` / `standard of proof` / `level of proof`.
+- `_is_reader_usecase_course` (new helper): "course" used as reader use-case (`preparing a course`, `teaching a course`, `designing a course`, `taking a course`, `enrolled in a course`) does NOT trip the format-claim rule.
+- `_is_negated_context` extended with contrastive openers (`rather than`, `instead of`, `not on`, `not in`, `, not `, ` not just `, `as opposed to`, `in contrast to`).
+
+**v9.16** — 2 false positives surfaced in fresh-50:
+- Hyphenated-proof compound carveout: `\b\w+-proof\b` (e.g., `AI-proof`, `future-proof`, `fool-proof`) does NOT trip the proof rule when every occurrence is inside a hyphenated compound.
+- `_is_reader_desire_proven` (new helper): "needs a proven X" / "looking for a proven Y" reader-desire patterns do NOT trip unsupported-proof-or-prestige claim.
+
+**v9.17 + v9.17.1** — 2 more false positives surfaced in fresh-50 recovery:
+- Hyphenated compound carveout extended: `\bproof-\w+\b` (e.g., `proof-texting`, `proof-read`, `proof-positive`) — covers `proof` as first half of hyphenated compound. Combined with v9.16 `\w+-proof`, full coverage.
+- Word-boundary matching for short format phrases (`course`, `journal`, `workbook`, `planner`, `worksheet`, `exercises`, `prompts`) applied at BOTH validator sites (`_check_title_format_mismatch` AND the secondary format-loop). Substrings like "discourse" no longer falsely trigger `unsupported_format_claim_course`. v9.17.1 closes the second-site gap.
+
+### Tests
+- 7 new selftest harnesses added: `--selftest-validator-narrowing` (23), `--selftest-evaluator-dnf` (5), `--selftest-v915-narrowing` (18), `--selftest-v916-narrowing` (14), `--selftest-v917-narrowing` (17).
+- All existing selftests preserved.
+- **Total: 117/117 selftests passing + 24/24 mock-AI fixture outcomes. Zero regressions across v9.13–v9.17.1.**
+
+### Production state — editorial drafts
+- Before this cycle: 28 production drafts.
+- Promoted this cycle (4 live writes, all triple-gated + count-validated + backed up before write):
+  - 10 from same-20 v9.14 benchmark
+  - 11 from fresh-25 v9.14
+  - 26 from fresh-50 v9.16 combined (15 original + 11 recovery)
+  - 2 from v9.17 recheck of previously-rejected rows (ai-superpowers-kaifu-lee 4.88, a-guide-to-the-good-life-william-b-irvine 4.84)
+- **49 new editorial drafts promoted this cycle.**
+- **Live draft count now 77.**
+- Pipeline accept rate confirmed reproducible at ~50% on completed runs across same-20 (10/20), fresh-25 (11/25), fresh-50 (26/50 combined).
+
+### Operational findings
+- **DeepSeek v4 pro concurrency**: at concurrency=5 the timeout rate hit 40% (20/50); at concurrency=2 the timeout rate was 0% (0/20 in recovery batch). **Recommendation: use `--concurrency 2 --sleep 0` for any batch larger than 25 rows.** Recovery using concurrency=2 successfully resolved all 20 fresh-50 timeouts.
+- 4.70 accept threshold UNCHANGED. No quality floor was lowered to achieve the accept-rate improvement.
+
+### Scope discipline
+- **No schema changes.** No new columns added; storage format (text JSON-encoded array string for `best_for`/`not_for`, text[] for `key_themes`) preserved as-is.
+- **No frontend changes** in this cycle. Existing `parseEditorialList` already handles the production storage format.
+- All writes column-scoped: PATCH payloads target `editorial_summary`, `best_for`, `not_for`, `key_themes`, `theme_tensions`, `emotional_journey`, `reading_pace_profile`, `vibe_tags`, `difficulty_level`, `recommendation_context`, `discussion_potential`, `comparable_experience`, `source_quality_note`, `ai_quality_status`, `ai_generated_at` only.
+- All writes preceded by triple-gated promote (`--write` + `--confirm-promote-accepted` + `--backup-before-write`), count-validated backup, and zero-overlap verification against existing drafts.
+
+### Backups
+- `backups/editorial_top25_v9_14_same20_pre_v1.csv` (10 rows pre-write)
+- `backups/editorial_fresh25_v9_14_pre_v1.csv` (11 rows pre-write)
+- `backups/editorial_fresh50_v9_16_pre_v1.csv` (26 rows pre-write)
+- `backups/editorial_fresh50_v9_17_pre_v1.csv` (2 rows pre-write)
+
 ## 2026-05-24 — Data Quality Dashboard UX
 
 ### Changed

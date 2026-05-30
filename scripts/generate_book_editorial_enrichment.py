@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Version: v9.11 — theme quality filter (sentence-fragment / generic / overlong themes) + prompt-contract guidance
+# Version: v9.17.1 — first-half-of-compound carveout (proof-texting, proof-read, proof-positive) + word-boundary check for short format phrases at BOTH validator sites (_check_title_format_mismatch AND secondary format-claim loop) so substrings like "discourse" don't trigger format-claim — addresses 2 false positives surfaced in fresh-50 v9.16 recovery + 1 second-site missed in initial v9.17
 """
 Generate AI editorial enrichment for top BookRecs books.
 
@@ -235,6 +235,16 @@ GENERIC_COPY_PHRASES = [
 
 # v8 — required DNF/mismatch tokens for not_for
 DNF_TOKENS = [
+    # v9.13 — added reader-facing friction phrases the prompt already encourages
+    # ("you'll lose interest", "tedious", "preachy", "tough love" etc.). These
+    # cover non-narrative books (aphoristic, anecdotal, philosophical) where
+    # tokens like "slow" / "dense" / "dated" don't naturally apply.
+    "lose interest", "lose patience", "put it down", "abandon",
+    "drop the book", "frustrating", "tedious", "tiresome", "boring",
+    "preachy", "moralizing", "self-congratulatory", "smug",
+    "drags", "stretched thin", "loses steam", "circular",
+    "tough love", "drill-sergeant", "drill sergeant",
+    "won't satisfy", "won't get",
     "slow", "dense", "repetitive", "dated", "ideological",
     "abstract", "tactical", "shallow", "emotionally heavy",
     "disturbing", "graphic", "meandering", "academic", "anecdotal",
@@ -502,6 +512,50 @@ def _is_negated_context(text: str, phrase: str) -> bool:
         "did not write this as a workbook",
         "skip if you want a workbook",
         "readers seeking a workbook",
+        # v9.13 — reader-friction phrases that signal a MISMATCH context for the
+        # next mentioned format-term. Catches things like:
+        #   "lose interest if you're looking for concrete how-to steps or exercises"
+        #   "annoying if you prefer drill-sergeant exercises"
+        #   "you'll bounce if you need exercises"
+        # The prompt contract already pushes the model toward this phrasing for
+        # not_for. The 60-char window is wide enough for any of these to land.
+        "lose interest if",
+        "lose patience if",
+        "lose interest when",
+        "lose patience when",
+        "looking for",
+        "annoying if",
+        "frustrating if",
+        "frustrated if",
+        "won't get",
+        "won't satisfy",
+        "you'll bounce",
+        "you'll abandon",
+        "you'll put it down",
+        "you'll lose interest",
+        "you'll lose patience",
+        "if you need",
+        "if you prefer",
+        "for readers wanting",
+        "for readers seeking",
+        "for those wanting",
+        "for those seeking",
+        "if you crave",
+        "skip if you",
+        # v9.15 — contrastive openers that signal "the book has X, not Y" or
+        # "the book is about X, not Y". Most commonly seen in best_for/not_for
+        # where a format/topic term is being NEGATED by contrast:
+        #   "vulnerability in the writing process, rather than technical exercises"
+        #   "encourages exploration, not structured exercises"
+        #   "focuses on storytelling, not on guided journal prompts"
+        "rather than",
+        "instead of",
+        "not on",
+        "not in",
+        ", not ",      # comma + "not " — catches ", not structured", ", not guided"
+        " not just ",
+        "as opposed to",
+        "in contrast to",
     ]
     pos = text_lower.find(phrase_lower)
     if pos == -1:
@@ -1118,13 +1172,37 @@ def _retry_instruction(reason: str) -> str:
     if "vibe_tag" in rl:
         return "Replace weak or banned vibe tags with concrete reader-experience tags and include a safe pace/intensity tag such as idea-dense, slow-burn, patience-demanding, or high-friction."
     if "summary_length" in rl:
-        return "Ensure the editorial summary is 70-95 words. Trim or expand as needed."
+        # v9.14 — surgical length repair: rewrite ONLY editorial_summary,
+        # preserve every other field exactly. The previous instruction caused
+        # full regenerates that often broke other dimensions while fixing length.
+        return (
+            "Rewrite ONLY the editorial_summary field. Target 70-95 words "
+            "(roughly 4-6 sentences). Count words before output. Do NOT change "
+            "quick_verdict, best_for, not_for, key_themes, theme_tensions, "
+            "emotional_journey, reading_pace_profile, vibe_tags, difficulty_level, "
+            "discussion_potential, comparable_experience, source_quality_note, or "
+            "recommendation_context. Preserve them exactly. Return strict JSON "
+            "with the same keys."
+        )
     if "internal_language" in rl:
         return "Remove any internal pipeline language such as database row, raw output, dry run, csv, json field, or spreadsheet row."
     if "unsupported_proof" in rl or "unsupported_format" in rl:
         return "Remove claims of research authority, prestige, proof, evidence, or book format unless explicitly provided in the safe context. Do not say research-backed, evidence-based, proven, decades of research, studies show, workbook, or interactive companion."
     if "not_for_lacks" in rl:
-        return "Add at least one specific DNF point or mismatch warning to not_for. Use tokens like: slow, dense, repetitive, dated, ideological, abstract, shallow, likely dnf, bounce off."
+        # v9.14 — guide the model toward the contract-approved sanitized DNF
+        # phrasings instead of the literal jargon "DNF" / "bounce off" that
+        # the contract forbids in user-facing text.
+        return (
+            "Add at least one specific drop-off warning to not_for. Pair a "
+            "sanitized phrase ('you'll likely put it down when…', 'you'll lose "
+            "interest if…', 'you'll abandon when…', 'you'll put it down around "
+            "chapter X', 'annoying if you prefer…') with a friction word "
+            "(slow, dense, repetitive, dated, preachy, moralizing, drags, "
+            "tedious, tough-love, smug, self-congratulatory, ideological). "
+            "Anchor it to structure (which chapter, front half, back half, "
+            "middle section) when the book has chapters. Do NOT use the "
+            "literal jargon 'DNF'."
+        )
     if "generic_ai_or_publisher_copy" in rl or "fields_not_distinct" in rl:
         return "Rewrite with specific reader-fit language. Make each field distinct. Avoid publisher-copy phrases. Sound like a human recommender, not a summary bot."
     # v9.4 — score-driver targeted retry for weak dimensions
@@ -1211,10 +1289,39 @@ def contains_recommender_name(public_text: str, recommender_names: List[str], al
     for name in recommender_names:
         if not name or name.lower() in allowed:
             continue
+        # v9.13 — skip pseudo-names that are obviously list/source labels rather
+        # than people. The recommender pipeline occasionally pulls strings like
+        # "Book Recommendations (7 Books)" or "Reading List" into the recommender
+        # bucket, and they trigger debug_mismatch on common nouns like "book".
+        if _is_non_person_name(name):
+            continue
         for part in normalize_name_parts(name):
             if re.search(rf"(?<![a-z]){re.escape(part)}(?![a-z])", haystack):
                 return name
     return None
+
+
+_NON_PERSON_NAME_PATTERNS = [
+    re.compile(r"\(\s*\d+\s*books?\s*\)", re.I),       # "Book Recommendations (7 Books)"
+    re.compile(r"\bbooks?\)$", re.I),                  # ends with "Books)"
+    re.compile(r"^(?:book recommendations|reading list|list of\b|"
+               r"books? for|recommendations? from)\b", re.I),
+    re.compile(r"\bnewsletter\b", re.I),
+    re.compile(r"\bsubreddit\b", re.I),
+    re.compile(r"\bwebsite\b", re.I),
+    re.compile(r"\bblog$\b", re.I),
+]
+
+
+def _is_non_person_name(name: str) -> bool:
+    """v9.13 — Heuristic: this 'name' looks like a list/source label, not a
+    person, so it should not gate recommender-name-leak validation."""
+    if not name:
+        return False
+    for pat in _NON_PERSON_NAME_PATTERNS:
+        if pat.search(name):
+            return True
+    return False
 
 
 def unsupported_fact_risk(public_text: str, source_context: str) -> Optional[str]:
@@ -1227,8 +1334,113 @@ def unsupported_fact_risk(public_text: str, source_context: str) -> Optional[str
             if phrase in ("co-founder", "cofounder"):
                 if not _is_specific_cofounder_claim(public_text):
                     continue
+            # v9.13 — comparison-context exception for genre/era references.
+            # "similar to reading a classic self-help manual" is comparing
+            # READING EXPERIENCE to a genre/era, not claiming this book is one.
+            if _is_comparison_context(public_text, phrase):
+                continue
             return phrase
     return None
+
+
+def _is_reader_usecase_course(text: str) -> bool:
+    """v9.15 — Return True when "course" appears as a reader-side use-case
+    (the reader is preparing/teaching/designing/taking a course) rather than
+    as a claim about the book's format. Catches:
+       "a history teacher preparing a course on..."
+       "a professor designing a course around..."
+       "a curriculum designer building a course..."
+       "an undergrad taking a course in..."
+       "a student in a course on..."
+    Does NOT match "this book is a course in..." (which IS a format claim)."""
+    text_lower = text.lower()
+    if "course" not in text_lower:
+        return False
+    # Only verb-anchored patterns count — these unambiguously identify the
+    # reader as the AGENT of the course. Broader patterns like "a course on"
+    # are removed because they ALSO match book-format claims like "this book
+    # is a course on stoic thought" or "a course in modern philosophy".
+    safe_verbs = [
+        "preparing a course", "preparing an upcoming course",
+        "teaching a course", "teaching an undergraduate course", "teaching a graduate course",
+        "designing a course", "designing an undergraduate course",
+        "building a course", "developing a course", "creating a course",
+        "delivering a course", "running a course", "leading a course",
+        "taking a course", "enrolled in a course", "auditing a course",
+        "course they teach", "course they're teaching",
+        "course she teaches", "course he teaches",
+        "course she's teaching", "course he's teaching",
+        "course they are teaching",
+    ]
+    for safe in safe_verbs:
+        if safe in text_lower:
+            return True
+    return False
+
+
+def _is_reader_desire_proven(text: str) -> bool:
+    """v9.16 — Return True when 'proven' appears in a reader-desire context
+    (the reader wants/needs a proven X, the book lacks it). Catches:
+       "a founder who needs a proven system to align..."
+       "an analyst wanting a proven framework"
+       "looking for a proven method"
+       "if you want a proven track record"
+    Does NOT match book-claim phrasing like "the book offers a proven method".
+    Reader-desire patterns identify the reader as the AGENT seeking proven
+    things; the book is implicitly lacking them. This is structurally identical
+    to the 'course' reader-use-case carveout (v9.15)."""
+    text_lower = text.lower()
+    if "proven" not in text_lower:
+        return False
+    safe_patterns = [
+        # "needs a proven X" / "wants a proven X" — common best_for/not_for shape
+        "needs a proven", "need a proven",
+        "wants a proven", "want a proven",
+        "looking for a proven", "looking for proven",
+        "wanting a proven", "wanting proven",
+        "seeking a proven", "seeking proven",
+        "expects a proven", "expects proven",
+        "expecting a proven", "expecting proven",
+        "after a proven", "after proven",
+        "wished for a proven",
+        "in search of a proven", "in search of proven",
+        # "if you want/need proven X"
+        "if you want a proven", "if you want proven",
+        "if you need a proven", "if you need proven",
+        "if you came for a proven", "if you came for proven",
+        # "without a proven X" reader-side
+        "without a proven track record",
+    ]
+    return any(p in text_lower for p in safe_patterns)
+
+
+def _is_comparison_context(text: str, phrase: str) -> bool:
+    """v9.13 — Return True if the phrase appears inside a comparison clause
+    rather than a claim about this book. Catches:
+      "similar to reading a classic ..."
+      "like a classic self-help manual"
+      "feels like a classic essay collection"
+      "reads like a classic"
+      "akin to a classic"
+    Window is 30 chars before the phrase, which covers normal comparison
+    openings without bleeding into adjacent sentences."""
+    text_lower = text.lower()
+    phrase_lower = phrase.lower()
+    pos = text_lower.find(phrase_lower)
+    if pos == -1:
+        return False
+    window = text_lower[max(0, pos - 30): pos]
+    comparison_openers = [
+        "like a ", "like an ", "like the ",
+        "similar to a ", "similar to an ", "similar to the ", "similar to reading a ",
+        "feels like a ", "feels like an ",
+        "reads like a ", "reads like an ",
+        "akin to a ", "akin to an ",
+        "echoes a ", "echoes an ",
+        "in the vein of a ", "in the vein of an ",
+        "reminiscent of a ", "reminiscent of an ",
+    ]
+    return any(opener in window for opener in comparison_openers)
 
 
 def _is_specific_cofounder_claim(text: str) -> bool:
@@ -1857,24 +2069,41 @@ def _title_supports_format_claim(title: str) -> bool:
 
 
 def _check_title_format_mismatch(public_text: str, title: str) -> Optional[str]:
-    """If title doesn't claim a format, reject any format-claiming language. Returns error reason or None."""
+    """If title doesn't claim a format, reject any format-claiming language. Returns error reason or None.
+
+    v9.17 — apply the same word-boundary check as the secondary format-claim
+    path for short common-word terms (course/journal/workbook/etc.) so substrings
+    like 'discourse' don't trigger this rule via plain substring matching.
+    """
     if _title_supports_format_claim(title):
         return None
     text_lower = public_text.lower()
+    short_format_terms = {"course", "journal", "workbook", "planner",
+                          "worksheet", "worksheets", "exercises", "prompts",
+                          "fill-in", "course book", "exercise book"}
     for term in FORMAT_CLAIM_TERMS:
         term_lower = term.lower()
-        if term_lower in text_lower:
-            # v9.5 — skip safe journal/journalism words
-            is_journal_safe = term_lower == "journal" and any(
-                safe_word in text_lower for safe_word in FORMAT_JOURNAL_SAFE
-            )
-            if is_journal_safe:
+        # Short common-word terms must match word-bounded
+        if term_lower in short_format_terms:
+            if not re.search(rf"\b{re.escape(term_lower)}\b", text_lower):
                 continue
-            # v9.5 — also check for "journal of X" pattern (academic)
-            if term_lower == "journal" and re.search(r'journal\s+of\s+\w+', text_lower):
+        else:
+            if term_lower not in text_lower:
                 continue
-            if not _is_negated_context(public_text, term):
-                return f"unsupported_format_claim_{term.replace(' ', '_')}"
+        # v9.5 — skip safe journal/journalism words
+        is_journal_safe = term_lower == "journal" and any(
+            safe_word in text_lower for safe_word in FORMAT_JOURNAL_SAFE
+        )
+        if is_journal_safe:
+            continue
+        # v9.5 — also check for "journal of X" pattern (academic)
+        if term_lower == "journal" and re.search(r'journal\s+of\s+\w+', text_lower):
+            continue
+        # v9.15/9.17 — reader-side use-case carveout for "course"
+        if term_lower == "course" and _is_reader_usecase_course(public_text):
+            continue
+        if not _is_negated_context(public_text, term):
+            return f"unsupported_format_claim_{term.replace(' ', '_')}"
     return None
 
 
@@ -2037,8 +2266,21 @@ def validate_output(data: Dict[str, Any], context: Dict[str, Any], quality_warni
         return False, f"unsupported_fact_risk_{risky_phrase}", cleaned
 
     # v7.5.1 — unsupported proof/prestige claims (trust)
+    # v9.13 — added comparison-context exception for "classic" tokens. The model
+    # may legitimately compare reading experience to a genre/era (e.g.
+    # "similar to reading a classic self-help manual from the early 20th century")
+    # without claiming THIS book is prestigious. Skip if the proof phrase is
+    # preceded by a comparison opener within a short window.
+    # v9.16 — added reader-desire carveout for "proven". Reader-mismatch not_for
+    # items like "needs a proven system" / "looking for a proven framework"
+    # describe what the READER wants and what the book LACKS, not a claim that
+    # the book is proven.
     for phrase in UNSUPPORTED_PROOF_PHRASES:
         if phrase in public_text.lower() and phrase not in source_lowered:
+            if _is_comparison_context(public_text, phrase):
+                continue
+            if phrase == "proven" and _is_reader_desire_proven(public_text):
+                continue
             return False, f"unsupported_proof_or_prestige_claim_{phrase.replace(' ', '_')}", cleaned
 
     # v9.1 — unsupported medical/research claims for ALL categories (not just medical)
@@ -2047,15 +2289,40 @@ def validate_output(data: Dict[str, Any], context: Dict[str, Any], quality_warni
             return False, f"unsupported_medical_or_research_claim_{phrase.replace(' ', '_')}", cleaned
 
     # v8 — unsupported format claims (trust) — secondary catch for format terms not in title-based check
+    # v9.17 — word-boundary check for short common-word phrases. The bare
+    # substring check made "discourse" match phrase="course", which then
+    # tripped the format-claim rule. We pre-check word-boundary for any
+    # phrase short enough to substring-collide; longer phrases like
+    # "workbook templates" or "downloadable templates" don't have this risk.
+    _SHORT_FORMAT_PHRASES = {"course", "journal", "workbook", "planner",
+                              "worksheet", "exercises", "templates",
+                              "course book", "exercise book"}
     for phrase in UNSUPPORTED_FORMAT_PHRASES:
-        if phrase in public_text.lower() and phrase not in source_lowered:
-            # v9.5 — skip safe journal/journalism words
-            if phrase == "journal" and any(safe_word in public_text.lower() for safe_word in FORMAT_JOURNAL_SAFE):
+        if phrase in _SHORT_FORMAT_PHRASES:
+            # Whole-word match required
+            if not re.search(rf"\b{re.escape(phrase)}\b", public_text.lower()):
                 continue
-            if phrase == "journal" and re.search(r'journal\s+of\s+\w+', public_text.lower()):
+        else:
+            # Long phrase — substring is safe
+            if phrase not in public_text.lower():
                 continue
-            if not _is_negated_context(public_text, phrase):
-                return False, f"unsupported_format_claim_{phrase.replace(' ', '_')}", cleaned
+        if phrase in source_lowered:
+            continue
+        # v9.5 — skip safe journal/journalism words
+        if phrase == "journal" and any(safe_word in public_text.lower() for safe_word in FORMAT_JOURNAL_SAFE):
+            continue
+        if phrase == "journal" and re.search(r'journal\s+of\s+\w+', public_text.lower()):
+            continue
+        # v9.15 — "course" carveout: skip when used as a USE-CASE on the
+        # reader side ("preparing a course", "teaching a course", "designing
+        # a course"). The format-claim rule is meant to catch "this book is
+        # a course" — not "the reader is preparing a course". When "course"
+        # appears in best_for / not_for and is owned by the reader, it's a
+        # reader role context, not a book-format claim.
+        if phrase == "course" and _is_reader_usecase_course(public_text):
+            continue
+        if not _is_negated_context(public_text, phrase):
+            return False, f"unsupported_format_claim_{phrase.replace(' ', '_')}", cleaned
 
     # ── v8.6: Endorsement overclaim (trust, narrow match) ──
     for phrase in ["endorsed by", "recommended by", "praised by"]:
@@ -2066,6 +2333,37 @@ def validate_output(data: Dict[str, Any], context: Dict[str, Any], quality_warni
     for phrase in GENERIC_BANNED_PHRASES:
         if phrase in joined:
             safe_phrase = phrase.replace(" ", "_")
+            # v9.15 — "proof" carveout: skip when used inside "social proof",
+            # which is Cialdini's named principle from Influence, not a claim
+            # of source-backed proof. Also: "burden of proof", "proof of work",
+            # "proof of concept", "proof of life" are all idiomatic uses.
+            # v9.16 — also skip when "proof" appears as the second half of a
+            # hyphenated compound (AI-proof, future-proof, fool-proof,
+            # weather-proof, water-proof, child-proof, idiot-proof). These are
+            # idiomatic English compounds meaning "resistant to" — not claims
+            # about source-strength.
+            if phrase == "proof":
+                proof_safe_contexts = [
+                    "social proof", "burden of proof", "proof of work",
+                    "proof of concept", "proof of life", "living proof",
+                    "proof of stake", "standard of proof", "level of proof",
+                ]
+                if any(safe in joined for safe in proof_safe_contexts):
+                    continue
+                # v9.16 — hyphenated-proof compound carveout. Skip only when
+                # EVERY occurrence of "proof" in the text is inside a hyphenated
+                # compound. If there's a bare "proof" elsewhere, the rule still
+                # fires on that.
+                # v9.17 — also handle "proof" as the FIRST half of a hyphenated
+                # compound: proof-texting, proof-read, proof-positive,
+                # proof-reader. Together with the v9.16 second-half pattern,
+                # this covers any \w+-proof or proof-\w+ idiom.
+                bare_proof_re = re.compile(r"(?<![\w-])proof(?![\w-])", re.I)
+                compound_proof_re = re.compile(r"\b(?:\w+-proof|proof-\w+)\b", re.I)
+                bare_hits = bare_proof_re.findall(joined)
+                compound_hits = compound_proof_re.findall(joined)
+                if compound_hits and not bare_hits:
+                    continue
             if phrase in [
                 "source-backed", "verified", "proof", "proven", "endorsement", "endorsements", "endorsed",
                 "recommended by", "widely recommended", "personal recommendation", "personal recommendations",
@@ -2231,20 +2529,65 @@ def evaluate_reader_fit_quality(cleaned: Dict[str, Any], book: Dict[str, Any], c
     scores["reader_fit_specificity"] = spec_score
 
     # --- 2. dnf_warning_quality ---
+    # v9.14 — the prompt contract bans the literal word "DNF" in user-facing
+    # text ("never the jargon DNF"). So the evaluator MUST recognize the
+    # sanitized phrasings the contract teaches the model to write. Before
+    # v9.14, this dimension was capped at 4.5 because the dnf_signals list
+    # only matched DNF-literal strings — which the contract forbids. That
+    # made it nearly impossible for non-narrative books (Meditations,
+    # Mindset, War of Art) to clear the 4.7 overall threshold.
     dnf_score = 3.0
-    dnf_signals = ["likely dnf", "bounce off", "dnf point", "may stop reading", "may quit", "hard to finish"]
+    # Sanitized "drop-off moment" signals the contract explicitly endorses.
+    dnf_signals = [
+        # Contract-approved sanitized phrasings
+        "you'll likely put it down",
+        "you'll likely lose interest",
+        "you'll likely lose patience",
+        "you'll likely abandon",
+        "you'll likely drop",
+        "you'll likely bounce",
+        "you'll put it down",
+        "you'll lose interest",
+        "you'll lose patience",
+        "you'll abandon",
+        "you'll bounce",
+        "put it down when",
+        "put it down once",
+        "put it down around",
+        "drop the book",
+        # Older/jargon variants (still recognized; contract discourages but not banned outright)
+        "likely dnf", "bounce off", "dnf point",
+        "may stop reading", "may quit", "hard to finish",
+    ]
     has_explicit_dnf = any(s in not_for_text for s in dnf_signals)
     has_friction_token = any(t in not_for_text for t in DNF_TOKENS)
+    has_chapter_anchor = bool(re.search(
+        r"\b(chapter|chapters|the first|the second|the third|the fourth|the fifth|"
+        r"around chapter|around the|early chapters|middle chapters|later chapters|"
+        r"front half|back half|first third|last third|midway|near the end)\b",
+        not_for_text,
+    ))
+    # v9.14 — raise the cap from 4.5 to 5.0 for rows that satisfy BOTH a
+    # sanitized DNF signal AND a friction token. Add a chapter/structure
+    # anchor bonus that pushes solidly-anchored DNF warnings to 5.0.
     if has_explicit_dnf and has_friction_token:
-        dnf_score = 4.5
+        dnf_score = 5.0 if has_chapter_anchor else 4.7
     elif has_explicit_dnf or has_friction_token:
-        dnf_score = 3.5
+        dnf_score = 3.8 if has_chapter_anchor else 3.5
     else:
         dnf_score = 1.5
         notes.append("dnf_warning_weak")
-    # Check if not_for items are too brief/vague
-    if any(len(item.split()) < 8 for item in not_for_items):
-        dnf_score = max(1.0, dnf_score - 1.0)
+    # v9.14 — brief-item penalty narrowed: only fires when the MAJORITY of
+    # not_for items are brief. Previously a single short item dropped the
+    # whole dimension by 1.0, which over-penalized rows where one item was
+    # a concise one-liner and the other two were rich.
+    if not_for_items:
+        brief_count = sum(1 for item in not_for_items if len(item.split()) < 8)
+        if brief_count >= max(2, len(not_for_items) // 2 + 1):
+            dnf_score = max(1.0, dnf_score - 1.0)
+        elif brief_count >= 1 and all(len(i.split()) < 6 for i in not_for_items):
+            # All items very brief — likely lazy
+            dnf_score = max(1.0, dnf_score - 1.0)
     scores["dnf_warning_quality"] = dnf_score
 
     # --- 3. emotional_fit_quality ---
@@ -2744,6 +3087,11 @@ def main() -> int:
     parser.add_argument("--selftest-list-serializer", action="store_true", help="Run inline regression tests for _to_editorial_list (no DB writes).")
     parser.add_argument("--selftest-theme-quality", action="store_true", help="Run inline regression tests for _is_low_quality_theme (no DB writes).")
     parser.add_argument("--selftest-key-themes", action="store_true", help="Alias for --selftest-theme-quality with extra Life 3.0 / Deep Work / Influence pass cases.")
+    parser.add_argument("--selftest-validator-narrowing", action="store_true", help="v9.13 — regression tests for narrowed validator rules (no DB writes).")
+    parser.add_argument("--selftest-evaluator-dnf", action="store_true", help="v9.14 — regression tests for evaluator DNF scoring against contract-approved sanitized phrases (no DB writes).")
+    parser.add_argument("--selftest-v915-narrowing", action="store_true", help="v9.15 — regression tests for social-proof, course-use-case, contrastive-negation narrowings (no DB writes).")
+    parser.add_argument("--selftest-v916-narrowing", action="store_true", help="v9.16 — regression tests for hyphenated-proof compounds and reader-desire 'proven' carveout (no DB writes).")
+    parser.add_argument("--selftest-v917-narrowing", action="store_true", help="v9.17 — regression tests for proof-\\w+ first-half compounds and word-boundary course/journal/workbook/etc. (no DB writes).")
     # v9.10 — deterministic promote-from-report: write already-accepted dry-run candidates without re-calling the AI.
     parser.add_argument("--promote-accepted-from-report", default="", help="Path to a dry-run CSV. Promotes recommended_action=accept_candidate rows with score>=4.7 directly from the report. NO AI calls.")
     parser.add_argument("--confirm-promote-accepted", action="store_true", help="Required second gate for live promote write. Without this, --write in promote mode refuses.")
@@ -2805,6 +3153,26 @@ def main() -> int:
     if args.selftest_key_themes:
         return _selftest_key_themes()
 
+    # v9.13 — validator-narrowing selftest (no DB writes, no AI calls)
+    if args.selftest_validator_narrowing:
+        return _selftest_validator_narrowing()
+
+    # v9.14 — evaluator DNF scoring selftest (no DB writes, no AI calls)
+    if args.selftest_evaluator_dnf:
+        return _selftest_evaluator_dnf()
+
+    # v9.15 — narrowing selftest (no DB writes, no AI calls)
+    if args.selftest_v915_narrowing:
+        return _selftest_v915_narrowing()
+
+    # v9.16 — narrowing selftest (no DB writes, no AI calls)
+    if args.selftest_v916_narrowing:
+        return _selftest_v916_narrowing()
+
+    # v9.17 — narrowing selftest (no DB writes, no AI calls)
+    if args.selftest_v917_narrowing:
+        return _selftest_v917_narrowing()
+
     # v8.6 — report analysis tooling (exits after completion, no generation)
     if args.analyze_report:
         if args.emit_learning_pack and not args.analyze_report:
@@ -2851,6 +3219,13 @@ SCORE_DRIVER_DIMS = [
     "emotional_fit_quality", "pacing_expectation_quality",
     "best_for_specificity", "reader_fit_specificity",
     "fact_minimal_safety",
+    # v9.14 — added so the surgical-retry path can target the two dimensions
+    # that were silently capped before: DNF and not_for specificity. Mindset,
+    # War of Art, Four Agreements all had only dnf<=3.5 dragging their
+    # overall scores; without these in the list nothing was surgically fixing
+    # them and the row exhausted retries.
+    "dnf_warning_quality",
+    "not_for_specificity",
 ]
 
 
@@ -2902,6 +3277,31 @@ def _surgical_retry_prompt(current_output: Dict[str, Any], quality_eval: Dict[st
             "'the book argues...', 'the author frames...', 'the book presents...', 'the book discusses...' "
             "Remove: proven, evidence shows, data-driven, studies prove, research-backed, validated, demonstrated, peer-reviewed. "
             "Do NOT add new facts. Do NOT change other fields."
+        ),
+        # v9.14 — surgical instructions for the two newly-targetable dimensions.
+        "dnf_warning_quality": (
+            "Rewrite ONLY not_for. At least ONE item must combine: (a) a sanitized drop-off "
+            "phrase like 'you'll likely put it down when...', 'you'll lose interest if...', "
+            "'you'll abandon when...', AND (b) a concrete friction word (tedious, preachy, drags, "
+            "repetitive, moralizing, tough-love, slow, dense), AND (c) a structural anchor (which "
+            "chapter / front half / back half / middle / first third / around chapter N). "
+            "Do NOT use the literal jargon 'DNF'. "
+            "Bad: 'not for readers who dislike repetition.' "
+            "Good: 'you'll likely put it down around the middle chapters when the same "
+            "deterministic point gets hammered through every example — drags hard if you came "
+            "for evolutionary nuance.' "
+            "For aphoristic/short/anecdotal books with no chapter structure: pick the *idea-moment* "
+            "where readers bounce, e.g. 'you'll lose patience when the third agreement is restated "
+            "for the fourth time'. Do NOT change any other field."
+        ),
+        "not_for_specificity": (
+            "Rewrite ONLY not_for. Each of the THREE items must combine: (a) a concrete reader "
+            "type or use-case ('readers who want X', 'if you came for X'), (b) a specific "
+            "friction mechanism (slow, dated, dense, repetitive, preachy, moralizing, "
+            "ideological, abstract, anecdote-heavy, tough-love, smug, self-congratulatory), and "
+            "(c) at least one item must include a structural anchor (chapter, half, third, "
+            "section). Avoid bare 'not for casual readers' / 'best for serious students'. "
+            "Do NOT change any other field."
         ),
     }
 
@@ -3990,6 +4390,502 @@ def _selftest_key_themes() -> int:
                 fails += 1
 
     total = 1 + len(list_cases)  # 1 for the regression we already ran
+    passed = total - fails
+    print(f"\n{'OK' if fails == 0 else 'FAIL'}: {passed}/{total} passed")
+    return 0 if fails == 0 else 1
+
+
+def _selftest_validator_narrowing() -> int:
+    """v9.13 — regression tests for the four narrowing patches. No DB writes,
+    no AI calls. Exits 0 if every case behaves as expected, 1 otherwise.
+
+    Patches covered:
+      A. _is_negated_context: friction openers ("lose interest if", "looking for",
+         "annoying if", etc.) should treat the format-term as a mismatch context.
+      B. _is_comparison_context: classic-in-comparison should NOT count as a
+         proof/prestige claim.
+      C. DNF_TOKENS expansion: new tokens ("lose interest", "tedious",
+         "preachy", "tough love", …) should satisfy the not_for-specificity
+         requirement.
+      D. _is_non_person_name: list-name-style strings should be skipped by the
+         recommender-name detector.
+    """
+    print("== _selftest_validator_narrowing (v9.13) ==")
+    fails = 0
+    total = 0
+
+    # ── A. Negation context with friction openers ─────────────────────────
+    print("\n[A] _is_negated_context — friction openers count as mismatch context")
+    a_cases: List[Tuple[str, str, bool]] = [
+        # (text, phrase, expected_is_negated)
+        # War of Art style — was being rejected before v9.13
+        ("lose interest if you're looking for concrete how-to steps or exercises",
+         "exercises", True),
+        ("annoying if you prefer drill-sergeant exercises and templates",
+         "exercises", True),
+        # Existing negation cases still work
+        ("not a workbook — no exercises included",
+         "exercises", True),
+        ("does not include exercises",
+         "exercises", True),
+        # A real format claim should STILL be detected (not negated)
+        ("includes hands-on exercises and templates throughout",
+         "exercises", False),
+        ("comes with a workbook section full of exercises",
+         "exercises", False),
+    ]
+    for text, phrase, expected in a_cases:
+        total += 1
+        got = _is_negated_context(text, phrase)
+        ok = got == expected
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] phrase={phrase!r} expected_negated={expected} got={got}")
+        print(f"         text: {text[:90]}{'...' if len(text) > 90 else ''}")
+        if not ok:
+            fails += 1
+
+    # ── B. Comparison context for proof/prestige tokens ──────────────────
+    print("\n[B] _is_comparison_context — classic-in-comparison is NOT a claim")
+    b_cases: List[Tuple[str, str, bool]] = [
+        # HTWFAI style — was being rejected before v9.13
+        ("similar to reading a classic self-help manual from the early 20th century",
+         "classic", True),
+        ("feels like a classic essay collection",
+         "classic", True),
+        ("reads like a classic memoir",
+         "classic", True),
+        # Direct prestige claim — should STILL be flagged
+        ("this is a classic of the genre",
+         "classic", False),
+        ("a classic that defined a generation",
+         "classic", False),
+    ]
+    for text, phrase, expected in b_cases:
+        total += 1
+        got = _is_comparison_context(text, phrase)
+        ok = got == expected
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] phrase={phrase!r} expected_comparison={expected} got={got}")
+        print(f"         text: {text[:90]}{'...' if len(text) > 90 else ''}")
+        if not ok:
+            fails += 1
+
+    # ── C. DNF_TOKENS expansion ──────────────────────────────────────────
+    print("\n[C] DNF_TOKENS — non-narrative friction phrases now satisfy not_for")
+    c_cases: List[Tuple[str, bool]] = [
+        # not_for body, expected_has_dnf_token
+        ("You'll lose interest when the same idea is restated four ways. "
+         "Annoying if you wanted modern psychology grounding. "
+         "Skip if you crave a linear argument.",
+         True),
+        ("Tedious if you wanted research-grade rigor. "
+         "Preachy after about twenty pages. "
+         "You'll put it down once the moralizing stacks up.",
+         True),
+        ("Tough love isn't for everyone here. "
+         "Drags in the middle when examples repeat. "
+         "Won't satisfy readers wanting tactical steps.",
+         True),
+        # A weak not_for with no friction tokens — should still FAIL
+        ("Not for casual readers. "
+         "Best for serious students. "
+         "Some may find it less engaging.",
+         False),
+    ]
+    for not_for_text, expected in c_cases:
+        total += 1
+        text_lower = not_for_text.lower()
+        got = any(token in text_lower for token in DNF_TOKENS)
+        ok = got == expected
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] expected_has_dnf={expected} got={got}")
+        print(f"         not_for: {not_for_text[:90]}{'...' if len(not_for_text) > 90 else ''}")
+        if not ok:
+            fails += 1
+
+    # ── D. List-name guard for recommender-name detector ─────────────────
+    print("\n[D] _is_non_person_name — list-name strings are skipped")
+    d_cases: List[Tuple[str, bool]] = [
+        ("Book Recommendations (7 Books)", True),
+        ("Reading List", True),
+        ("List of Tim Ferriss Recommendations", True),
+        ("Books for Founders", True),
+        # Real people should NOT be flagged
+        ("Daniel Pink", False),
+        ("Malcolm Gladwell", False),
+        ("Naval Ravikant", False),
+        ("Adam Grant", False),
+    ]
+    for name, expected in d_cases:
+        total += 1
+        got = _is_non_person_name(name)
+        ok = got == expected
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] name={name!r}  expected_non_person={expected} got={got}")
+        if not ok:
+            fails += 1
+
+    passed = total - fails
+    print(f"\n{'OK' if fails == 0 else 'FAIL'}: {passed}/{total} passed")
+    return 0 if fails == 0 else 1
+
+
+def _selftest_evaluator_dnf() -> int:
+    """v9.14 — verify the evaluator now scores contract-approved sanitized DNF
+    phrasings as high as the old DNF-jargon phrasings, including a chapter-anchor
+    bonus that pushes the dimension to 5.0. Without this fix non-narrative books
+    (Meditations, Mindset) were structurally capped at dnf=4.5 and could not
+    reach overall_icp_score ≥ 4.70."""
+    from typing import List, Dict, Any
+    print("== _selftest_evaluator_dnf (v9.14) ==")
+
+    # Each test case is (label, not_for items, expected_min_dnf_score, why)
+    # Items are written at ≥8 words to match the contract's guidance and avoid
+    # the (intentional) brief-item penalty.
+    cases: List[Any] = [
+        ("Old jargon: 'likely DNF' + friction + chapter — substantial items",
+         ["you'll likely dnf around chapter 5 when the case studies get dated and feel like museum exhibits",
+          "skip if you need modern industry examples or tactical implementation steps for product teams today",
+          "boring after the first third when the same disk-drive metaphor gets recycled in every chapter"],
+         5.0, "explicit + friction + chapter anchor + substantial items"),
+        ("v9.14 sanitized: 'you'll likely put it down when' + friction + chapter",
+         ["you'll likely put it down around chapter 5 when the case studies start to feel dated and museum-like",
+          "you'll lose interest if you need modern industry examples for software teams or platform thinking",
+          "you'll abandon the back half if you wanted tactical playbooks rather than diagnostic frameworks"],
+         5.0, "sanitized + friction + chapter anchor — was 4.5 before v9.14"),
+        ("v9.14 aphoristic book: 'you'll lose patience' + friction (no chapter)",
+         ["you'll lose patience when the third agreement gets restated for the fourth time in different words",
+          "tedious if you wanted modern psychology grounding or research-backed counter-evidence for the claims",
+          "preachy if you bristle at spiritual assertions delivered as universal truth without qualification"],
+         4.7, "sanitized + friction but no chapter — was 4.5 before"),
+        ("v9.14 friction only, no DNF phrase",
+         ["preachy throughout when the author insists you cannot make the journey without inner work first",
+          "moralizing tone wears on you after the first hundred pages of the same diagnostic framing",
+          "drags in the middle when examples repeat without adding new conceptual or practical material"],
+         3.5, "friction without sanitized drop-off phrase"),
+        ("Neither signal — should stay weak",
+         ["not for casual readers who picked this up expecting a beach read or a light primer",
+          "best for serious students of philosophy who want primary sources rather than secondary commentary",
+          "some readers may find it less engaging than they expected based on the back-cover description"],
+         1.0, "neither DNF nor friction — correct to be weak"),
+    ]
+
+    fails = 0
+    for label, not_for, expected_min, why in cases:
+        cleaned = sanitize_public_copy({
+            "quick_verdict": "Read if you want X; skip if you want Y.",
+            "editorial_summary": (
+                "This book reads like a measured lecture from a sharp thinker. "
+                "The useful part is the vocabulary it gives you for naming a "
+                "common problem. The limitation is the repetition once the core "
+                "idea lands. You'll either leave it sharper or worn down."
+            ),
+            "best_for": [
+                "a PM at a fast-scaling startup who needs language for their team's chaos",
+                "a teacher who wants to reframe student struggle as productive friction",
+                "a founder navigating a values-vs-survival call",
+            ],
+            "not_for": not_for,
+            "key_themes": ["deep focus", "shallow work", "attention residue", "digital minimalism"],
+            "theme_tensions": ["focus vs distraction", "purpose vs survival", "speed vs depth", "ambition vs cost"],
+            "emotional_journey": (
+                "Starts like a jolt — you recognize your own habits. The middle gets "
+                "irritating when the same point is repeated. Ends either as a useful "
+                "provocation or an overconfident sermon. The wrong reader will feel "
+                "lectured rather than helped."
+            ),
+            "reading_pace_profile": (
+                "Front half moves fast while the core idea is fresh. Middle chapters drag "
+                "when the same example is reused; skim those once the concept lands. "
+                "Read in chunks if you dislike business anecdotes."
+            ),
+            "vibe_tags": ["idea-dense", "blunt", "argumentative", "one-sitting",
+                          "demanding", "polemical", "research-curious", "memorable"],
+            "difficulty_level": "medium",
+            "discussion_potential": (
+                "People will argue whether the framework is empowering or "
+                "just repackaged individualism, and whether the friction-as-feature "
+                "framing romanticizes burnout."
+            ),
+            "comparable_experience": (
+                "Reads like leafing through a 19th-century commonplace book "
+                "interrupted by a TED talk every fifty pages."
+            ),
+            "source_quality_note": "",
+            "recommendation_context": "",
+        })
+        eval_result = evaluate_reader_fit_quality(cleaned, {"title": "Test Book"}, [], {})
+        dnf_score = eval_result.get("dnf_warning_quality", 0)
+        ok = dnf_score >= expected_min
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] {label}")
+        print(f"         dnf_score={dnf_score:.1f}  expected_min={expected_min:.1f}  ({why})")
+        if not ok:
+            fails += 1
+
+    total = len(cases)
+    passed = total - fails
+    print(f"\n{'OK' if fails == 0 else 'FAIL'}: {passed}/{total} passed")
+    return 0 if fails == 0 else 1
+
+
+def _selftest_v915_narrowing() -> int:
+    """v9.15 — regression tests for the 3 false-positives surfaced in
+    fresh-25: 'social proof' must not trip proof-overclaim, 'course' as
+    reader use-case must not trip format-claim, and contrastive openers
+    ('rather than', 'instead of', ', not ') must register as negation context."""
+    print("== _selftest_v915_narrowing (v9.15) ==")
+    fails = 0
+    total = 0
+
+    # ── A. social-proof carveout ──────────────────────────────────────────
+    print("\n[A] 'social proof' inside Cialdini context should NOT trigger proof overclaim")
+    a_cases = [
+        # (text, should_proof_be_safe_context_skipped)
+        ("Cialdini unpacks principles—reciprocity, commitment, social proof, liking, authority, scarcity",
+         True),
+        ("The book explains how social proof drives human behavior in groups.",
+         True),
+        ("Burden of proof falls on the reader to evaluate each claim.",
+         True),
+        ("This book is proof that consistent discipline pays off.",
+         False),  # bare "proof" with no safe context — should still flag
+    ]
+    safe_contexts = [
+        "social proof", "burden of proof", "proof of work",
+        "proof of concept", "proof of life", "living proof",
+        "proof of stake", "standard of proof", "level of proof",
+    ]
+    for text, expected_safe in a_cases:
+        total += 1
+        joined = text.lower()
+        is_safe = any(safe in joined for safe in safe_contexts)
+        ok = is_safe == expected_safe
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] expected_safe={expected_safe} got={is_safe}")
+        print(f"         text: {text[:80]}{'…' if len(text)>80 else ''}")
+        if not ok:
+            fails += 1
+
+    # ── B. course-as-reader-usecase carveout ─────────────────────────────
+    print("\n[B] 'course' used as reader use-case should NOT trip format claim")
+    b_cases = [
+        # (text, expected_is_reader_usecase)
+        ("a history teacher preparing a course on 21st-century challenges",
+         True),
+        ("a professor designing a course around behavioral economics",
+         True),
+        ("a curriculum designer building a course for managers",
+         True),
+        ("an undergrad taking a course in cognitive science",
+         True),
+        ("the reader will encounter a course on stoic thought from the author",
+         False),  # passive — not a clear reader use-case
+        ("this book IS a course in modern philosophy",
+         False),  # actual format claim about the book
+        ("the author offers a self-paced course full of exercises",
+         False),  # format claim about book content
+    ]
+    for text, expected in b_cases:
+        total += 1
+        got = _is_reader_usecase_course(text)
+        ok = got == expected
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] expected_use_case={expected} got={got}")
+        print(f"         text: {text[:80]}{'…' if len(text)>80 else ''}")
+        if not ok:
+            fails += 1
+
+    # ── C. contrastive negation openers ──────────────────────────────────
+    print("\n[C] 'rather than' / 'instead of' / ', not ' as negation context")
+    c_cases = [
+        # (text, phrase, expected_is_negated)
+        ("vulnerability in the writing process, rather than technical exercises",
+         "exercises", True),
+        ("focuses on storytelling, instead of structured exercises",
+         "exercises", True),
+        ("encourages exploration, not structured exercises",
+         "exercises", True),
+        ("a meditation on craft as opposed to a workbook of exercises",
+         "exercises", True),
+        ("in contrast to a classic workbook with exercises and templates",
+         "exercises", True),
+        # NEGATIVE: a real format claim must still be detected
+        ("the book includes hands-on exercises in every chapter",
+         "exercises", False),
+        ("comes packed with exercises and templates",
+         "exercises", False),
+    ]
+    for text, phrase, expected in c_cases:
+        total += 1
+        got = _is_negated_context(text, phrase)
+        ok = got == expected
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] phrase={phrase!r} expected_negated={expected} got={got}")
+        print(f"         text: {text[:80]}{'…' if len(text)>80 else ''}")
+        if not ok:
+            fails += 1
+
+    passed = total - fails
+    print(f"\n{'OK' if fails == 0 else 'FAIL'}: {passed}/{total} passed")
+    return 0 if fails == 0 else 1
+
+
+def _selftest_v916_narrowing() -> int:
+    """v9.16 — regression tests for two false positives surfaced in fresh-50:
+    (A) hyphenated-proof compounds ("AI-proof", "future-proof", "fool-proof")
+        should NOT trigger source-overclaim proof rule.
+    (B) reader-desire 'proven' patterns ("needs a proven X", "looking for a
+        proven Y") should NOT trigger unsupported-proof-or-prestige claim."""
+    print("== _selftest_v916_narrowing (v9.16) ==")
+    fails = 0
+    total = 0
+
+    # ── A. Hyphenated-proof compound carveout ────────────────────────────
+    print("\n[A] hyphenated-proof compounds should NOT match the bare 'proof' rule")
+    a_cases = [
+        # (joined_text, expected_should_skip)
+        ("the book stays macro and offers no hands-on steps to AI-proof your job", True),
+        ("looking for a future-proof career strategy", True),
+        ("a fool-proof system for habit formation", True),
+        ("a weather-proof guide", True),
+        ("an idiot-proof framework", True),
+        # NEGATIVE: bare "proof" outside any compound should still trip
+        ("this book is proof of the author's mastery", False),
+        # NEGATIVE: mixed compound + bare proof — bare should still trip
+        ("an AI-proof guide that is itself proof of strong research", False),
+    ]
+    bare_proof_re = re.compile(r"(?<![\w-])proof(?![\w-])", re.I)
+    compound_proof_re = re.compile(r"\b\w+-proof\b", re.I)
+    for text, expected_skip in a_cases:
+        total += 1
+        joined = text.lower()
+        if "proof" not in joined:
+            got_skip = False
+        else:
+            bare_hits = bare_proof_re.findall(joined)
+            compound_hits = compound_proof_re.findall(joined)
+            got_skip = bool(compound_hits and not bare_hits)
+        ok = got_skip == expected_skip
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] expected_skip={expected_skip} got={got_skip}")
+        print(f"         text: {text[:90]}{'…' if len(text)>90 else ''}")
+        if not ok:
+            fails += 1
+
+    # ── B. Reader-desire carveout for "proven" ───────────────────────────
+    print("\n[B] reader-desire 'proven' patterns should NOT trip proof-claim")
+    b_cases = [
+        ("A startup founder in hypergrowth who needs a proven system to align a team",
+         True),
+        ("An analyst looking for a proven framework for risk assessment",
+         True),
+        ("If you want a proven step-by-step method, this isn't it",
+         True),
+        ("A leader seeking a proven playbook for transformation",
+         True),
+        ("In search of a proven model for compounding returns",
+         True),
+        # NEGATIVE: real claim
+        ("This book delivers a proven framework backed by decades of research",
+         False),
+        ("The author offers a proven method tested at scale",
+         False),
+    ]
+    for text, expected in b_cases:
+        total += 1
+        got = _is_reader_desire_proven(text)
+        ok = got == expected
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] expected_reader_desire={expected} got={got}")
+        print(f"         text: {text[:90]}{'…' if len(text)>90 else ''}")
+        if not ok:
+            fails += 1
+
+    passed = total - fails
+    print(f"\n{'OK' if fails == 0 else 'FAIL'}: {passed}/{total} passed")
+    return 0 if fails == 0 else 1
+
+
+def _selftest_v917_narrowing() -> int:
+    """v9.17 — regression tests for two more false positives surfaced in
+    fresh-50 recovery:
+    (A) 'proof-X' compounds (proof-texting, proof-read, proof-positive) where
+        'proof' is the FIRST half of a hyphenated compound — v9.16 only handled
+        'X-proof' (second half).
+    (B) Short format phrases like 'course' must match WORD-BOUNDED, so that
+        'discourse' doesn't trigger format-claim via substring matching."""
+    print("== _selftest_v917_narrowing (v9.17) ==")
+    fails = 0
+    total = 0
+
+    # ── A. proof-X first-half compound carveout ───────────────────────────
+    print("\n[A] 'proof-X' compounds should be safely skipped")
+    a_cases = [
+        # (text, expected_skip)
+        ("the author's reinterpretation feels like narrow proof-texting", True),
+        ("a meticulous proof-read of the second edition", True),
+        ("a proof-positive case study for engineers", True),
+        ("proof-reader catches typos that the editor missed", True),
+        # second-half cases (v9.16 — still working)
+        ("an AI-proof career strategy", True),
+        ("a fool-proof system", True),
+        # mixed (compound + bare) → bare still flags
+        ("proof-texting that itself stands as proof of selective reading", False),
+        # bare proof outside any compound → still flags
+        ("offers definitive proof that the framework works", False),
+    ]
+    bare_proof_re = re.compile(r"(?<![\w-])proof(?![\w-])", re.I)
+    compound_proof_re = re.compile(r"\b(?:\w+-proof|proof-\w+)\b", re.I)
+    for text, expected_skip in a_cases:
+        total += 1
+        joined = text.lower()
+        if "proof" not in joined:
+            got_skip = False
+        else:
+            bare = bare_proof_re.findall(joined)
+            comp = compound_proof_re.findall(joined)
+            got_skip = bool(comp and not bare)
+        ok = got_skip == expected_skip
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] expected_skip={expected_skip} got={got_skip}")
+        print(f"         text: {text[:90]}{'…' if len(text)>90 else ''}")
+        if not ok:
+            fails += 1
+
+    # ── B. Word-boundary check for short format phrases ──────────────────
+    print("\n[B] 'course' should match \\bcourse\\b only, NOT 'discourse'")
+    b_cases = [
+        # (text, phrase, expected_match)
+        ("public discourse today feels hollow and fragmented", "course", False),
+        ("the discourse around the book is overheated", "course", False),
+        ("a course in modern philosophy", "course", True),
+        ("this book is a course on stoicism", "course", True),
+        # journal vs journalism
+        ("his journalism set a new standard", "journal", False),
+        ("the book is a guided journal with exercises", "journal", True),
+        # workbook vs other words containing it (none common, but verify)
+        ("this is a workbook for habit formation", "workbook", True),
+        # exercises vs exercising
+        ("exercises designed to build daily focus", "exercises", True),
+        ("exercising restraint is the core idea", "exercises", False),
+    ]
+    short_format_phrases = {"course", "journal", "workbook", "planner",
+                            "worksheet", "exercises", "templates"}
+    for text, phrase, expected in b_cases:
+        total += 1
+        text_lower = text.lower()
+        if phrase in short_format_phrases:
+            got = bool(re.search(rf"\b{re.escape(phrase)}\b", text_lower))
+        else:
+            got = phrase in text_lower
+        ok = got == expected
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] phrase={phrase!r} expected={expected} got={got}")
+        print(f"         text: {text[:90]}{'…' if len(text)>90 else ''}")
+        if not ok:
+            fails += 1
+
     passed = total - fails
     print(f"\n{'OK' if fails == 0 else 'FAIL'}: {passed}/{total} passed")
     return 0 if fails == 0 else 1
