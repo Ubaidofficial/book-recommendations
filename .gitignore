@@ -29,3 +29,7 @@ tsconfig.tsbuildinfo
 book_editorial_enrichment_*.csv
 editorial_*.log
 CLAUDE_*.md
+
+# Local editorial experiments
+scripts/fixtures/*.csv
+scripts/generate_book_editorial_enrichment_v*.py
