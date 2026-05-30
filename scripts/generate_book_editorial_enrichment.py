@@ -2743,6 +2743,7 @@ def main() -> int:
     # v9.9 — regression test for the new list serializer used in _write_book_update
     parser.add_argument("--selftest-list-serializer", action="store_true", help="Run inline regression tests for _to_editorial_list (no DB writes).")
     parser.add_argument("--selftest-theme-quality", action="store_true", help="Run inline regression tests for _is_low_quality_theme (no DB writes).")
+    parser.add_argument("--selftest-key-themes", action="store_true", help="Alias for --selftest-theme-quality with extra Life 3.0 / Deep Work / Influence pass cases.")
     # v9.10 — deterministic promote-from-report: write already-accepted dry-run candidates without re-calling the AI.
     parser.add_argument("--promote-accepted-from-report", default="", help="Path to a dry-run CSV. Promotes recommended_action=accept_candidate rows with score>=4.7 directly from the report. NO AI calls.")
     parser.add_argument("--confirm-promote-accepted", action="store_true", help="Required second gate for live promote write. Without this, --write in promote mode refuses.")
@@ -2799,6 +2800,10 @@ def main() -> int:
     # v9.11 — theme quality selftest (no DB writes, no AI calls)
     if args.selftest_theme_quality:
         return _selftest_theme_quality()
+
+    # v9.11 — key-themes selftest (extends theme-quality with list-level checks)
+    if args.selftest_key_themes:
+        return _selftest_key_themes()
 
     # v8.6 — report analysis tooling (exits after completion, no generation)
     if args.analyze_report:
@@ -3885,6 +3890,108 @@ def _selftest_theme_quality() -> int:
         if not ok:
             fails += 1
     print(f"\n{'OK' if fails == 0 else 'FAIL'}: {len(cases) - fails}/{len(cases)} passed")
+    return 0 if fails == 0 else 1
+
+
+def _selftest_key_themes() -> int:
+    """v9.11 — extended key_themes selftest. Runs the underlying single-item theme
+    regression first, then exercises LIST-level checks the theme-repair pipeline relies
+    on:
+        - good Life 3.0 themes all pass
+        - good Deep Work themes all pass
+        - good Influence themes all pass
+        - duplicated themes are deduped down (case-insensitive, dedupe < input length)
+        - fewer than 3 valid themes after filter = list-level FAIL
+    No DB writes, no AI calls. Exits 0 if every assertion holds, 1 otherwise.
+    """
+    print("== _selftest_key_themes ==")
+    print("[1/2] running single-item theme regression...")
+    rc = _selftest_theme_quality()
+    if rc != 0:
+        print("  single-item regression FAILED; aborting list-level checks.")
+        return rc
+
+    print("\n[2/2] list-level checks (good books pass / dupes / count floor)...")
+
+    def _dedupe_lower(items: List[str]) -> List[str]:
+        seen = set()
+        out: List[str] = []
+        for it in items:
+            k = (it or "").strip().lower()
+            if not k or k in seen:
+                continue
+            seen.add(k)
+            out.append(it)
+        return out
+
+    list_cases: List[Tuple[str, List[str], bool, str]] = [
+        # (book_label, themes, expect_passes_list_floor, reason_label)
+        (
+            "Life 3.0",
+            ["AI alignment", "automation risk", "intelligence explosion",
+             "machine goals", "technology governance"],
+            True, "all-five-good"
+        ),
+        (
+            "Deep Work",
+            ["deep focus", "shallow work", "attention residue",
+             "distraction resistance", "digital minimalism"],
+            True, "all-five-good"
+        ),
+        (
+            "Influence",
+            ["social proof", "reciprocity", "commitment bias",
+             "scarcity", "authority cues"],
+            True, "all-five-good"
+        ),
+        (
+            "Duplicates (case-insensitive)",
+            ["social proof", "Social Proof", "SOCIAL PROOF",
+             "reciprocity", "scarcity"],
+            True, "dedupes-to-three"
+        ),
+        (
+            "Too few after filter",
+            ["personal growth", "life lessons",
+             "The book argues that focus is the new IQ.",
+             "social proof"],
+            False, "only-one-survives-filter"
+        ),
+        (
+            "Banned recycled binaries",
+            ["principles vs practical compromise", "freedom vs responsibility",
+             "tradition vs reinvention", "loyalty vs personal truth",
+             "duty vs desire"],
+            False, "all-banned-zero-survive"
+        ),
+    ]
+
+    fails = 0
+    MIN_VALID = 3
+    for label, raw, expect_pass, reason in list_cases:
+        kept, dropped = _filter_theme_quality(raw)
+        kept_dedup = _dedupe_lower(kept)
+        actually_passes = len(kept_dedup) >= MIN_VALID
+        ok = actually_passes == expect_pass
+        marker = "PASS" if ok else "FAIL"
+        print(
+            f"  [{marker}] {label}: input={len(raw)} kept={len(kept)} "
+            f"deduped={len(kept_dedup)} -> passes_floor({MIN_VALID})={actually_passes} "
+            f"expected={expect_pass} ({reason})"
+        )
+        if not ok:
+            fails += 1
+            print(f"        kept_dedup = {kept_dedup}")
+            print(f"        dropped    = {dropped}")
+        # Extra invariant for duplicate-case
+        if label.startswith("Duplicates") and ok:
+            if len(kept_dedup) >= len(raw):
+                print("        FAIL: dedupe did not reduce list length")
+                fails += 1
+
+    total = 1 + len(list_cases)  # 1 for the regression we already ran
+    passed = total - fails
+    print(f"\n{'OK' if fails == 0 else 'FAIL'}: {passed}/{total} passed")
     return 0 if fails == 0 else 1
 
 
