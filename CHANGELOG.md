@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-05-31 — Amazon buy CTA on book detail pages
+
+### Added
+- "Buy on Amazon" link on `/books/[slug]` book detail pages, rendered conditionally only when `books.amazon_url` is populated.
+- Placement: under the series chip and above the description, adjacent to the cover/title area.
+- Styling: `bg-accent text-white rounded-lg px-3.5 py-2 text-sm font-semibold` with subtle right-arrow icon — consistent with the existing accent-button pattern used on the homepage hero CTA.
+- Link attributes: `target="_blank" rel="noopener noreferrer nofollow sponsored"` (sponsored hint added for future-proofing if affiliate tags are introduced later).
+
+### Type changes
+- `Book` interface in `src/lib/data.ts`: added `amazon_url?: string | null`. The existing `select("*")` was already returning the column from production; this only types it.
+
+### Scope discipline
+- **Frontend only.** No DB writes. No schema changes. No mutation of `amazon_url` values — uses what production already has populated.
+- **No affiliate tags** introduced. `amazon_url` values rendered as-is from the DB. `rel="sponsored"` is included as a forward-compatible signal; current URLs carry no tag.
+- **No editorial-pipeline files touched.**
+
 ## 2026-05-31 — Editorial Pipeline v9.13–v9.17.1 (validator/prompt fixes + 49 new drafts)
 
 ### Pipeline changes (scripts/generate_book_editorial_enrichment.py)

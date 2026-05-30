@@ -214,6 +214,22 @@ export default async function BookDetailPage({ params }: Props) {
             </Link>
           )}
 
+          {book.amazon_url && (
+            <div className="mb-4">
+              <a
+                href={book.amazon_url}
+                target="_blank"
+                rel="noopener noreferrer nofollow sponsored"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent-hover transition-colors"
+              >
+                Buy on Amazon
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </a>
+            </div>
+          )}
+
           {showDescription && (
             <div className="prose prose-base text-muted max-w-none leading-relaxed">
               <p>{descriptionText}</p>

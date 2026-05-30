@@ -10,6 +10,7 @@ export interface Book {
   author: string;
   author_slug: string;
   cover_image_url: string;
+  amazon_url?: string | null;
   description: string;
   rating: number;
   recommendation_count: number;
