@@ -1,15 +1,22 @@
 import { Metadata } from "next";
 import { getQualityPeople, getPersonRecommendedCount, getPersonWrittenCount, searchPeople } from "@/lib/data";
-import { pageMetadata } from "@/lib/seo";
+import { pageMetadata, canonicalUrl } from "@/lib/seo";
+import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
 import { PersonCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Featured People",
-  description: "Discover books recommended by authors, founders, leaders, creators, and public figures with source-backed recommendation proof.",
-  path: "/people",
-});
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const sp = await searchParams;
+  const hasParams = !!(sp.q && sp.q.trim());
+
+  return pageMetadata({
+    title: "Featured People",
+    description: "Discover books recommended by authors, founders, leaders, creators, and public figures with source-backed recommendation proof.",
+    path: "/people",
+    robots: hasParams ? "noindex, follow" : "index, follow",
+  });
+}
 
 interface Props {
   searchParams: Promise<{ q?: string }>;
@@ -66,8 +73,39 @@ export default async function PeoplePage({ searchParams }: Props) {
         return true;
       }).slice(0, DISPLAY_LIMIT);
 
+  const collectionJsonLd = !isSearching
+    ? collectionPageJsonLd({
+        name: "Featured People | BookRecs",
+        description: "Discover books recommended by authors, founders, leaders, creators, and public figures with source-backed recommendation proof.",
+        url: canonicalUrl("/people"),
+        items: shown.map((p) => ({
+          name: p.name,
+          url: canonicalUrl(`/people/${p.slug}`),
+        })),
+      })
+    : null;
+
+  const breadcrumbJsonLd = !isSearching
+    ? breadcrumbListJsonLd([
+        { name: "Home", path: "/" },
+        { name: "People", path: "/people" },
+      ])
+    : null;
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
+      {collectionJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
+        />
+      )}
+      {breadcrumbJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        />
+      )}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "People" }]} />
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">People</h1>

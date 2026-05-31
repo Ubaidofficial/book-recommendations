@@ -14,11 +14,14 @@ import {
   getFallbackSeries,
 } from "@/lib/fallback";
 import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual } from "@/components";
+import { websiteJsonLd, organizationJsonLd } from "@/lib/jsonld";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const CARD_COUNT = 4;
+  const websiteSchema = websiteJsonLd();
+  const orgSchema = organizationJsonLd();
 
   let featuredBooks: Awaited<ReturnType<typeof getFeaturedBooks>> = [];
   let featuredPeople: Awaited<ReturnType<typeof getFeaturedPeople>> = [];
@@ -84,6 +87,14 @@ export default async function HomePage() {
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+      />
       <section className="py-20 md:py-28 px-4">
         <div className="max-w-3xl mx-auto text-center">
           <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-ink leading-tight mb-5 tracking-tight">

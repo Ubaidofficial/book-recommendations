@@ -5,17 +5,29 @@ import {
   searchBooksPaginated,
   getBooksByListSlugPaginated,
 } from "@/lib/data";
-import { pageMetadata } from "@/lib/seo";
+import { pageMetadata, canonicalUrl } from "@/lib/seo";
+import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
 import { BookCard, SearchBar, SortSelect, Breadcrumbs, EmptyState } from "@/components";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Browse Books",
-  description:
-    "Explore recommended books ranked by recommendation signals, lists, series, ratings, and source-backed mentions.",
-  path: "/books",
-});
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const sp = await searchParams;
+  const hasParams = !!(
+    (sp.q && sp.q.trim()) ||
+    (sp.category && sp.category.trim()) ||
+    (sp.sort && sp.sort.trim()) ||
+    (sp.page && sp.page.trim()) ||
+    (sp.scope && sp.scope.trim())
+  );
+
+  return pageMetadata({
+    title: "Browse Books",
+    description: "Explore recommended books ranked by recommendation signals, lists, series, ratings, and source-backed mentions.",
+    path: "/books",
+    robots: hasParams ? "noindex, follow" : "index, follow",
+  });
+}
 
 const PAGE_SIZE = 48;
 
@@ -113,15 +125,47 @@ export default async function BooksPage({ searchParams }: Props) {
 
   const subtitle =
     mode === "search"
-      ? `Results for "${q}"`
+      ? `Search results for "${q}"`
       : mode === "category"
         ? `Showing books in ${activeChip.label}`
         : scope === "all"
           ? "Full catalogue — includes incomplete and unreviewed entries."
           : "Curated picks — books with covers and at least one source-backed recommendation.";
 
+  const hasParams = !!(q || categoryParam || sp.sort || sp.page || sp.scope);
+  const collectionJsonLd = !hasParams
+    ? collectionPageJsonLd({
+        name: "Browse Books | BookRecs",
+        description: "Explore recommended books ranked by recommendation signals, lists, series, ratings, and source-backed mentions.",
+        url: canonicalUrl("/books"),
+        items: books.map((b) => ({
+          name: b.title,
+          url: canonicalUrl(`/books/${b.slug}`),
+        })),
+      })
+    : null;
+
+  const breadcrumbJsonLd = !hasParams
+    ? breadcrumbListJsonLd([
+        { name: "Home", path: "/" },
+        { name: "Books", path: "/books" },
+      ])
+    : null;
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
+      {collectionJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
+        />
+      )}
+      {breadcrumbJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        />
+      )}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Books" }]} />
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Browse Books</h1>

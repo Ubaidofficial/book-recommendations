@@ -62,3 +62,79 @@ export function itemListJsonLd(
     })),
   };
 }
+
+export function websiteJsonLd(): Record<string, unknown> {
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://bookrecommendations.com";
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "BookRecs",
+    "url": baseUrl,
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": {
+        "@type": "EntryPoint",
+        "urlTemplate": `${baseUrl}/books?q={search_term_string}`
+      },
+      "query-input": "required name=search_term_string"
+    }
+  };
+}
+
+export function organizationJsonLd(): Record<string, unknown> {
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://bookrecommendations.com";
+  return {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "BookRecs",
+    "url": baseUrl,
+    "logo": `${baseUrl}/logo.png`
+  };
+}
+
+export function collectionPageJsonLd({
+  name,
+  description,
+  url,
+  items,
+}: {
+  name: string;
+  description: string;
+  url: string;
+  items?: { name: string; url: string }[];
+}): Record<string, unknown> {
+  const result: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": name,
+    "description": description,
+    "url": url,
+  };
+  if (items && items.length > 0) {
+    result.mainEntity = {
+      "@type": "ItemList",
+      "numberOfItems": items.length,
+      "itemListElement": items.map((item, idx) => ({
+        "@type": "ListItem",
+        "position": idx + 1,
+        "url": item.url,
+        "name": item.name,
+      })),
+    };
+  }
+  return result;
+}
+
+export function breadcrumbListJsonLd(items: { name: string; path: string }[]): Record<string, unknown> {
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://bookrecommendations.com";
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": items.map((item, idx) => ({
+      "@type": "ListItem",
+      "position": idx + 1,
+      "name": item.name,
+      "item": `${baseUrl}${item.path}`,
+    })),
+  };
+}

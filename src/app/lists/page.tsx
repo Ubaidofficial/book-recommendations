@@ -8,16 +8,27 @@ import {
   getListBySlug,
   type BookList,
 } from "@/lib/data";
-import { pageMetadata } from "@/lib/seo";
+import { pageMetadata, canonicalUrl } from "@/lib/seo";
+import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
 import { ListCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Book Lists",
-  description: "Browse curated book lists — broad categories, fine-grained topic lists, fiction, nonfiction, and the most recommended books.",
-  path: "/lists",
-});
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const sp = await searchParams;
+  const hasParams = !!(
+    (sp.q && sp.q.trim()) ||
+    (sp.page && sp.page.trim()) ||
+    (sp.sort && sp.sort.trim())
+  );
+
+  return pageMetadata({
+    title: "Book Lists",
+    description: "Browse curated book lists — broad categories, fine-grained topic lists, fiction, nonfiction, and the most recommended books.",
+    path: "/lists",
+    robots: hasParams ? "noindex, follow" : "index, follow",
+  });
+}
 
 interface Props {
   searchParams: Promise<{ q?: string; page?: string; sort?: string }>;
@@ -213,8 +224,36 @@ export default async function ListsPage({ searchParams }: Props) {
   const fiction = fictionAll.data.filter((l) => !popularIds.has(l.id)).slice(0, 8);
   const nonfiction = nonfictionAll.data.filter((l) => !popularIds.has(l.id)).slice(0, 8);
 
+  const allCollectionLists = [...(meta ? [meta] : []), ...broad, ...popular.data];
+  const collectionJsonLd = collectionPageJsonLd({
+    name: "Book Lists | BookRecs",
+    description: "Browse curated book lists — broad categories, fine-grained topic lists, fiction, nonfiction, and the most recommended books.",
+    url: canonicalUrl("/lists"),
+    items: allCollectionLists.map((l) => ({
+      name: l.title,
+      url: canonicalUrl(`/lists/${l.slug}`),
+    })),
+  });
+
+  const breadcrumbJsonLd = breadcrumbListJsonLd([
+    { name: "Home", path: "/" },
+    { name: "Lists", path: "/lists" },
+  ]);
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
+      {collectionJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
+        />
+      )}
+      {breadcrumbJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        />
+      )}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Lists" }]} />
       <div className="mb-6">
         <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Book Lists</h1>

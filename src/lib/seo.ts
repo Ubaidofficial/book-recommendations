@@ -1,16 +1,16 @@
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookrecommendations.com";
+export const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookrecommendations.com";
 
 export function canonicalUrl(path: string): string {
   return `${BASE_URL}${path}`;
 }
 
 export function isIndexable(row: { index_status?: string } | null | undefined): boolean {
-  if (!row) return false;
-  return row.index_status === "index";
+  // Detail pages are unconditionally gated from indexation for initial launch
+  return false;
 }
 
 export function robotsDirective(row: { index_status?: string } | null | undefined): string {
-  return isIndexable(row) ? "index, follow" : "noindex, follow";
+  return "noindex, follow";
 }
 
 export function pageMetadata({

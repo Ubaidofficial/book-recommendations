@@ -1,15 +1,22 @@
 import { Metadata } from "next";
 import { getSeriesPaginated, searchSeries } from "@/lib/data";
-import { pageMetadata } from "@/lib/seo";
+import { pageMetadata, canonicalUrl } from "@/lib/seo";
+import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
 import { SeriesCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Book Series in Order",
-  description: "Explore book series and reading-order guides organized from available series data and recommendation signals.",
-  path: "/series",
-});
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const sp = await searchParams;
+  const hasParams = !!(sp.q && sp.q.trim());
+
+  return pageMetadata({
+    title: "Book Series in Order",
+    description: "Explore book series and reading-order guides organized from available series data and recommendation signals.",
+    path: "/series",
+    robots: hasParams ? "noindex, follow" : "index, follow",
+  });
+}
 
 interface Props {
   searchParams: Promise<{ q?: string }>;
@@ -28,8 +35,40 @@ export default async function SeriesPage({ searchParams }: Props) {
 
   const { data: seriesList, total } = seriesResult;
 
+  const isSearching = q && q.length >= 2;
+  const collectionJsonLd = !isSearching
+    ? collectionPageJsonLd({
+        name: "Book Series in Order | BookRecs",
+        description: "Explore book series and reading-order guides organized from available series data and recommendation signals.",
+        url: canonicalUrl("/series"),
+        items: seriesList.map((s) => ({
+          name: s.title,
+          url: canonicalUrl(`/series/${s.slug}`),
+        })),
+      })
+    : null;
+
+  const breadcrumbJsonLd = !isSearching
+    ? breadcrumbListJsonLd([
+        { name: "Home", path: "/" },
+        { name: "Series", path: "/series" },
+      ])
+    : null;
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
+      {collectionJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
+        />
+      )}
+      {breadcrumbJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+        />
+      )}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Series" }]} />
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Book Series</h1>
