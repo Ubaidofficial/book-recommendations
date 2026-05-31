@@ -44,8 +44,10 @@ type SortKey = (typeof SORT_OPTIONS)[number]["value"];
 const SORT_KEYS = new Set<string>(SORT_OPTIONS.map((s) => s.value));
 
 interface Props {
-  searchParams: Promise<{ q?: string; category?: string; sort?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; category?: string; sort?: string; page?: string; scope?: string }>;
 }
+
+type ScopeKey = "curated" | "all";
 
 function parsePage(raw: string | undefined): number {
   const n = Number.parseInt(raw || "1", 10);
@@ -57,12 +59,17 @@ function parseSort(raw: string | undefined): SortKey {
   return raw && SORT_KEYS.has(raw) ? (raw as SortKey) : "recommendation_count";
 }
 
+function parseScope(raw: string | undefined): ScopeKey {
+  return raw === "all" ? "all" : "curated";
+}
+
 /** Build a URL-encoded query string preserving current filter context, with overrides. */
-function buildQs(opts: { q?: string | null; category?: string | null; sort?: string | null; page?: number | null }) {
+function buildQs(opts: { q?: string | null; category?: string | null; sort?: string | null; page?: number | null; scope?: ScopeKey | null }) {
   const sp = new URLSearchParams();
   if (opts.q) sp.set("q", opts.q);
   if (opts.category) sp.set("category", opts.category);
   if (opts.sort && opts.sort !== "recommendation_count") sp.set("sort", opts.sort);
+  if (opts.scope && opts.scope === "all") sp.set("scope", "all");
   if (opts.page && opts.page > 1) sp.set("page", String(opts.page));
   const s = sp.toString();
   return s ? `?${s}` : "";
@@ -73,6 +80,7 @@ export default async function BooksPage({ searchParams }: Props) {
   const q = (sp.q || "").trim();
   const categoryParam = (sp.category || "").trim().toLowerCase();
   const sort: SortKey = parseSort(sp.sort);
+  const scope: ScopeKey = parseScope(sp.scope);
   const page = parsePage(sp.page);
 
   // Resolve chip — unknown values fall back to "All" so a bad URL doesn't
@@ -81,6 +89,10 @@ export default async function BooksPage({ searchParams }: Props) {
     CATEGORY_CHIPS.find((c) => c.paramSlug === categoryParam) || CATEGORY_CHIPS[0];
 
   // Choose data source by mode priority: search > category > all.
+  // - search: helper already filters to title/author_name hits, no extra quality gate
+  //   (the user's query is the quality signal).
+  // - category: the list itself is already a curated selection by definition.
+  // - all: apply `scope` (default `curated` = cover+rec>0; `all` = full catalogue).
   let result: Awaited<ReturnType<typeof getBooksPaginated>>;
   let mode: "search" | "category" | "all";
   if (q.length >= 2) {
@@ -91,7 +103,7 @@ export default async function BooksPage({ searchParams }: Props) {
     result = await getBooksByListSlugPaginated(activeChip.listSlug, page, PAGE_SIZE, sort);
   } else {
     mode = "all";
-    result = await getBooksPaginated(page, PAGE_SIZE, sort);
+    result = await getBooksPaginated(page, PAGE_SIZE, sort, scope);
   }
 
   const { data: books, total } = result;
@@ -104,7 +116,9 @@ export default async function BooksPage({ searchParams }: Props) {
       ? `Results for "${q}"`
       : mode === "category"
         ? `Showing books in ${activeChip.label}`
-        : "Discover books recommended by people you trust.";
+        : scope === "all"
+          ? "Full catalogue — includes incomplete and unreviewed entries."
+          : "Curated picks — books with covers and at least one source-backed recommendation.";
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
@@ -126,7 +140,9 @@ export default async function BooksPage({ searchParams }: Props) {
           // When a chip is clicked, we drop the page param (chip change invalidates
           // any prior page offset) and the q param (search and category are
           // separate modes; switching chip implies "browse this category fresh").
-          const href = `/books${buildQs({ category: chip.paramSlug, sort })}`;
+          // Scope is preserved so the user keeps their All-catalogue choice when
+          // toggling categories.
+          const href = `/books${buildQs({ category: chip.paramSlug, sort, scope })}`;
           return (
             <Link
               key={chip.label}
@@ -146,13 +162,38 @@ export default async function BooksPage({ searchParams }: Props) {
       </div>
 
       <div className="flex items-center justify-between gap-3 mb-6 text-sm flex-wrap">
-        <span className="text-muted">
-          {total > 0
-            ? `${total.toLocaleString()} ${total === 1 ? "book" : "books"}${
-                mode === "search" ? "" : mode === "category" ? ` in ${activeChip.label}` : ""
-              }`
-            : "No matching books"}
-        </span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-muted">
+            {total > 0
+              ? `${mode === "search" ? "~" : ""}${total.toLocaleString()} ${total === 1 ? "book" : "books"}${
+                  mode === "search" ? "" : mode === "category" ? ` in ${activeChip.label}` : scope === "all" ? " (full catalogue)" : ""
+                }`
+              : "No matching books"}
+          </span>
+          {/* Scope toggle — only shown on the all-books mode. Category and search
+              modes have their own implicit quality filter (list membership / hit
+              relevance). */}
+          {mode === "all" && (
+            <div className="inline-flex rounded-full border border-border overflow-hidden text-xs">
+              <Link
+                href={`/books${buildQs({ sort })}`}
+                prefetch={false}
+                className={`px-3 py-1 transition-colors ${scope === "curated" ? "bg-accent text-white" : "text-muted hover:text-accent"}`}
+                aria-current={scope === "curated" ? "page" : undefined}
+              >
+                Curated
+              </Link>
+              <Link
+                href={`/books${buildQs({ sort, scope: "all" })}`}
+                prefetch={false}
+                className={`px-3 py-1 transition-colors border-l border-border ${scope === "all" ? "bg-accent text-white" : "text-muted hover:text-accent"}`}
+                aria-current={scope === "all" ? "page" : undefined}
+              >
+                All
+              </Link>
+            </div>
+          )}
+        </div>
         <SortSelect
           value={sort}
           options={SORT_OPTIONS.map((s) => ({ value: s.value, label: s.label }))}
@@ -196,7 +237,7 @@ export default async function BooksPage({ searchParams }: Props) {
         >
           {hasPrev ? (
             <Link
-              href={`/books${buildQs({ q: q || null, category: activeChip.paramSlug, sort, page: page - 1 })}`}
+              href={`/books${buildQs({ q: q || null, category: activeChip.paramSlug, sort, scope, page: page - 1 })}`}
               prefetch={false}
               className="px-4 py-2 rounded-lg border border-border text-sm text-ink hover:border-accent hover:text-accent transition-colors"
             >
@@ -212,7 +253,7 @@ export default async function BooksPage({ searchParams }: Props) {
           </span>
           {hasNext ? (
             <Link
-              href={`/books${buildQs({ q: q || null, category: activeChip.paramSlug, sort, page: page + 1 })}`}
+              href={`/books${buildQs({ q: q || null, category: activeChip.paramSlug, sort, scope, page: page + 1 })}`}
               prefetch={false}
               className="px-4 py-2 rounded-lg border border-border text-sm text-ink hover:border-accent hover:text-accent transition-colors"
             >

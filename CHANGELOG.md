@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-05-31 — Browse/detail QA: search fix, curated default, similar-books quality
+
+### Root cause — search returned 0 results
+- `searchBooks` / `searchBooksPaginated` filtered on `author.ilike.…` but **`books.author` is not a column** in production. PostgREST returned `column books.author does not exist` (42703), the helper catch-path swallowed the error and returned `{data:[], total:0}`, and the page rendered "No matching books".
+- The real column is **`author_name`**. The TS `Book` type was declaring `author` based on stale schema. Combined with the now-known `book.author_slug` absence, every `book.author` read in the frontend was silently undefined.
+
+### Fixed in `src/lib/data.ts`
+- `searchBooks` and `searchBooksPaginated` now reference `author_name.ilike` in the OR clause. Verified live: `/books?q=atomic` → 7 hits (Atomic Habits top), `/books?q=habits` → 32, `/books?q=tim ferriss` → 5, `/books?q=dune` → 15.
+- `searchBooksPaginated` swapped `count:'exact'` → `count:'estimated'`. Exact count forces Postgres to scan every matching row, which blew the 8s statement timeout (`57014`) on a 99k-row ilike substring. Estimated uses planner stats — fast and accurate enough for "Showing ~N results" UX. Total label gains a `~` prefix in search mode to signal this.
+- Added `normalizeBookRow()` adapter at the data-layer edge that fills `book.author` from `book.author_name` on every fetch. Every consumer of `book.author` (BookCard, detail page, jsonld, etc.) starts working immediately without per-file changes. Idempotent. Applied in: `getBooksPaginated`, `getFeaturedBooks`, `getBookBySlug`, `getBooksByAuthor`, `getBooksBySeries`, `getRelatedBooks`, `searchBooks`, `searchBooksPaginated`, `getBooksByListSlugPaginated`, `getSimilarBooksByLists`.
+- `Book` interface gains `author_name?: string | null` (the canonical DB column). The older `author: string` field is now populated by the adapter rather than the DB.
+
+### Public browse quality — `?scope` opt-in
+- Default `/books` now filters to `cover_image_url IS NOT NULL AND recommendation_count > 0` plus a client-side drop of numeric-artifact titles (`1916.0`, `24.0`, `2001.0` — year+`.0` from the scraper). Pool size: 98,845 → **~9,148 curated books**.
+- `/books?scope=all` opt-in shows the full unfiltered catalogue, with subtitle "Full catalogue — includes incomplete and unreviewed entries."
+- A small `Curated ⏐ All` toggle pill is shown next to the count line (only on the all-books mode). Category browse and search keep their own implicit quality gate (list membership / hit relevance).
+- All href builders thread `scope` through chips, sort changes, and Prev/Next so the user's scope choice survives navigation.
+
+### Similar books — `getSimilarBooksByLists` rerank
+- Candidates now sort by quality tier first, then shared-list count, then `recommendation_count`. Tier order:
+  1. Drafts with cover (editorially-vetted)
+  2. Has-cover + `recommendation_count > 0`
+  3. Has-cover (but no recs)
+  4. Anything else (no cover) — fallback only
+- Numeric-artifact titles are dropped outright.
+- The fallback tier still contributes when the high-quality pool is thin, so Endurance won't lose its similar-books section on a long-tail topic.
+
+### Verification
+- Live probe: all four sample queries (`atomic`, `habits`, `tim ferriss`, `dune`) return hits in 1–2.5s, no timeouts.
+- `npx next build`: clean, all 7 routes, TypeScript validated.
+
+### Scope discipline
+- **Frontend + data-layer only.** No DB writes. No schema changes. No editorial-pipeline files touched. No Amazon affiliate changes.
+
 ## 2026-05-31 — Editorial batch close: Endurance fix + 21 fresh-50 v9.17.1 promotions
 
 ### Endurance description (single-row data fix)

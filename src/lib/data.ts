@@ -7,17 +7,19 @@ export interface Book {
   slug: string;
   title: string;
   subtitle: string | null;
-  // TODO(schema-mismatch): production `books` table does NOT have an `author`
-  // column — direct PostgREST `select("author")` returns
-  // `column books.author does not exist`. The author is denormalized into the
-  // `books` row via `author_name` (or sourced through `book_authors` → `people`)
-  // and these field names diverge from the TS type. Pages currently read
-  // `book.author` and tolerate undefined; rendering still works because the
-  // book detail page guards on truthiness. Reconcile by either (a) renaming the
-  // TS field to `author_name` to match the DB, or (b) adding a view that
-  // exposes `author` as a generated column. Do not fix ad-hoc — pick one path
-  // and migrate consumers together.
+  // SCHEMA NOTE: production `books` table stores the display author in
+  // `author_name` (NOT `author`). Direct PostgREST `select("author")` fails
+  // with `column books.author does not exist`. `select("*")` returns
+  // `author_name` and leaves `book.author` undefined. We normalize at the
+  // data-layer edge: every fetch helper here pipes rows through
+  // `normalizeBookRow` which fills `book.author` from `book.author_name`
+  // so the rest of the app (BookCard, detail page, search filter, jsonld)
+  // can keep reading `book.author`. `author_slug` is not in the schema
+  // either — pages that link via `/people/${book.author_slug}` will produce
+  // dead links and are guarded on truthiness; deferred to a coordinated
+  // people-relations cleanup.
   author: string;
+  author_name?: string | null;       // canonical column name from the DB
   author_slug: string;
   cover_image_url: string;
   amazon_url?: string | null;
@@ -103,12 +105,53 @@ function logQueryError(label: string, error: unknown) {
   console.error(`[data] Supabase error in ${label}:`, error);
 }
 
+// --- Row normalization ---
+// Production `books` carries `author_name` but the rest of the codebase reads
+// `book.author`. We fill `book.author` from `book.author_name` at the data-layer
+// edge so consumers don't need to know about the discrepancy. Idempotent; if
+// `author` is already set we leave it. Applied to every fetch helper below.
+function normalizeBookRow<T extends Partial<Book>>(row: T | null | undefined): T | null {
+  if (!row) return null;
+  const r = row as Record<string, unknown>;
+  if ((!r.author || (typeof r.author === "string" && !r.author.trim())) && typeof r.author_name === "string" && r.author_name.trim()) {
+    r.author = r.author_name;
+  }
+  return row;
+}
+function normalizeBookRows<T extends Partial<Book>>(rows: T[] | null | undefined): T[] {
+  if (!rows) return [];
+  for (const r of rows) normalizeBookRow(r);
+  return rows;
+}
+
+// Numeric-artifact title detector. Production has rows like `1916.0`, `24.0`,
+// `2001.0` — year+`.0` leakage from the scraper that produced bad titles. These
+// are never useful in a recommendation context.
+const NUMERIC_TITLE_ARTIFACT = /^\s*\d{1,5}(\.\d+)?\s*$/;
+function isNumericTitleArtifact(t: string | null | undefined): boolean {
+  return !!t && NUMERIC_TITLE_ARTIFACT.test(t);
+}
+
 // --- Books ---
 
+/**
+ * Paginated all-books browse.
+ *
+ * `scope='curated'` (default) — filter to books with `cover_image_url` populated
+ *   AND `recommendation_count > 0`. Roughly ~9,148 / 98,845 today. This is the
+ *   default for /books because this is a recommendation site: anything without
+ *   a cover or without at least one source-backed recommendation is a poor
+ *   starting page. Numeric-only title artifacts (`1916.0`, `24.0` etc.) are
+ *   filtered out client-side after fetch.
+ * `scope='all'` — full 98,845-row catalogue, no quality filter. Opt-in via
+ *   /books?scope=all when someone wants to see everything (e.g. data-quality
+ *   triage).
+ */
 export async function getBooksPaginated(
   page = 1,
   pageSize = 24,
-  sort: "recommendation_count" | "rating" | "title" = "recommendation_count"
+  sort: "recommendation_count" | "rating" | "title" = "recommendation_count",
+  scope: "curated" | "all" = "curated"
 ): Promise<PaginatedResult<Book>> {
   try {
     const from = (page - 1) * pageSize;
@@ -116,16 +159,28 @@ export async function getBooksPaginated(
     const col = sort === "title" ? "title" : sort;
     const asc = sort === "title";
 
-    // count: 'exact' returns the REAL catalogue total in `count` — previously this
-    // returned `data.length` (the page slice), which made pagination math impossible.
-    const { data, count, error } = await getSupabase()
+    let q = getSupabase()
       .from("books")
       .select("*", { count: "exact" })
-      .order(col, { ascending: asc, nullsFirst: false })
-      .range(from, to);
+      .order(col, { ascending: asc, nullsFirst: false });
+
+    if (scope === "curated") {
+      q = q
+        .not("cover_image_url", "is", null)
+        .neq("cover_image_url", "")
+        .gt("recommendation_count", 0);
+    }
+
+    const { data, count, error } = await q.range(from, to);
 
     if (error) { logQueryError("getBooksPaginated", error); return { data: [], total: 0, page, pageSize }; }
-    return { data: data || [], total: count || 0, page, pageSize };
+    let rows = (data || []) as Book[];
+    // Drop numeric-artifact titles from the curated default (cheap client-side
+    // post-filter; production has only a handful and our window is 48 rows).
+    if (scope === "curated") {
+      rows = rows.filter((b) => !isNumericTitleArtifact(b.title));
+    }
+    return { data: normalizeBookRows(rows), total: count || 0, page, pageSize };
   } catch (e) {
     logQueryError("getBooksPaginated", e);
     return { data: [], total: 0, page, pageSize };
@@ -141,7 +196,7 @@ export async function getFeaturedBooks(count = 6): Promise<Book[]> {
       .limit(count);
 
     if (error) { logQueryError("getFeaturedBooks", error); return []; }
-    return data || [];
+    return normalizeBookRows((data || []) as Book[]);
   } catch (e) {
     logQueryError("getFeaturedBooks", e);
     return [];
@@ -157,7 +212,7 @@ export async function getBookBySlug(slug: string): Promise<Book | null> {
       .single();
 
     if (error) { logQueryError("getBookBySlug", error); return null; }
-    return data;
+    return normalizeBookRow(data as Book | null);
   } catch (e) {
     logQueryError("getBookBySlug", e);
     return null;
@@ -173,7 +228,7 @@ export async function getBooksByAuthor(personId: string, limit = 12): Promise<Bo
       .limit(limit);
 
     if (error) { logQueryError("getBooksByAuthor", error); return []; }
-    return (rows || []).map((r: { books: unknown }) => r.books as Book).filter((b: Book) => b != null && b.id);
+    return normalizeBookRows((rows || []).map((r: { books: unknown }) => r.books as Book).filter((b: Book) => b != null && b.id));
   } catch (e) {
     logQueryError("getBooksByAuthor", e);
     return [];
@@ -190,7 +245,7 @@ export async function getBooksBySeries(seriesId: string, limit = 48): Promise<Bo
       .limit(limit);
 
     if (error) { logQueryError("getBooksBySeries", error); return []; }
-    return (rows || []).map((r: { books: unknown }) => r.books as Book).filter((b: Book) => b != null && b.id);
+    return normalizeBookRows((rows || []).map((r: { books: unknown }) => r.books as Book).filter((b: Book) => b != null && b.id));
   } catch (e) {
     logQueryError("getBooksBySeries", e);
     return [];
@@ -210,7 +265,7 @@ export async function getRelatedBooks(
       .limit(limit);
 
     if (error) { logQueryError("getRelatedBooks", error); return []; }
-    return data || [];
+    return normalizeBookRows((data || []) as Book[]);
   } catch (e) {
     logQueryError("getRelatedBooks", e);
     return [];
@@ -273,17 +328,36 @@ export async function getSimilarBooksByLists(bookId: string, limit = 8): Promise
       .in("id", topCandidateIds);
     if (bookErr) { logQueryError("getSimilarBooksByLists[books]", bookErr); return []; }
 
-    const enriched = ((books || []) as Book[])
+    // Rank candidates by quality tier, then within tier by shared-list count
+    // and rec_count. Tier order: (1) drafts with cover, (2) has-cover + rec>0,
+    // (3) has-cover, (4) anything else (no cover). Numeric-artifact titles are
+    // dropped outright. The fallback (tier 4) only contributes if higher tiers
+    // can't fill the limit — so Endurance won't show no-cover junk next to
+    // proper recs unless the topical pool really is that thin.
+    type Enriched = { b: Book; shared: number; tier: number };
+    const enriched: Enriched[] = ((books || []) as Book[])
       .filter((b) => b != null && !!b.id)
-      .map((b) => ({ b, shared: sharedCount.get(b.id) || 0 }))
-      .sort((a, b) => {
-        if (a.shared !== b.shared) return b.shared - a.shared;
-        const ra = typeof a.b.recommendation_count === "number" ? a.b.recommendation_count : 0;
-        const rb = typeof b.b.recommendation_count === "number" ? b.b.recommendation_count : 0;
-        return rb - ra;
+      .filter((b) => !isNumericTitleArtifact(b.title))
+      .map((b) => {
+        const hasCover = !!b.cover_image_url && /^https?:\/\//.test(b.cover_image_url);
+        const isDraft = (b.ai_quality_status || "").toLowerCase() === "draft";
+        const hasRec = typeof b.recommendation_count === "number" && b.recommendation_count > 0;
+        let tier = 4;
+        if (hasCover && isDraft) tier = 1;
+        else if (hasCover && hasRec) tier = 2;
+        else if (hasCover) tier = 3;
+        return { b, shared: sharedCount.get(b.id) || 0, tier };
       });
 
-    return enriched.slice(0, limit).map((x) => x.b);
+    enriched.sort((a, b) => {
+      if (a.tier !== b.tier) return a.tier - b.tier;       // lower tier wins
+      if (a.shared !== b.shared) return b.shared - a.shared;
+      const ra = typeof a.b.recommendation_count === "number" ? a.b.recommendation_count : 0;
+      const rb = typeof b.b.recommendation_count === "number" ? b.b.recommendation_count : 0;
+      return rb - ra;
+    });
+
+    return normalizeBookRows(enriched.slice(0, limit).map((x) => x.b));
   } catch (e) {
     logQueryError("getSimilarBooksByLists", e);
     return [];
@@ -1236,15 +1310,18 @@ export async function searchBooks(q: string, limit = 8): Promise<Book[]> {
   if (!q || q.length < 2) return [];
   try {
     const pattern = `%${q}%`;
+    // FIX: production has `author_name`, not `author`. The previous `author.ilike`
+    // OR-clause referenced a non-existent column, causing PostgREST to return
+    // `column books.author does not exist` (42703) and the catch path to return [].
     const { data, error } = await getSupabase()
       .from("books")
       .select("*")
-      .or(`title.ilike.${pattern},author.ilike.${pattern}`)
-      .order("recommendation_count", { ascending: false })
+      .or(`title.ilike.${pattern},author_name.ilike.${pattern}`)
+      .order("recommendation_count", { ascending: false, nullsFirst: false })
       .limit(limit);
 
     if (error) { logQueryError("searchBooks", error); return []; }
-    return data || [];
+    return normalizeBookRows((data || []) as Book[]);
   } catch (e) {
     logQueryError("searchBooks", e);
     return [];
@@ -1252,9 +1329,17 @@ export async function searchBooks(q: string, limit = 8): Promise<Book[]> {
 }
 
 /**
- * Paginated title/author search used by /books. Returns true `total` via
- * count:'exact' so the Browse page can compute page count instead of capping
- * at the first slice.
+ * Paginated title/author search used by /books?q=...
+ *
+ * Two fixes vs the previous version:
+ *   1) Filter column is `author_name` (real DB column), not `author` — that 42703
+ *      error was the entire reason "/books?q=atomic" returned "No matching books".
+ *   2) `count: 'estimated'` instead of `'exact'`. Exact count forces Postgres to
+ *      scan every matching row to give a precise total; on a 99k-row table with
+ *      ilike substring patterns this consistently breached the 8s statement
+ *      timeout (verified via direct probe: `or(...).ilike` + `count:'exact'`
+ *      → 57014 statement timeout). Estimated uses the planner's stats — fast
+ *      and accurate enough for "Showing N of ~M" UX.
  */
 export async function searchBooksPaginated(
   q: string,
@@ -1272,13 +1357,13 @@ export async function searchBooksPaginated(
 
     const { data, count, error } = await getSupabase()
       .from("books")
-      .select("*", { count: "exact" })
-      .or(`title.ilike.${pattern},author.ilike.${pattern}`)
+      .select("*", { count: "estimated" })
+      .or(`title.ilike.${pattern},author_name.ilike.${pattern}`)
       .order(col, { ascending: asc, nullsFirst: false })
       .range(from, to);
 
     if (error) { logQueryError("searchBooksPaginated", error); return { data: [], total: 0, page, pageSize }; }
-    return { data: data || [], total: count || 0, page, pageSize };
+    return { data: normalizeBookRows((data || []) as Book[]), total: count || 0, page, pageSize };
   } catch (e) {
     logQueryError("searchBooksPaginated", e);
     return { data: [], total: 0, page, pageSize };
@@ -1386,7 +1471,7 @@ export async function getBooksByListSlugPaginated(
     const total = allBooks.length;
     const from = (page - 1) * pageSize;
     const to = from + pageSize;
-    return { data: allBooks.slice(from, to), total, page, pageSize };
+    return { data: normalizeBookRows(allBooks.slice(from, to)), total, page, pageSize };
   } catch (e) {
     logQueryError("getBooksByListSlugPaginated", e);
     return { data: [], total: 0, page, pageSize };
