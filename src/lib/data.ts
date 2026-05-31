@@ -7,6 +7,16 @@ export interface Book {
   slug: string;
   title: string;
   subtitle: string | null;
+  // TODO(schema-mismatch): production `books` table does NOT have an `author`
+  // column — direct PostgREST `select("author")` returns
+  // `column books.author does not exist`. The author is denormalized into the
+  // `books` row via `author_name` (or sourced through `book_authors` → `people`)
+  // and these field names diverge from the TS type. Pages currently read
+  // `book.author` and tolerate undefined; rendering still works because the
+  // book detail page guards on truthiness. Reconcile by either (a) renaming the
+  // TS field to `author_name` to match the DB, or (b) adding a view that
+  // exposes `author` as a generated column. Do not fix ad-hoc — pick one path
+  // and migrate consumers together.
   author: string;
   author_slug: string;
   cover_image_url: string;

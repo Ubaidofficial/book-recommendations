@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-05-31 — Editorial batch close: Endurance fix + 21 fresh-50 v9.17.1 promotions
+
+### Endurance description (single-row data fix)
+- `endurance-alfred-lansing` description rebuilt from **117 → 232 chars** (Wikipedia REST extract, source-backed, verbatim with leading-whitespace trim). Complete-draft threshold is description length ≥ 120.
+- Confidence: 100% — title + author + year (1959) match Wikipedia REST API summary and Open Library work `OL874157W` / `OL874159W` independently.
+- Before fix: 76 / 77 drafts complete. After fix: **77 / 77** drafts complete.
+- Description-only PATCH. `ai_quality_status` remained `draft`. All editorial fields, title, subtitle, slug, cover, amazon_url, and recommendations were untouched (tamper-check confirmed 0 fields changed). No AI used.
+- Backup: `rebuild_v2/single_row_endurance_description_backup_2026-05-31T00-05-12-628Z.json`.
+- Write report: `rebuild_v2/single_row_endurance_description_report_2026-05-31T00-05-12-628Z.json`.
+
+### Fresh-50 v9.17.1 dry-run @ DeepSeek `deepseek-v4-pro` concurrency=2
+- 50 rows processed (coverage 50/50, no drops).
+- **21 accepted** (`dry_run_update`, scores 4.70–4.83 — at or above the 4.70 accept floor; floor unchanged).
+- **24 weak** (below accept threshold; score range 4.27–4.68).
+- **4 validator-rejected**: `atomic-habits-james-clear` (`unsupported_format_claim_prompts`), `just-mercy-bryan-stevenson` (`unsupported_format_claim_course`), `the-gene-siddhartha-mukherjee` (`unsupported_proof_or_prestige_claim_foundational`), `stumbling-on-happiness-daniel-todd-gilbert` (`quality_below_threshold; score=3.89`).
+- **1 provider timeout**: `a-tale-of-two-cities-charles-dickens`.
+- **Timeout rate: 2.0 %** (1 / 50).
+- **Concurrency=2 remains the recommended setting** for DeepSeek v4 pro at scale. Concurrency=5 produced the ~40 % timeout cliff in earlier cycles; concurrency=2 has stayed at 0–2 % across v9.16, v9.17, and v9.17.1.
+- Dry-run report: `rebuild_v2/editorial_fresh50_v9_17_1_next_dry_run_v1.csv`.
+
+### Live promote of the 21 accepts
+- Triple-gated promote path used: `--write --confirm-promote-accepted --backup-before-write`. Pointed at the dry-run CSV directly so the script reads `recommended_action=accept_candidate` rows.
+- Promote summary: `rows_read=50, accept_candidate=21, promoted=21, would_promote=0, skipped=0, failed=0`.
+- **No AI calls during promote** — confirmed in script log (`[promote] NO AI CALLS WERE MADE.`).
+- Per-row backup snapshot before write: `backups/editorial_fresh50_v9_17_1_next_pre_v1.csv`.
+- Post-write verification: 21 / 21 flipped to `ai_quality_status='draft'`; 21 / 21 carry full editorial payload (`editorial_summary` + `best_for` + `not_for` + `key_themes` + `difficulty_level`).
+- **Live draft count: 77 → 98** (Endurance fix raised 76→77, then +21 promote → 98).
+
+### Scope discipline
+- **No schema changes. No frontend changes. No editorial-script changes during promote.**
+- `scripts/generate_book_editorial_enrichment.py` unchanged from `31744db` (v9.17.1).
+- Quality floor unchanged (4.70 accept threshold).
+- Audit artifacts in `rebuild_v2/` and `backups/` are intentionally not tracked — they're per-run audit trails, not source.
+
+### Type-only note (no behavior change, kept intentional)
+- `src/lib/data.ts` — added a TODO comment in the `Book` interface flagging that production `books` does NOT carry an `author` column. PostgREST `select("author")` returns `column books.author does not exist`; author info lives in `author_name` and/or via `book_authors` → `people`. Comment names two reconcile paths (rename the TS field, or expose `author` via a generated-column view) and explicitly defers to a coordinated migration. Pure documentation — pages continue to read `book.author` and tolerate undefined as before.
+
 ## 2026-05-31 — Browse Books page: real pagination, category chips, sort, search
 
 ### Root cause (before)
