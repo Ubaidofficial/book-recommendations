@@ -1,5 +1,69 @@
 # Changelog
 
+## 2026-05-31 — GPT-5 mini fresh133 promote (205 → 273) + pool exhaustion finding
+
+### GPT-5 mini fresh133 dry run (rec_count 0–1)
+- Target batch was 200; pool exhaustion capped it at 133 valid strict-filter candidates (details below).
+- **68 / 133 accepted = 51.1%** — essentially identical to the prior 100-row test (50/100 = 50.0%).
+- **0 JSON parse failures · 0 errors · 0 timeouts** across all 133 rows (consistent with the 250 prior rows GPT-5 mini has now processed across all scales).
+- Runtime ~20 min @ conc=10. Cost ~$0.63.
+- rec_count distribution in pool: **rec=1: 5 books (4 accepted = 80%) · rec=0: 128 books (64 accepted = 50.0%)**.
+- **GPT-5 mini is stable at scale and remarkably tier-robust** — holds ≥50% accept even on books with zero source recommendations (description-only context).
+- Score distribution: min 4.20, median 4.72, max 4.91.
+
+### Pool exhaustion finding (scaling bottleneck identified)
+The 200-row build attempt revealed that the clean strict-filter pool for fresh editorial work is now nearly empty after 205 prior drafts + 381 prior pilot/test IDs:
+- **Pool scanned: 30,000 books** (paginated from the rec_count-sorted catalogue)
+- **no-cover rejects: 29,500 (98.3 %)** ← dominant constraint
+- short_desc rejects: 61
+- bad_title rejects: 3
+- bad_desc rejects: 1
+- already-excluded (drafts + prior pilots): 300
+- slug-dup drops: 2
+- **Valid strict-filter candidates: 133** (target was 200)
+- Range: rec_count 0–1; 96 % of the 133 valid candidates have rec_count = 0 (zero source recommendations).
+
+The bottleneck is **not** the model anymore — GPT-5 mini handles zero-rec books fine. It's that 98 % of the remaining unprocessed catalogue lacks cover URLs, and the strict filter (cover present + description ≥180 chars) screens almost all of them out. Any 500+ batch will hit this wall hard.
+
+### Validator behaviour on fresh133
+- Hard-trust catches: **6** (encyclopedia-of-cryptography `source_overclaim_proof`, 50-artists-you-should-know `proven`, alcestis `classic`, algorithms-unlocked `source_overclaim_proof`, atlas-of-human-anatomy `medical_or_research_claim_therapy`, cleopatra `source_overclaim_famous`). All real — first medical-claim catch this cycle.
+- `format_claim_prompts` cluster persisted: **7 / 133 (≈5.3 %)** — similar share to the 100-row test (8/100 = 8 %). All hits are real catches on books where GPT-5 mini phrases editorial as "writing prompts" / "reflection prompts" / etc. Candidate for a future v9.19 context-aware carveout.
+
+### Live promote — 68 fresh133 accepts → drafts
+- Filtered to pending-only: 68 unique slugs, 0 already drafted, 0 overwrites.
+- Triple-gated: `--write --confirm-promote-accepted --backup-before-write`.
+- Promote summary: `rows_read=68, accept_candidate=68, promoted=68, would_promote=0, skipped=0, failed=0`.
+- **`NO AI CALLS WERE MADE`** — confirmed in log.
+- Backup snapshot: `backups/editorial_gpt5_mini_fresh133_pre_v1.csv` (68 rows captured pre-write).
+
+### Post-write verification
+- Found in DB: 68 / 68.
+- Flipped to `ai_quality_status='draft'`: 68 / 68.
+- Full editorial payload (summary + best_for + not_for + key_themes + difficulty_level): 68 / 68.
+- Duplicate slugs in DB: 0.
+- **Live draft total: 205 → 273 (+68).**
+
+### Cumulative session trajectory
+```
+77  → 98   → 114  → 144  → 194  → 205  → 273
+ +21    +16    +30    +50    +11    +68
+(next-1 (next-2 (mini-  (mini-  (nano-  (mini-
+ DS)    DS)    fresh) fresh100) only)  fresh133)
+```
+**+196 net-new drafts today**, model lineup: DeepSeek v4 pro → GPT-5 mini (primary) + GPT-5.4 nano (cleanup candidate).
+
+### Current recommendation
+- **GPT-5 mini remains primary.** Two scaling tests at 50% accept rate, zero JSON / errors / timeouts across 250 rows, clean trust-gate behaviour, $0.0048 per book.
+- **GPT-5.4 nano remains cleanup candidate.** 26 % standalone accept rate is too low to elevate as primary; +11 nano-only accepts per 100 mini-rows is real recovery value to deploy when scaling.
+- **Pause larger 500 / 1k batches until cover-recovery / data-coverage strategy is planned.** The catalogue's strict-filter pool is exhausted at scale; running a 500-row build today would yield ~133 valid rows at best (same constraint, deeper-pool diminishing returns). Cover-recovery is the next phase that unblocks scaling.
+
+### Scope discipline
+- No schema changes. No frontend changes. No editorial-script changes (v9.18 still at `403efd1`).
+- 4.70 accept threshold unchanged. Prestige/source/medical gates intact and firing (medical catch on Netter's Atlas is the first this cycle).
+- `.env.local` (carries `OPENROUTER_API_KEY`) gitignored.
+- All dry-run reports, promote-preview CSVs, backup CSVs in untracked `rebuild_v2/` and `backups/` — not committed.
+- No nano cleanup launched. No cover-recovery work started.
+
 ## 2026-05-31 — GPT mini + nano fresh100 union promote (144 → 205 drafts)
 
 ### GPT-5 mini fresh100 dry run (rec_count 0–1, deepest tail tested)
