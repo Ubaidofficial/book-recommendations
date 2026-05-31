@@ -1,5 +1,69 @@
 # Changelog
 
+## 2026-05-31 — Amazon ASIN cover backfill (1,161 → 10,248 real-URL covers)
+
+### Background — why this was needed
+After 273 drafts the strict editorial-candidate pool was effectively exhausted. The recovery-audit (logged in prior commit) discovered that the *real* bottleneck wasn't catalogue exhaustion — it was that 96.8% of the `books.cover_image_url` column contained broken filenames (e.g. `"The Way of Kings.png"`) rather than usable URLs. Only 1,161 of 98,845 books had genuine `https://` cover URLs. Every book has an `amazon_url` carrying an ASIN, so Amazon's image CDN was the available recovery vector.
+
+### Preview phase (Phase 1.a, 2k cap then Phase 1.b full)
+- Candidate set: `cover_image_url` not a real URL + `amazon_url` present + `description >= 180` + `ai_quality_status='pending'` + slug-deduped.
+- Phase 1.a (cap 2,000): **79.9% safe rate** confirmed the approach worked.
+- Phase 1.b (full pool, 12,277 candidates): **9,087 safe / 12,277 = 74.0%**.
+- HEAD-only requests to `https://images-na.ssl-images-amazon.com/images/P/{ASIN}.01._SX300_.jpg`. No page scraping. No paid APIs.
+- Safety threshold: `status=200` AND `content-type` starts with `image/` AND `content-length >= 5,000` (5k bytes filters out the 43-byte Amazon "no image" placeholder GIF and the 3–5KB low-resolution variants).
+- Failures bucketed: 2,491 low-res variants (3–5KB), 470 placeholder GIFs (<100 bytes), 225 small (1–3KB), 2 tiny (100–999), 1 status_404, 1 ASIN extraction failure.
+- ASIN extraction success: 99.99% (12,276/12,277). HEAD reachability: 99.98%.
+
+### Write phase — gated cover update
+- New single-purpose script: `rebuild_v2/_cover_backfill_amazon_write.js`. NOT committed (lives in untracked `rebuild_v2/` per audit-artifact convention).
+- **Triple gates** enforced at script startup:
+  - `--write` — required to perform any UPDATE
+  - `--confirm-cover-backfill` — required when `--write` is present
+  - `--backup-before-write <PATH>` — required when `--write` is present
+- **Single-column update**: payload is literally `{ cover_image_url: <url> }` — never any other column.
+- **Idempotency re-check at write time**: for every candidate, refetches the current DB `cover_image_url` and skips if it already starts with `http://` or `https://`. Result: 0 skips for `already_has_real_url` (none of the 9,087 candidates had been touched between preview and write).
+- **Pre-write backup**: 9,087 `(id, slug, pre_write_cover_image_url)` rows captured before any UPDATE statement to `backups/cover_backfill_amazon_asin_pre_v1.csv`. Backup contains the original broken filename values, e.g. `"Stegothesaurus.png"`, `"Berlin Game.png"`.
+- Wall-clock: 241 seconds for 9,087 single-row updates (batch=200, retries on Supabase fetch transients).
+
+### Live write result
+```
+mode                : LIVE WRITE
+rows_read           : 12277
+safe_to_write=true  : 9087
+already_has_real_url: 0   ← no overwrites
+not_found_in_db     : 0
+updated             : 9087
+failed              : 0
+```
+
+### Post-write verification
+- Real https covers in DB: **1,161 → 10,248** (exactly +9,087).
+- 20/20 sampled cover URLs HEAD-checked live post-write: all 200 OK, all 5,251–8,835 bytes.
+- 5/5 sampled rows: editorial_summary, best_for, not_for, key_themes, difficulty_level all still NULL — only `cover_image_url` changed.
+- Live draft total: 273 (unchanged).
+- Live pending total: 98,572 (unchanged).
+
+### Scope discipline
+- Only `cover_image_url` modified. No editorial fields touched. No schema changes. No frontend changes. No editorial-script changes.
+- No commits during the run. Backup, write report, and run log all in untracked `rebuild_v2/` and `backups/`.
+- Quality gates (4.70 accept threshold, v9.18 validators) untouched — this was data-coverage work, not editorial work.
+
+### Files generated (untracked, audit-only)
+- `rebuild_v2/_cover_backfill_amazon_preview.js` — 2k preview script
+- `rebuild_v2/_cover_backfill_amazon_preview_full.js` — full preview script
+- `rebuild_v2/_cover_backfill_amazon_write.js` — gated write script
+- `rebuild_v2/cover_backfill_amazon_asin_preview_2k_v1.csv` — 2k preview output
+- `rebuild_v2/cover_backfill_amazon_asin_preview_full_v1.csv` — full preview output (12,277 rows × 12 cols)
+- `rebuild_v2/cover_backfill_amazon_asin_write_report_v1.csv` — write report (status per row)
+- `rebuild_v2/cover_backfill_amazon_asin_write_run_v1.log` — write run log
+- `backups/cover_backfill_amazon_asin_pre_v1.csv` — pre-write snapshot (rollback source for all 9,087 rows)
+
+### Impact on editorial scaling
+- Strict editorial candidate pool went from ~1,038 fresh books (after 273 drafts) to **~10,120 fresh books** (1,306 real-cover ∩ desc≥180, minus 273 drafts, plus 9,087 newly-covered).
+- **~18× growth** in addressable editorial scope without lowering any quality threshold or weakening any validator.
+- Next step: rerun the GPT-5 mini candidate builder against the newly-expanded pool and resume dry-run scaling. At 50% accept rate this unlocks ~5,000+ net-new drafts at ~$50 in editorial generation cost.
+- Remaining ~3,190 books whose Amazon image was low-resolution / placeholder are not lost — a future cycle can try other Amazon image-template sizes (`_SX450_`, `_SCRMZZZZZZZ_`) before falling back to "no cover" classification.
+
 ## 2026-05-31 — GPT-5 mini fresh133 promote (205 → 273) + pool exhaustion finding
 
 ### GPT-5 mini fresh133 dry run (rec_count 0–1)
