@@ -87,7 +87,7 @@ export default async function BookDetailPage({ params }: Props) {
   try {
     [authorBooks, seriesBooks, rawProof, lists, listSimilarBooks] = await Promise.all([
       personId ? getBooksByAuthor(personId, 6) : Promise.resolve([]),
-      seriesId ? getBooksBySeries(seriesId, 6) : Promise.resolve([]),
+      seriesId ? getBooksBySeries(seriesId, 100) : Promise.resolve([]),
       getRecommendationProof(book.id, 6),
       getListsForBook(book.id, 8),
       getSimilarBooksByLists(book.id, 12),
@@ -285,17 +285,78 @@ export default async function BookDetailPage({ params }: Props) {
             </p>
           )}
 
-          {hasSeries && (
-            <Link
-              href={`/series/${book.series_slug}`}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-subtle text-sm text-ink hover:bg-accent-light transition-colors mb-4"
-            >
-              <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-              Part of <span className="font-medium">{displayTitle(book.series)}</span>
-            </Link>
-          )}
+          {hasSeries && safeSeriesBooks.length > 0 && (() => {
+            const currentIndex = safeSeriesBooks.findIndex((b) => b.id === book.id);
+            if (currentIndex === -1) return null;
+            const position = currentIndex + 1;
+            const total = safeSeriesBooks.length;
+            const prevBook = currentIndex > 0 ? safeSeriesBooks[currentIndex - 1] : null;
+            const nextBook = currentIndex < total - 1 ? safeSeriesBooks[currentIndex + 1] : null;
+            const firstBook = safeSeriesBooks[0];
+            const isNotFirst = currentIndex > 0;
+
+            return (
+              <div className="flex flex-col gap-3 p-4 rounded-xl border border-border bg-subtle/25 mb-5 max-w-xl">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    <span className="text-sm font-semibold text-ink">
+                      Book {position} of {total} in{" "}
+                      <Link href={`/series/${book.series_slug}`} className="text-accent hover:underline">
+                        {displayTitle(book.series!)}
+                      </Link>
+                    </span>
+                  </div>
+                  {isNotFirst && firstBook && (
+                    <Link
+                      href={`/books/${firstBook.slug}`}
+                      className="text-xs font-bold text-accent hover:text-accent/80 flex items-center gap-1 bg-accent-light px-2 py-1 rounded"
+                    >
+                      Start series here
+                    </Link>
+                  )}
+                </div>
+
+                {(prevBook || nextBook) && (
+                  <div className="grid grid-cols-2 gap-4 border-t border-border/40 pt-3 text-xs">
+                    {prevBook ? (
+                      <Link
+                        href={`/books/${prevBook.slug}`}
+                        className="group flex flex-col gap-0.5 text-left hover:opacity-85"
+                      >
+                        <span className="text-muted font-medium flex items-center gap-1 group-hover:text-accent">
+                          ← Previous Book
+                        </span>
+                        <span className="font-semibold text-ink truncate max-w-full">
+                          {displayBookTitle(prevBook.title)}
+                        </span>
+                      </Link>
+                    ) : (
+                      <div />
+                    )}
+
+                    {nextBook ? (
+                      <Link
+                        href={`/books/${nextBook.slug}`}
+                        className="group flex flex-col gap-0.5 text-right hover:opacity-85"
+                      >
+                        <span className="text-muted font-medium flex items-center justify-end gap-1 group-hover:text-accent">
+                          Next Book →
+                        </span>
+                        <span className="font-semibold text-ink truncate max-w-full block">
+                          {displayBookTitle(nextBook.title)}
+                        </span>
+                      </Link>
+                    ) : (
+                      <div />
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {book.amazon_url && (
             <div className="mb-6">
@@ -678,16 +739,28 @@ export default async function BookDetailPage({ params }: Props) {
       })()}
 
       {/* Series Context */}
-      {hasSeries && safeSeriesBooks.length > 0 && (
-        <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">More from {displayTitle(book.series!)}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
-            {safeSeriesBooks.filter((b) => b.id !== book.id).map((b) => (
-              <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} />
-            ))}
-          </div>
-        </section>
-      )}
+      {hasSeries && safeSeriesBooks.length > 0 && (() => {
+        const currentIndex = safeSeriesBooks.findIndex((b) => b.id === book.id);
+        const prevBookId = currentIndex > 0 ? safeSeriesBooks[currentIndex - 1]?.id : null;
+        const nextBookId = currentIndex < safeSeriesBooks.length - 1 ? safeSeriesBooks[currentIndex + 1]?.id : null;
+
+        const bottomSeriesBooks = safeSeriesBooks.filter(
+          (b) => b.id !== book.id && b.id !== prevBookId && b.id !== nextBookId
+        ).slice(0, 6);
+
+        if (bottomSeriesBooks.length === 0) return null;
+
+        return (
+          <section className="mb-14">
+            <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">More from {displayTitle(book.series!)}</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
+              {bottomSeriesBooks.map((b) => (
+                <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} />
+              ))}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Also By Author */}
       {safeAuthorBooks.filter((b) => b.id !== book.id).length > 0 && (
