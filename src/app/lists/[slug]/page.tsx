@@ -48,7 +48,6 @@ export default async function ListDetailPage({ params }: Props) {
     console.warn(`[list=${list.slug}] title-hygiene filter removed all ${booksRaw.length} rows — falling back to raw set`);
   }
   const books = (filtered.length > 0 ? filtered : repaired).slice(0, 48);
-  console.log(`[list=${list.slug} id=${list.id} kind=${kind}] booksRaw=${booksRaw.length} filtered=${filtered.length} shown=${books.length}`);
 
   const jsonld = itemListJsonLd(list, books);
   const displayName = displayListTitle(list.title, list.slug);

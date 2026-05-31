@@ -39,8 +39,6 @@ export default async function HomePage() {
 
   const books = (() => {
     if (featuredBooks.length > 0) {
-      const withCovers = featuredBooks.filter(b => b.cover_image_url && /^https?:\/\//i.test(b.cover_image_url));
-      console.log(`[homepage] Popular Books: ${featuredBooks.length} rows, ${withCovers.length} with valid covers`);
       return featuredBooks;
     }
     console.warn("[homepage] FALLBACK_BOOKS: zero rows returned from Supabase books query");
@@ -48,7 +46,6 @@ export default async function HomePage() {
   })();
   const people = (() => {
     if (featuredPeople.length > 0) {
-      console.log(`[homepage] Featured People: ${featuredPeople.length} rows`);
       return featuredPeople;
     }
     console.warn("[homepage] FALLBACK_PEOPLE: zero rows returned from Supabase people query");
@@ -56,7 +53,6 @@ export default async function HomePage() {
   })();
   const lists = (() => {
     if (featuredLists.length > 0) {
-      console.log(`[homepage] Popular Lists: ${featuredLists.length} rows`);
       return featuredLists;
     }
     console.warn("[homepage] FALLBACK_LISTS: zero rows returned from Supabase lists query");
@@ -64,7 +60,6 @@ export default async function HomePage() {
   })();
   const series = (() => {
     if (featuredSeries.length > 0) {
-      console.log(`[homepage] Popular Series: ${featuredSeries.length} rows`);
       return featuredSeries;
     }
     console.warn("[homepage] FALLBACK_SERIES: zero rows returned from Supabase series query");

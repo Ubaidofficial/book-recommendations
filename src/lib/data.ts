@@ -706,7 +706,6 @@ export async function getBooksForListByRecommendations(listId: string, limit = 4
       offset += data.length;
       if (allBookIds.length > 20000) break;   // hard ceiling — defensive
     }
-    console.log(`${tag} book_lists.book_ids loaded=${allBookIds.length}`);
     if (allBookIds.length === 0) return [];
 
     // Step 2: fetch books in URL-safe id chunks.
@@ -724,7 +723,6 @@ export async function getBooksForListByRecommendations(listId: string, limit = 4
       }
       if (data) allBooks.push(...(data as Book[]));
     }
-    console.log(`${tag} books fetched=${allBooks.length} (from ${allBookIds.length} ids)`);
 
     // Sort: recommendation_count desc, tiebreak rating desc.
     allBooks.sort((a, b) => {
@@ -737,8 +735,6 @@ export async function getBooksForListByRecommendations(listId: string, limit = 4
     });
 
     const result = allBooks.slice(0, limit);
-    const top = result.slice(0, 10).map((b) => `${b.title} (${b.recommendation_count ?? 0})`);
-    console.log(`${tag} returning=${result.length} top10=${JSON.stringify(top)}`);
     return result;
   } catch (e) {
     logQueryError("getBooksForListByRecommendations", e);

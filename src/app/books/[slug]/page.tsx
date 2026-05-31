@@ -331,19 +331,6 @@ export default async function BookDetailPage({ params }: Props) {
         const status = (book.ai_quality_status || "").toLowerCase();
         if (!status || status === "rejected" || status === "pending") return null;
 
-        // TEMPORARY diagnostic — visible in Railway logs only. Tells us the real
-        // production data shape so any future regression has root cause in hand.
-        // Safe: server-side, never reaches the browser, no PII.
-        console.log(
-          `[book-editorial slug=${slug}] ai_quality_status=${status} ` +
-          `best_for_type=${typeof book.best_for} best_for_isArray=${Array.isArray(book.best_for)} ` +
-          `best_for_sample=${JSON.stringify(book.best_for).slice(0, 200)} ` +
-          `not_for_type=${typeof book.not_for} not_for_isArray=${Array.isArray(book.not_for)} ` +
-          `not_for_sample=${JSON.stringify(book.not_for).slice(0, 200)} ` +
-          `themes_type=${typeof book.key_themes} themes_isArray=${Array.isArray(book.key_themes)} ` +
-          `themes_sample=${JSON.stringify(book.key_themes).slice(0, 200)}`
-        );
-
         // Display-only sanitiser strips reader-unfriendly jargon ("DNF") from rendered text.
         const summary = sanitizeEditorialText((book.editorial_summary || "").trim());
         const bestForItems = parseEditorialList(book.best_for, { maxItems: 4, minLen: 8 })

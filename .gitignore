@@ -17,8 +17,8 @@ v9_*_book_ids.txt
 backups/
 reports/
 rebuild_v1/
-rebuild_v2/*.csv
-rebuild_v2/*.md
+rebuild_v2/
+!rebuild_v2/REBUILD_REPORT.md
 
 # Python cache
 __pycache__/
@@ -34,6 +34,3 @@ CLAUDE_*.md
 scripts/fixtures/*.csv
 scripts/generate_book_editorial_enrichment_v*.py
 .env.local.save
-rebuild_v2/editorial_*_ids_v1.txt
-rebuild_v2/editorial_*_id.txt
-rebuild_v2/editorial_learning_pack_v1/
