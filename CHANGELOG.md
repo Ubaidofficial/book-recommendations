@@ -1,5 +1,84 @@
 # Changelog
 
+## 2026-05-31 — Post-cover GPT-5 mini fresh200 promote (273 → 415 drafts)
+
+### Post-cover fresh200 dry-run (rec_count 5–15)
+- First scaling gate after the Amazon cover backfill expanded the strict candidate pool 70× (133 → 9,340 books).
+- 200 fresh IDs built at rec_count 5–15 (top of the newly-accessible pool — Why Nations Fail, Leonardo da Vinci, Deep Learning, The Republic, etc.).
+- Run at `--concurrency 10 --sleep 0.3`, v9.18 pipeline, dry-run only.
+- Results:
+  - **118 accepted (59.0%)** on first pass
+  - 37 weak (below 4.70)
+  - 10 validator-rejected (mostly `format_claim_prompts` cluster — same as prior runs)
+  - **35 errors (17.5%)** — first significant error rate in 650 prior GPT-5 mini rows. Mix of `provider_network_error_timeout` (29) and `IncompleteRead` (6) — symptoms of upstream rate-limit pressure at sustained conc=10 over a long batch.
+  - 0 JSON parse failures (track record intact: 0 across 850+ GPT-5 mini rows).
+  - 1 hard-trust catch: `greenlights-matthew-mcconaughey` triggered `possible_public_recommender_name_leak_debug_mismatch_emotional_journey` — same low-severity validator alarm seen on To Kill a Mockingbird and The Little Prince. Not a real PII leak.
+- Score distribution: median 4.76, max 4.93 (higher than prior rec=0–1 batches whose medians hovered at 4.70).
+
+### Error-only retry at conc=5
+- Built a 35-ID retry set containing ONLY the network-error / timeout / IncompleteRead rows. Zero overlap with accepted, weak, or validator-rejected rows (verified before launch).
+- Reran at `--concurrency 5 --sleep 0.5 --max-retries 3` (3 is the pipeline's hard ceiling — your spec said 4 but the script refuses >3 by design).
+- Results:
+  - **24 / 35 = 68.6% recovered to accept** (24 books recovered from error → dry_run_update).
+  - 6 weak, 5 validator-rejected.
+  - **0 errors, 0 timeouts** — error rate dropped from 17.5% at conc=10 to **0% at conc=5**.
+  - Retry cost: ~$0.17.
+- **Key finding: the 17.5% conc=10 error rate was load-induced, not systemic.** Halving concurrency completely eliminated the timeout/IncompleteRead cluster.
+
+### Combined accept count
+- Original 118 + error-retry recovered 24 = **142 accepts of 200 distinct books = 71.0%** — a new high-water mark for GPT-5 mini on this contract.
+- All 142 are unique slugs; 0 already-drafted; 0 overlap with prior batches.
+- Combined dry-run promote-preview: `would_promote=142, skipped=0, failed=0`.
+
+### Live promote — 142 combined accepts
+- Filtered to pending-only: 142 unique slugs, 0 already-drafted (no overwrite risk).
+- Triple-gated: `--write --confirm-promote-accepted --backup-before-write`.
+- Promote summary: `rows_read=142, accept_candidate=142, promoted=142, would_promote=0, skipped=0, failed=0`.
+- **`NO AI CALLS WERE MADE`** — confirmed in log.
+- Backup snapshot: `backups/editorial_gpt5_mini_post_cover_combined_pre_v1.csv` (142 rows pre-write).
+
+### Post-write verification
+- Found in DB: 142 / 142.
+- Flipped to `ai_quality_status='draft'`: 142 / 142.
+- Full editorial payload (summary + best_for + not_for + key_themes + difficulty_level): 142 / 142.
+- Duplicate slugs in DB: 0.
+- **Live draft total: 273 → 415 (+142).**
+
+### Scaling rule for GPT-5 mini concurrency
+Confirmed empirically across this cycle's batches:
+- **conc=10 is fine for batches ≤ 100 rows.** The 50-row, 100-row, and 133-row mini runs all completed at 0% error rate.
+- **conc=5 should be the default for batches ≥ 200 rows.** The 200-row run hit 17.5% timeouts at conc=10, but the same retried 35-row pool at conc=5 finished at 0%.
+- Wall-clock cost of conc=5: about 25% slower per row vs conc=10, but avoids the cost+time of error-retry rounds. Net win.
+- Throughput projection: 500 rows at conc=5 should take ~50–60 min and cost ~$2.40; at conc=10 it would risk another ~85 errors needing retry.
+
+### Cumulative session trajectory
+```
+77 → 98 → 114 → 144 → 194 → 205 → 273 → 415
+ +21   +16   +30   +50   +11   +68   +142
+(DS    DS    mini-  mini-  nano- mini- post-cover-
+ next1 next2 fresh) fresh100) only) fresh133) combined)
+```
+**+338 net-new drafts today**, all gated, all verified, all on the v9.18 pipeline with the 4.70 accept threshold unchanged.
+
+### Current production state
+- **Live drafts: 415**
+- **Usable https covers: 10,248** (was 1,161 at session start; +9,087 from Amazon ASIN backfill)
+- **Primary editorial model: GPT-5 mini** (71% effective accept rate on rec=5–15 content)
+- **Cleanup candidate: GPT-5.4 nano** (deployed once this session as union with mini-fresh100; not yet deployed on the post-cover batch)
+- **Concurrency default: conc=5 for batches ≥ 200, conc=10 for smaller**
+
+### Next step (none started in this commit)
+After your approval — either:
+1. **SEO / product-page audit** — surface what the new editorial content needs at the frontend layer (book detail pages, structured data, OG cards, schema.org). Read-only audit only.
+2. **500-row dry-run at conc=5** — scale validation of the new concurrency rule on the next slice of the post-cover pool. Dry-run, no writes.
+
+### Scope discipline
+- No schema changes. No frontend changes. No editorial-script changes (v9.18 still at `403efd1`).
+- 4.70 accept threshold unchanged. Prestige/source/medical gates intact.
+- `.env.local` (carries `OPENROUTER_API_KEY`) gitignored.
+- All dry-run reports, promote-preview CSVs, retry reports, backup CSVs in untracked `rebuild_v2/` and `backups/` — not committed.
+- No nano cleanup. No 500-row batch. No SEO / frontend work.
+
 ## 2026-05-31 — Amazon ASIN cover backfill (1,161 → 10,248 real-URL covers)
 
 ### Background — why this was needed
