@@ -150,9 +150,18 @@ export default async function BookDetailPage({ params }: Props) {
   const safeListSimilar = (listSimilarBooks || []).filter(
     (b: Book | null | undefined) => b != null && !!b.id && b.id !== book.id
   );
+  const seriesIds = new Set(safeSeriesBooks.filter((b) => b !== null && b.id && b.id !== book.id).map((b) => b.id));
+  const authorIds = new Set(safeAuthorBooks.filter((b) => b !== null && b.id && b.id !== book.id).map((b) => b.id));
   const similarIds = new Set<string>();
   const similarBooks = [...safeListSimilar, ...safeSeriesBooks, ...safeAuthorBooks]
-    .filter((b) => b.id !== book.id && !similarIds.has(b.id) && (similarIds.add(b.id), true))
+    .filter((b) => {
+      if (!b || !b.id || b.id === book.id) return false;
+      if (seriesIds.has(b.id)) return false;
+      if (authorIds.has(b.id)) return false;
+      if (similarIds.has(b.id)) return false;
+      similarIds.add(b.id);
+      return true;
+    })
     .slice(0, 8);
 
   // Reading-fit strip: parsed up-front so we can decide whether to render the strip.
@@ -201,6 +210,25 @@ export default async function BookDetailPage({ params }: Props) {
     whyRecParts.push(`appears in ${joined}`);
   }
   const whyRecSentence = whyRecParts.length > 0 ? whyRecParts.join(" and ") + "." : null;
+
+  // Editorial parameters parsed up-front for top placements
+  const aiStatus = (book.ai_quality_status || "").toLowerCase();
+  const showEditorial = aiStatus && aiStatus !== "rejected" && aiStatus !== "pending";
+
+  const editorialSummary = showEditorial
+    ? sanitizeEditorialText((book.editorial_summary || "").trim())
+    : "";
+  const bestForItems = showEditorial
+    ? parseEditorialList(book.best_for, { maxItems: 4, minLen: 8 }).map((s) => sanitizeEditorialText(s)).filter((s): s is string => !!s)
+    : [];
+  const notForItems = showEditorial
+    ? parseEditorialList(book.not_for, { maxItems: 4, minLen: 8 }).map((s) => sanitizeEditorialText(s)).filter((s): s is string => !!s)
+    : [];
+  const themesRaw = showEditorial
+    ? parseEditorialList(book.key_themes, { maxItems: 6, minLen: 3 })
+    : [];
+
+  const summaryHook = editorialSummary || whyRecSentence || "";
 
   const jsonld = bookJsonLd(book);
 
@@ -270,49 +298,119 @@ export default async function BookDetailPage({ params }: Props) {
           )}
 
           {book.amazon_url && (
-            <div className="mb-4">
+            <div className="mb-6">
               <a
                 href={book.amazon_url}
                 target="_blank"
                 rel="noopener noreferrer nofollow sponsored"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:bg-accent-hover transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-all duration-150 hover:shadow-md shadow-sm"
               >
-                Buy on Amazon
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                 </svg>
+                Buy on Amazon
               </a>
             </div>
           )}
 
-          {/* Reading-fit strip — quick "is this for me?" pills.
-              Uses existing fields only: difficulty_level, page_count, key_themes.
-              Length bucket boundaries: <250 Short, 250–450 Medium, >450 Long.
-              Renders only when at least one signal is present. */}
-          {showFitStrip && (
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              {fitStripDifficulty && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-subtle text-ink text-xs font-medium">
-                  <span className="text-muted">Difficulty:</span>
-                  <span>{fitStripDifficulty.charAt(0).toUpperCase() + fitStripDifficulty.slice(1)}</span>
-                </span>
+          {/* Reading Profile Widget */}
+          {showFitStrip && (() => {
+            const diffVal = (fitStripDifficulty || "").toLowerCase();
+            const diffBars = diffVal === "easy" ? 1 : diffVal === "medium" ? 2 : diffVal === "hard" || diffVal === "advanced" || diffVal === "complex" ? 3 : 0;
+            return (
+              <div className="rounded-xl border border-border bg-subtle/35 p-4 mb-6">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Reading Profile</h4>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
+                  {fitStripDifficulty && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-muted text-xs">Difficulty:</span>
+                      <span className="font-semibold text-ink capitalize">{fitStripDifficulty}</span>
+                      <div className="flex gap-0.5 items-center select-none" aria-hidden="true">
+                        <span className={`w-2.5 h-1.5 rounded-sm ${diffBars >= 1 ? "bg-accent" : "bg-border"}`} />
+                        <span className={`w-2.5 h-1.5 rounded-sm ${diffBars >= 2 ? "bg-accent" : "bg-border"}`} />
+                        <span className={`w-2.5 h-1.5 rounded-sm ${diffBars >= 3 ? "bg-accent" : "bg-border"}`} />
+                      </div>
+                    </div>
+                  )}
+                  {lengthBucket && rawPageCount != null && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-muted text-xs">Length:</span>
+                      <span className="font-semibold text-ink">{lengthBucket}</span>
+                      <span className="text-muted text-xs">({rawPageCount.toLocaleString()} pages)</span>
+                    </div>
+                  )}
+                  {fitStripThemes.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-muted text-xs mr-0.5">Themes:</span>
+                      {fitStripThemes.map((theme, i) => (
+                        <span
+                          key={i}
+                          className="px-2 py-0.5 rounded-full bg-accent-light text-accent text-xs font-semibold"
+                        >
+                          {theme}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Should I read this summary card */}
+          {summaryHook && (
+            <div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50/60 to-white p-4 mb-6 shadow-sm">
+              <h4 className="text-xs font-bold text-amber-900 mb-2 uppercase tracking-wider flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
+                </svg>
+                Should I read this?
+              </h4>
+              <p className="text-sm md:text-base text-ink leading-relaxed font-medium">
+                {summaryHook}
+              </p>
+            </div>
+          )}
+
+          {/* Read this if / Skip this if */}
+          {(bestForItems.length > 0 || notForItems.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              {bestForItems.length > 0 && (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/20 p-4">
+                  <h4 className="text-xs font-bold text-emerald-900 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
+                    <svg className="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Read this if...
+                  </h4>
+                  <ul className="space-y-1.5">
+                    {bestForItems.map((item, i) => (
+                      <li key={i} className="text-xs md:text-sm text-ink/85 leading-relaxed flex gap-2">
+                        <span className="text-emerald-500 shrink-0 select-none">•</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
-              {lengthBucket && rawPageCount != null && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-subtle text-ink text-xs font-medium">
-                  <span className="text-muted">Length:</span>
-                  <span>{lengthBucket}</span>
-                  <span className="text-muted">·</span>
-                  <span className="text-muted">{rawPageCount.toLocaleString()} pages</span>
-                </span>
+              {notForItems.length > 0 && (
+                <div className="rounded-xl border border-gray-200 bg-gray-50/30 p-4">
+                  <h4 className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
+                    <svg className="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Skip this if...
+                  </h4>
+                  <ul className="space-y-1.5">
+                    {notForItems.map((item, i) => (
+                      <li key={i} className="text-xs md:text-sm text-muted leading-relaxed flex gap-2">
+                        <span className="text-muted/40 shrink-0 select-none">•</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
-              {fitStripThemes.map((t, i) => (
-                <span
-                  key={`fit-theme-${i}`}
-                  className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium"
-                >
-                  {t}
-                </span>
-              ))}
             </div>
           )}
 
@@ -324,85 +422,28 @@ export default async function BookDetailPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Editorial — robust to shape variability. Uses parseEditorialList to handle
-          arrays / JSON-encoded strings / pipe / newline / plain sentences without
-          ever rendering character-by-character bullets. No public Draft label. */}
-      {(() => {
-        const status = (book.ai_quality_status || "").toLowerCase();
-        if (!status || status === "rejected" || status === "pending") return null;
-
-        // Display-only sanitiser strips reader-unfriendly jargon ("DNF") from rendered text.
-        const summary = sanitizeEditorialText((book.editorial_summary || "").trim());
-        const bestForItems = parseEditorialList(book.best_for, { maxItems: 4, minLen: 8 })
-          .map((s) => sanitizeEditorialText(s));
-        const notForItems = parseEditorialList(book.not_for, { maxItems: 4, minLen: 8 })
-          .map((s) => sanitizeEditorialText(s));
-        // Themes: cap at 6, parser keeps the full text — render-time truncation adds a tooltip.
-        const themesRaw = parseEditorialList(book.key_themes, { maxItems: 6, minLen: 3 });
-
-        if (!summary && bestForItems.length === 0 && notForItems.length === 0 && themesRaw.length === 0) return null;
-        return (
-          <section className="mb-14">
-            <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Editorial</h2>
-            {summary && (
-              <p className="text-base text-muted leading-relaxed mb-6 max-w-3xl">{summary}</p>
-            )}
-            {(bestForItems.length > 0 || notForItems.length > 0) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                {bestForItems.length > 0 && (
-                  <div className="rounded-xl border border-border bg-surface p-4">
-                    <h3 className="text-sm font-semibold text-ink mb-2">Best for</h3>
-                    <ul className="space-y-1.5">
-                      {bestForItems.map((item, i) => (
-                        <li key={i} className="text-sm text-muted leading-snug flex gap-2">
-                          <span className="text-accent shrink-0" aria-hidden>•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {notForItems.length > 0 && (
-                  <div className="rounded-xl border border-border bg-surface p-4">
-                    <h3 className="text-sm font-semibold text-ink mb-2">Not for</h3>
-                    <ul className="space-y-1.5">
-                      {notForItems.map((item, i) => (
-                        <li key={i} className="text-sm text-muted leading-snug flex gap-2">
-                          <span className="text-muted/40 shrink-0" aria-hidden>•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-            {themesRaw.length > 0 && (() => {
+      {/* Editorial Themes — relocated summary and lists to the top to improve quick fit evaluation */}
+      {showEditorial && themesRaw.length > 0 && (
+        <section className="mb-14">
+          <h2 className="text-xl font-bold text-ink mb-3 tracking-tight">Key themes</h2>
+          <div className="flex flex-wrap gap-1.5">
+            {themesRaw.map((full, i) => {
               const MAX_CHIP_CHARS = 50;
+              const truncated = full.length > MAX_CHIP_CHARS;
+              const shown = truncated ? full.slice(0, MAX_CHIP_CHARS - 1).trimEnd() + "…" : full;
               return (
-                <div>
-                  <h3 className="text-sm font-semibold text-ink mb-2">Key themes</h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {themesRaw.map((full, i) => {
-                      const truncated = full.length > MAX_CHIP_CHARS;
-                      const shown = truncated ? full.slice(0, MAX_CHIP_CHARS - 1).trimEnd() + "…" : full;
-                      return (
-                        <span
-                          key={i}
-                          className="inline-flex items-center px-2.5 py-1 rounded-full bg-subtle text-ink text-xs"
-                          title={truncated ? full : undefined}
-                        >
-                          {shown}
-                        </span>
-                      );
-                    })}
-                  </div>
-                </div>
+                <span
+                  key={i}
+                  className="inline-flex items-center px-2.5 py-1 rounded-full bg-subtle text-ink text-xs"
+                  title={truncated ? full : undefined}
+                >
+                  {shown}
+                </span>
               );
-            })()}
-          </section>
-        );
-      })()}
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Why recommended — deterministic one-sentence summary built from existing
           signals: recommendation_count + the top 3 list memberships from
