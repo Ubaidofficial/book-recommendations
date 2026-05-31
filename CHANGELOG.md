@@ -1,5 +1,58 @@
 # Changelog
 
+## 2026-05-31 — GPT-5 mini validation + promote close (114 → 144 drafts)
+
+### Bake-off result (4-way on same next-2 50 IDs, v9.18 pipeline)
+| Provider / model | Accept rate | Runtime | Cost / 50 | JSON fails | Trust catches |
+|---|---:|---:|---:|---:|---:|
+| DeepSeek v4 pro | 32% (16/50) | 74 min | ~$3 | 0 | 0 |
+| Gemini 3.1 Flash Lite | 4% (2/50) | 6 min | ~$0.15 | 0 | 2 |
+| GLM 4.5 Air | 34% (17/50) | 33 min | ~$0.10 | 2 | 5 |
+| **GPT-5 mini (`openai/gpt-5-mini` via OpenRouter)** | **62% (31/50)** | **~7 min** | **~$0.24** | **0** | **0–1 (1 borderline)** |
+
+### GPT-5 mini fresh-50 validation (truly fresh IDs, rec_count 1–2, deep tail)
+- 50 fresh IDs built by excluding all 114 drafts + every prior pilot/test file (next-1, next-2, next-3, top25, fresh25, fresh50, recheck batches — 235 IDs total in exclusion set).
+- Result: **32/50 = 64% accepted** at the deepest remaining rec_count tier (1–2).
+- **0 JSON parse failures · 0 timeouts · 0 errors · 2 real prestige-claim catches (no false positives)**.
+- Validator gates v9.18 firing correctly: 2 catches were genuine prestige adjectives (`classic` on Julia Child, `landmark` on Hampton's drawing book).
+- GPT-5 mini is **tier-robust** — accept rate held *higher* on deep tail (64% rec=1–2) than on mid-tier (62% rec=4–14). For comparison, GLM dropped from 34% → 18% on a less-extreme tier change.
+
+### Live promote — 30 unique pending accepts → drafts
+- 32 raw accepts deduped by slug to **30 unique** (input pool had 2 duplicate slugs: `legend-marie-lu` and `lands-of-lost-borders-kate-harris` — pre-existing data quality issue, same book ID'd twice in production; kept higher-scored row of each pair).
+- 30 unique slugs cross-checked against current 114 drafts: **0 collisions** — all 30 are genuinely new books, no risk of overwriting existing DeepSeek/GLM-promoted drafts.
+- Filtered preview CSV: `rebuild_v2/editorial_fresh50_v9_18_gpt5_mini_fresh_pending_only_v1.csv`.
+- Triple-gated write: `--write --confirm-promote-accepted --backup-before-write`.
+- Promote summary: `rows_read=30, accept_candidate=30, promoted=30, would_promote=0, skipped=0, failed=0`.
+- **`NO AI CALLS WERE MADE`** — confirmed in script log (promote path reads editorial payload from the dry-run CSV deterministically).
+- Pre-write backup snapshot: `backups/editorial_fresh50_v9_18_gpt5_mini_fresh_pre_v1.csv` (30 rows captured).
+
+### Post-write verification
+- 30 / 30 flipped to `ai_quality_status='draft'`.
+- 30 / 30 carry full editorial payload (`editorial_summary` + `best_for` + `not_for` + `key_themes` + `difficulty_level`).
+- **Live draft total: 114 → 144** (+30).
+- No duplicate slugs promoted (verified — 30 unique target slugs in DB after write).
+- No existing drafts overwritten (filter step pre-excluded all already-draft rows).
+- Transient Supabase DNS warnings appeared in the log during the script's optional diagnostic recount AFTER all 30 writes succeeded — no impact on the actual writes (confirmed via independent Supabase query).
+
+### Draft trajectory across v9.17.1 + v9.18 cycle
+```
+77  → 98   → 114  → 144
+ +21    +16    +30
+(next-1 (next-2 (GPT-5 mini
+ DeepSeek) DeepSeek) fresh)
+```
+
+### Conclusion
+- **GPT-5 mini is now the primary candidate for the next scaling phase.** It beat all alternatives on accept rate (62–64% vs DeepSeek's 32%, GLM's 34%, Gemini's 4%), runtime (12× faster than DeepSeek), cost ($48 vs $400 projected for 10k books), and reliability (0 JSON / 0 timeouts across 100 total rows). Trust-gate behavior is the cleanest of any model tested.
+- **No 10k cycle started.** Validation passed all criteria but production scale is deferred.
+- **Next step: project/pipeline audit + batch-runner planning.** Specifically: rate-limit verification at conc=20+, parallelism for multi-batch runs, idempotent ID-bucket assignment, recovery from partial failures.
+
+### Scope discipline
+- No schema changes. No frontend changes. No editorial-script changes (v9.18 already committed at `403efd1`).
+- 4.70 accept threshold unchanged. Prestige/source/medical gates intact.
+- `.env.local` (carries `OPENROUTER_API_KEY`) gitignored.
+- Bake-off CSVs, promote-preview CSVs, backup CSVs all live in untracked `rebuild_v2/` and `backups/` — not committed.
+
 ## 2026-05-31 — Editorial pipeline v9.18: validator narrowing + OpenRouter provider
 
 ### Validator narrowing (`scripts/generate_book_editorial_enrichment.py`)
