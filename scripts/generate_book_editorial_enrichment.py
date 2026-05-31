@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Version: v9.18 — (1) modifier-aware negation in _is_negated_context: catches "lacks/no/without [adj1 adj2] {format-term}" patterns where adjectives like "hands-on", "structured", "practical" sit between negator and format word. Fixes Gemini-style "lacks hands-on exercises" false-positive on format_claim_exercises. (2) _is_planner_profession helper: skips format_claim_planner when "planner" appears as a profession (city planner, urban planner, financial planner, event planner, etc.) — same shape as the v9.15 _is_reader_usecase_course carveout. Both prestige/proof gates UNCHANGED.
 # Version: v9.17.1 — first-half-of-compound carveout (proof-texting, proof-read, proof-positive) + word-boundary check for short format phrases at BOTH validator sites (_check_title_format_mismatch AND secondary format-claim loop) so substrings like "discourse" don't trigger format-claim — addresses 2 false positives surfaced in fresh-50 v9.16 recovery + 1 second-site missed in initial v9.17
 """
 Generate AI editorial enrichment for top BookRecs books.
@@ -567,6 +568,35 @@ def _is_negated_context(text: str, phrase: str) -> bool:
         return True
     if any(mp in window for mp in mismatch_patterns):
         return True
+    # v9.18 — modifier-aware negation. Catches patterns where 1–3 hyphenated/
+    # adjective modifiers sit between a negator ("lacks/no/without/doesn't
+    # include") and the format term, e.g.:
+    #   "the book lacks hands-on exercises"
+    #   "no formal hands-on exercises"
+    #   "without structured fill-in exercises"
+    # The contract instructs the model to phrase mismatches this way. The
+    # legacy literal mismatch_patterns list only catches the bare form
+    # ("lacks exercises") because the substring "lacks exercises" is absent
+    # when adjectives intervene. We restrict the modifier slot to a positive
+    # list of book-format adjectives to avoid swallowing unrelated "and"/"but"
+    # connectors that could falsely negate an unrelated mention.
+    modifiers_alt = (
+        r"hands[- ]on|fill[- ]in|step[- ]by[- ]step|"
+        r"formal|structured|practical|guided|specific|explicit|named|"
+        r"dedicated|distinct|extra|additional|concrete|actionable|tangible|"
+        r"any|specialized|systematic|deliberate"
+    )
+    mod_neg_re = re.compile(
+        r"\b(?:lacks?|no|without|has\s+no|with\s+no|"
+        r"doesn[’‘'`]?t\s+include|does\s+not\s+include|"
+        r"doesn[’‘'`]?t\s+offer|does\s+not\s+offer|"
+        r"doesn[’‘'`]?t\s+provide|does\s+not\s+provide)\s+"
+        r"(?:(?:" + modifiers_alt + r")\s+){0,3}"
+        + re.escape(phrase_lower) + r"\b",
+        re.IGNORECASE,
+    )
+    if mod_neg_re.search(window):
+        return True
     return False
 
 
@@ -1027,6 +1057,7 @@ Return JSON with:
 
 
 def call_llm(provider: str, model: str, messages: List[Dict[str, str]], temperature: float = 0.1) -> str:
+    extra_headers: Dict[str, str] = {}
     if provider == "deepseek":
         key = os.environ.get("DEEPSEEK_API_KEY", "")
         if not key:
@@ -1037,8 +1068,23 @@ def call_llm(provider: str, model: str, messages: List[Dict[str, str]], temperat
         if not key:
             raise SystemExit("Missing OPENAI_API_KEY.")
         endpoint = "https://api.openai.com/v1/chat/completions"
+    elif provider == "openrouter":
+        # OpenRouter proxies many vendor models behind one OpenAI-compatible
+        # endpoint. Same request shape as the openai branch — the model id
+        # carries the vendor prefix (e.g. "google/gemini-3.1-flash-lite",
+        # "anthropic/claude-sonnet-4.6", "z-ai/glm-4.6-air").
+        key = os.environ.get("OPENROUTER_API_KEY", "")
+        if not key:
+            raise SystemExit("Missing OPENROUTER_API_KEY.")
+        endpoint = "https://openrouter.ai/api/v1/chat/completions"
+        # Optional attribution headers — show up in OpenRouter dashboard but
+        # don't affect billing or routing.
+        extra_headers = {
+            "HTTP-Referer": "https://book-recommendations.local",
+            "X-Title": "BookRecs editorial pipeline",
+        }
     else:
-        raise SystemExit("provider must be deepseek or openai.")
+        raise SystemExit("provider must be deepseek, openai, or openrouter.")
 
     payload = {
         "model": model,
@@ -1046,7 +1092,7 @@ def call_llm(provider: str, model: str, messages: List[Dict[str, str]], temperat
         "temperature": temperature,
         "response_format": {"type": "json_object"},
     }
-    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json", **extra_headers}
     data = http_json(endpoint, method="POST", payload=payload, headers=headers, timeout=120)
     return data["choices"][0]["message"]["content"]
 
@@ -1341,6 +1387,67 @@ def unsupported_fact_risk(public_text: str, source_context: str) -> Optional[str
                 continue
             return phrase
     return None
+
+
+def _is_planner_profession(text: str) -> bool:
+    """v9.18 — Return True when EVERY occurrence of 'planner' in the text
+    is preceded by a profession-modifier word (e.g. "city planner",
+    "urban planner", "financial planner", "wedding planner"). In those
+    cases "planner" denotes a person/role, not a book format. The
+    format-claim rule is meant to catch genuine claims like "this book is
+    a planner" or "a daily planner" — not "a city planner reading the
+    book". This mirrors the v9.15 _is_reader_usecase_course carveout for
+    "course".
+
+    Conservative: if ANY instance of "planner" appears without a profession
+    modifier (e.g. bare "the book functions as a planner"), the carveout
+    is REFUSED for the whole text. That keeps mixed cases — model writes
+    "city planner" in best_for but also "this book is a planner"
+    elsewhere — at the validator's mercy.
+    """
+    text_lower = text.lower()
+    if "planner" not in text_lower:
+        return False
+    profession_modifiers = {
+        "city", "urban", "regional", "town",
+        "transport", "transportation", "transit", "traffic",
+        "financial", "wealth", "retirement", "tax", "estate",
+        "succession", "fiduciary",
+        "event", "wedding", "party", "conference",
+        "product", "production", "project", "program",
+        "media", "marketing", "campaign", "communications", "pr",
+        "strategic", "strategy",
+        "supply", "logistics", "inventory",
+        "career", "education", "academic", "policy",
+        "meal", "menu", "diet", "nutrition",
+        "land", "landscape", "interior", "space",
+        "trip", "travel", "vacation",
+    }
+    # Find every occurrence of "planner" and verify the immediately
+    # preceding word is a profession modifier. Hyphens or possessives
+    # ("city's planner") are tolerated by stripping non-letter chars
+    # from the preceding word.
+    pos = 0
+    seen_any = False
+    while True:
+        idx = text_lower.find("planner", pos)
+        if idx == -1:
+            break
+        seen_any = True
+        prefix = text_lower[max(0, idx - 32):idx].rstrip()
+        # Pull the last token from prefix
+        words = re.findall(r"[a-z][a-z\-]*", prefix)
+        if not words:
+            return False
+        last_word = words[-1].rstrip("'’")
+        # Some compound prefixes like "wealth-management" → check the
+        # final hyphen-segment.
+        if "-" in last_word:
+            last_word = last_word.split("-")[-1]
+        if last_word not in profession_modifiers:
+            return False
+        pos = idx + len("planner")
+    return seen_any
 
 
 def _is_reader_usecase_course(text: str) -> bool:
@@ -2102,6 +2209,9 @@ def _check_title_format_mismatch(public_text: str, title: str) -> Optional[str]:
         # v9.15/9.17 — reader-side use-case carveout for "course"
         if term_lower == "course" and _is_reader_usecase_course(public_text):
             continue
+        # v9.18 — profession carveout for "planner"
+        if term_lower == "planner" and _is_planner_profession(public_text):
+            continue
         if not _is_negated_context(public_text, term):
             return f"unsupported_format_claim_{term.replace(' ', '_')}"
     return None
@@ -2320,6 +2430,9 @@ def validate_output(data: Dict[str, Any], context: Dict[str, Any], quality_warni
         # appears in best_for / not_for and is owned by the reader, it's a
         # reader role context, not a book-format claim.
         if phrase == "course" and _is_reader_usecase_course(public_text):
+            continue
+        # v9.18 — profession carveout for "planner"
+        if phrase == "planner" and _is_planner_profession(public_text):
             continue
         if not _is_negated_context(public_text, phrase):
             return False, f"unsupported_format_claim_{phrase.replace(' ', '_')}", cleaned
@@ -2930,7 +3043,11 @@ def write_report(path: str, rows: List[Dict[str, Any]]) -> None:
 
 
 def default_model(provider: str) -> str:
-    return "deepseek-v4-flash" if provider == "deepseek" else "gpt-4o-mini"
+    if provider == "deepseek":
+        return "deepseek-v4-flash"
+    if provider == "openrouter":
+        return "google/gemini-3.1-flash-lite"
+    return "gpt-4o-mini"
 
 
 def load_fixture_books(fixture_path: str) -> List[Dict[str, Any]]:
@@ -3043,7 +3160,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--offset", type=int, default=0)
-    parser.add_argument("--provider", choices=["deepseek", "openai"], default="deepseek")
+    parser.add_argument("--provider", choices=["deepseek", "openai", "openrouter"], default="deepseek")
     parser.add_argument("--model", default="")
     parser.add_argument(
         "--quality-status",
@@ -3092,6 +3209,7 @@ def main() -> int:
     parser.add_argument("--selftest-v915-narrowing", action="store_true", help="v9.15 — regression tests for social-proof, course-use-case, contrastive-negation narrowings (no DB writes).")
     parser.add_argument("--selftest-v916-narrowing", action="store_true", help="v9.16 — regression tests for hyphenated-proof compounds and reader-desire 'proven' carveout (no DB writes).")
     parser.add_argument("--selftest-v917-narrowing", action="store_true", help="v9.17 — regression tests for proof-\\w+ first-half compounds and word-boundary course/journal/workbook/etc. (no DB writes).")
+    parser.add_argument("--selftest-v918-narrowing", action="store_true", help="v9.18 — regression tests for modifier-aware negation (lacks/no/without [adj] exercises) and planner-profession carveout (no DB writes).")
     # v9.10 — deterministic promote-from-report: write already-accepted dry-run candidates without re-calling the AI.
     parser.add_argument("--promote-accepted-from-report", default="", help="Path to a dry-run CSV. Promotes recommended_action=accept_candidate rows with score>=4.7 directly from the report. NO AI calls.")
     parser.add_argument("--confirm-promote-accepted", action="store_true", help="Required second gate for live promote write. Without this, --write in promote mode refuses.")
@@ -3172,6 +3290,8 @@ def main() -> int:
     # v9.17 — narrowing selftest (no DB writes, no AI calls)
     if args.selftest_v917_narrowing:
         return _selftest_v917_narrowing()
+    if args.selftest_v918_narrowing:
+        return _selftest_v918_narrowing()
 
     # v8.6 — report analysis tooling (exits after completion, no generation)
     if args.analyze_report:
@@ -4883,6 +5003,133 @@ def _selftest_v917_narrowing() -> int:
         marker = "PASS" if ok else "FAIL"
         print(f"  [{marker}] phrase={phrase!r} expected={expected} got={got}")
         print(f"         text: {text[:90]}{'…' if len(text)>90 else ''}")
+        if not ok:
+            fails += 1
+
+    passed = total - fails
+    print(f"\n{'OK' if fails == 0 else 'FAIL'}: {passed}/{total} passed")
+    return 0 if fails == 0 else 1
+
+
+def _selftest_v918_narrowing() -> int:
+    """v9.18 — regression tests for:
+    (A) Modifier-aware negation in _is_negated_context. Multi-adjective
+        negations like "lacks hands-on exercises" should be treated as
+        negated context (carved out from format-claim trigger). Bare
+        positive claims like "the book offers exercises" must still flag.
+    (B) _is_planner_profession carveout. "city planner / urban planner /
+        financial planner" etc. should NOT trigger format_claim_planner;
+        bare "this book is a planner" / "a daily planner" MUST still flag.
+    """
+    print("== _selftest_v918_narrowing (v9.18) ==")
+    fails = 0
+    total = 0
+
+    # ── A. Modifier-aware negation: _is_negated_context returns True ───────
+    print("\n[A] negated 'exercises' context (should return True)")
+    a_pos_cases = [
+        "the book lacks hands-on exercises",
+        "this book lacks hands-on exercises.",
+        "the book lacks hands-on exercises or a structured curriculum",
+        "no exercises",
+        "does not include exercises",
+        "without exercises",
+        "lacks any exercises",
+        "without structured exercises",
+        "no formal exercises",
+        "doesn't include guided exercises",
+        "without hands-on exercises",
+        # contrastive (v9.15 patterns — should still work)
+        "vulnerability in the writing process, rather than technical exercises",
+        # plain single-word negation
+        "lacks exercises",
+    ]
+    for text in a_pos_cases:
+        total += 1
+        got = _is_negated_context(text, "exercises")
+        ok = got is True
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] expected=True got={got}  text: {text[:90]}")
+        if not ok:
+            fails += 1
+
+    print("\n[A.neg] genuine format-claim should NOT be negated (should return False)")
+    a_neg_cases = [
+        "the book includes exercises",
+        "a workbook of exercises and prompts",
+        "offers exercises and prompts",
+        "this book is full of practical exercises",
+        "each chapter ends with exercises",
+    ]
+    for text in a_neg_cases:
+        total += 1
+        got = _is_negated_context(text, "exercises")
+        ok = got is False
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] expected=False got={got}  text: {text[:90]}")
+        if not ok:
+            fails += 1
+
+    # ── B. Planner profession carveout ────────────────────────────────────
+    print("\n[B] 'planner' as profession (should return True from _is_planner_profession)")
+    b_pos_cases = [
+        "a city planner navigating local zoning boards",
+        "an urban planner who studies infrastructure",
+        "a financial planner advising clients on retirement",
+        "a wedding planner organizing a destination event",
+        "an event planner managing vendor logistics",
+        "a product planner shaping the roadmap",
+        "a media planner allocating campaign spend",
+        "a strategic planner mapping a five-year plan",
+        "a town planner working on heritage districts",
+        "a transport planner designing transit corridors",
+        "the city planner reading this book in the evening",
+    ]
+    for text in b_pos_cases:
+        total += 1
+        got = _is_planner_profession(text)
+        ok = got is True
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] expected=True got={got}  text: {text[:90]}")
+        if not ok:
+            fails += 1
+
+    print("\n[B.neg] 'planner' as format claim (should return False from _is_planner_profession)")
+    b_neg_cases = [
+        "this book is a planner for daily reflection",
+        "a daily planner with weekly check-ins",
+        "a productivity planner with habit trackers",
+        "planner templates included in the back of the book",
+        "this is a planner masquerading as a self-help book",
+        # mixed case — bare planner co-exists with profession → carveout REFUSED
+        "a city planner reading this. this book is a planner with templates.",
+    ]
+    for text in b_neg_cases:
+        total += 1
+        got = _is_planner_profession(text)
+        ok = got is False
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] expected=False got={got}  text: {text[:90]}")
+        if not ok:
+            fails += 1
+
+    # ── C. Prestige/source gates UNCHANGED — still triggered by bare claims ─
+    print("\n[C] prestige/source gates intact (still trigger on bare claims)")
+    # These use _is_negated_context with phrase "foundational" / "definitive" / "famous".
+    # They should still return False (NOT negated) when used bare — meaning the
+    # validator will still reject.
+    c_cases = [
+        ("the book offers definitive proof of the framework", "definitive", False),
+        ("a foundational text in the field", "foundational", False),
+        ("the famous Cialdini principle of social proof", "famous", False),
+    ]
+    for text, phrase, expected_neg in c_cases:
+        total += 1
+        got = _is_negated_context(text, phrase)
+        ok = got is expected_neg
+        marker = "PASS" if ok else "FAIL"
+        print(f"  [{marker}] phrase={phrase!r} expected_neg={expected_neg} got={got}")
+        print(f"         text: {text[:90]}")
         if not ok:
             fails += 1
 

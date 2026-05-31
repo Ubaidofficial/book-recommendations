@@ -1,5 +1,61 @@
 # Changelog
 
+## 2026-05-31 — Editorial pipeline v9.18: validator narrowing + OpenRouter provider
+
+### Validator narrowing (`scripts/generate_book_editorial_enrichment.py`)
+Two real false-positive classes surfaced when running Gemini 3.1 Flash Lite against the v9.17.1 contract. Both also bit DeepSeek occasionally — fix is model-agnostic and gates remain strict.
+
+**1) Modifier-aware negation in `_is_negated_context`.** Catches multi-adjective negations of format terms:
+- `"lacks hands-on exercises"`, `"no formal exercises"`, `"without structured exercises"`, `"doesn't include guided exercises"`, `"without practical hands-on exercises"`, etc.
+- The v9.17.1 list-based check only matched bare forms (`lacks exercises`, `no exercises`) — adjectives between negator and format term broke the substring match.
+- v9.18 adds a windowed regex with a positive list of book-format modifiers (`hands-on, fill-in, step-by-step, formal, structured, practical, guided, specific, explicit, named, dedicated, distinct, extra, additional, concrete, actionable, tangible, any, specialized, systematic, deliberate`). Allows 0–3 modifiers between negator and term.
+- Modifier slot is whitelist-only — does not swallow generic connectors like `and / but / or` that could falsely negate unrelated mentions.
+- **Result on Gemini re-bake-off: `format_claim_exercises` rejects 25 → 3 (88% reduction).**
+
+**2) New `_is_planner_profession` helper.** Skips `format_claim_planner` when `planner` appears as a profession context (`city planner`, `urban planner`, `financial planner`, `event planner`, `wedding planner`, `product planner`, `media planner`, `strategic planner`, etc. — 30+ profession modifiers).
+- Same shape as v9.15's `_is_reader_usecase_course` carveout for `course`.
+- Conservative: if ANY occurrence of `planner` is bare, the carveout is REFUSED for the whole text — mixed cases still hit the validator.
+- Wired into both validator sites (`_check_title_format_mismatch` and the secondary format-claim loop).
+- **Result on Gemini re-bake-off: `format_claim_planner` rejects 3 → 0 (100% eliminated).**
+
+### Quality gates UNCHANGED
+- Accept threshold remains **4.70**.
+- Prestige claims (`foundational, definitive, famous, masterpiece, seminal, iconic`) still rejected on bare use — verified by selftest section `[C]`. The 2 hard-trust catches in the Gemini re-bake-off (`source_overclaim_proof` on SICP, `unsupported_proof_or_prestige_claim_definitive` on Name of the Wind) confirm gates intact.
+- Format-claim rule still fires on `"this book is a planner"`, `"a daily planner"`, `"planner templates"`, `"the book offers exercises"`, etc.
+
+### Tests
+- New `--selftest-v918-narrowing` covers 38 cases (modifier-aware negation positives + negatives, planner-profession positives + negatives, prestige gates intact). **38/38 pass.**
+- All prior selftests pass with no regression: v9.17 (17/17), v9.16 (14/14), v9.15 (18/18), validator-narrowing (23/23), evaluator-dnf (5/5), key-themes (7/7), list-serializer (12/12), theme-quality (21/21). **Total 155/155.**
+- Fixture validator: **24/24 expected outcomes matched, 0 mismatched.**
+
+### New OpenRouter provider
+- `call_llm` gains an `openrouter` branch (OpenAI-compatible endpoint at `https://openrouter.ai/api/v1/chat/completions`). Same request shape as the existing `openai` branch; model id carries the vendor prefix (e.g. `google/gemini-3.1-flash-lite`).
+- `--provider` choices extended: `deepseek, openai, openrouter`.
+- `default_model` returns `google/gemini-3.1-flash-lite` when provider is `openrouter`.
+- `OPENROUTER_API_KEY` env var. Optional `HTTP-Referer` / `X-Title` attribution headers for the OpenRouter dashboard.
+- **Use case:** lets the same pipeline target Claude Sonnet/Opus, Gemini, GLM, Kimi, etc. behind one key without per-vendor branches.
+
+### Bake-off snapshot (provider comparison on same 50 IDs)
+| Provider / pipeline | Accept rate | Reject rate | Runtime | Concurrency | Approx cost / 50 rows |
+|---|---:|---:|---:|---:|---:|
+| **DeepSeek v4 pro / v9.17.1** | **32 % (16/50)** | 12 % | ~74 min | 2 | ~$3 |
+| Gemini 3.1 Flash Lite / v9.17.1 | 0 % (0/50) | 76 % | ~6 min | 10 | ~$0.20 |
+| Gemini 3.1 Flash Lite / v9.18 | 4 % (2/50) | 26 % | ~6 min | 10 | ~$0.20 |
+
+### Decisions captured by this commit
+- **DeepSeek v4 pro remains primary** for the editorial cycle. Gemini Flash Lite's literary ceiling on this contract (median score 4.37, max 4.72) is too low for the 4.70 floor — even with validators perfectly tuned, accept rate caps around 4–8 %.
+- **Gemini outputs are NOT promoted.** The v9.18 dry-run reports remain audit-only.
+- **v9.18 patch is kept** because it removes real false positives that also occasionally hit DeepSeek (DeepSeek's next-2 batch lost Future Shock to the same `format_claim_planner` regression).
+- **OpenRouter integration is kept** for future bake-offs (GLM 4.6 Air, Claude Sonnet 4.6) without further script work.
+
+### Known residual (not patched in this commit)
+- 3 `format_claim_exercises` near-miss false positives where the phrasing is `"lack of ... exercises"` (noun form) instead of `"lacks ... exercises"` (verb form). Affected Zen Mind, When Things Fall Apart, and one truncated Flow retry. Below the bar for a v9.18.1; bundle into next maintenance pass if needed.
+
+### Scope discipline
+- Frontend untouched. No schema changes. No DB writes from this patch.
+- `.env.local` (which carries `OPENROUTER_API_KEY`) is gitignored — verified before commit.
+- Bake-off CSVs and audit reports live in untracked `rebuild_v2/` — not committed.
+
 ## 2026-05-31 — Browse/detail QA: search fix, curated default, similar-books quality
 
 ### Root cause — search returned 0 results
