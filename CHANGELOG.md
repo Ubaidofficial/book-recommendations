@@ -1,5 +1,72 @@
 # Changelog
 
+## 2026-05-31 — GPT mini + nano fresh100 union promote (144 → 205 drafts)
+
+### GPT-5 mini fresh100 dry run (rec_count 0–1, deepest tail tested)
+- 100 unique IDs built with explicit slug-dedup (excluded 5 same-slug pairs from production data).
+- **50 / 100 accepted = 50.0%** at the deepest rec_count tier remaining (0–1).
+- **0 JSON parse failures · 0 errors · 0 timeouts** across all 100 rows.
+- Runtime ~17 min @ conc=10. Cost ~$0.48.
+- 2 hard-trust catches (real prestige claims — `landmark` on The Works, `source_overclaim_staple` on Wheat Belly cookbook).
+- Notable: 8 `format_claim_prompts` cluster — GPT-5 mini's tendency to mention "prompts" in editorial; all 8 are real validator catches, not false positives. Flagged as a future v9.19 candidate if pattern persists.
+- Filtered promote-preview: 50 would_promote / 0 skipped / 0 failed.
+
+### GPT-5.4 nano comparison (same 100 IDs)
+- Slug: `openai/gpt-5.4-nano` (preferred — available, no fallback needed). Pricing $0.20 / $1.25 per Mtok.
+- **26 / 100 accepted = 26%** — roughly half of mini's rate on the same content.
+- **0 JSON parse failures · 0 errors · 0 timeouts**.
+- Runtime ~8 min @ conc=10. Cost ~$0.31.
+- 5 hard-trust catches (vs mini's 2) — nano has a stronger tendency toward prestige adjectives (`classic`, `staple`, `famous`) but the validator catches them.
+- Score distribution: median 4.56, max 4.84 (vs mini's median 4.70, max 4.90).
+- Wider reject-reason spread (13 unique reasons vs mini's 5) — more failure modes per row, but each is a genuine catch.
+
+### Mini vs nano overlap analysis (same 100 IDs)
+- mini accepts: 50
+- nano accepts: 26
+- overlap (both accepted): 15
+- mini-only: 35
+- **nano-only: 11** ← books mini missed that nano caught
+- Union (mini ∪ nano): 61 / 100 = **61%** effective accept rate
+- The 11 nano-only accepts are net-new books — worth recovering via the cleanup-pass architecture below.
+
+### Union live promote (mini-50 + nano-only-11 = 61)
+- Step 1: mini-50 pending-only CSV → `promote-accepted-from-report --write --confirm-promote-accepted --backup-before-write`. Result: 50 promoted, 0 skipped, 0 failed.
+- Step 2: nano-only-11 filtered CSV → same triple-gated path. Result: 11 promoted, 0 skipped, 0 failed.
+- **No AI calls during either promote** — confirmed in both logs (`NO AI CALLS WERE MADE`).
+- **No overlap between mini-50 and nano-11** (filter logic excluded any nano accept whose slug was already in mini accepts).
+- **No existing drafts overwritten** (both filtered CSVs pre-excluded any row whose slug already had `ai_quality_status='draft'`).
+- Backup snapshots written for both: `backups/editorial_gpt5_mini_fresh100_pre_v1.csv` (50 rows) and `backups/editorial_gpt54_nano_only_fresh100_pre_v1.csv` (11 rows).
+
+### Post-write verification
+- Found in DB: 61 / 61.
+- Flipped to `ai_quality_status='draft'`: 61 / 61.
+- Full editorial payload (summary + best_for + not_for + key_themes + difficulty_level): 61 / 61.
+- Unique slugs across union: 61 / 61 (no duplicates).
+- **Live draft total: 144 → 194 (after mini) → 205 (after nano)**.
+
+### Draft count trajectory (full v9.17.1 + v9.18 cycle)
+```
+77  → 98   → 114  → 144  → 194  → 205
+ +21    +16    +30    +50    +11
+(next-1 (next-2 (gpt5-  (mini-  (nano-
+ DS)    DS)    mini-fresh) fresh100) only delta)
+```
+
+### Current recommendation
+- **GPT-5 mini = production primary.** 50% accept on the deepest tail (rec=0-1), 0 reliability issues across two runs (150 total rows), clean trust-gate behavior.
+- **GPT-5.4 nano = cleanup pass on mini's weak rows.** Provides 11 net-new accepts per 100 books (+22 percentage points on the cleanup pool) at ~35% cheaper cost than mini.
+- **Do NOT use nano as primary.** 26% accept rate is too low, and nano's higher hard-trust rate (5/100 vs mini's 2/100) signals more downstream FP risk if it ran on its own.
+- **Architecture confirmed for next scaling phase:** Pass 1 = GPT-5 mini @ conc=10 · Pass 2 = GPT-5.4 nano @ conc=10 on the weak/error rows from Pass 1. Projected effective rate ~61% at ~$60 / 10k books.
+
+### Next scaling gate
+- **200-row GPT-5 mini dry-run** to validate behavior at 2× scale before committing to the 10k catalogue cycle. Not started in this task per explicit hold.
+
+### Scope discipline
+- No schema changes. No frontend changes. No editorial-script changes in this cycle (v9.18 already at `403efd1`).
+- 4.70 accept threshold unchanged. Prestige/source/medical gates intact.
+- `.env.local` (carries `OPENROUTER_API_KEY`) gitignored.
+- All dry-run reports, promote-preview CSVs, backup CSVs in untracked `rebuild_v2/` and `backups/` — not committed.
+
 ## 2026-05-31 — GPT-5 mini validation + promote close (114 → 144 drafts)
 
 ### Bake-off result (4-way on same next-2 50 IDs, v9.18 pipeline)
