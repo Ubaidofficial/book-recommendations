@@ -1530,3 +1530,110 @@ export async function searchSeries(q: string, limit = 8): Promise<Series[]> {
     return [];
   }
 }
+
+export function slugify(text: string): string {
+  if (!text) return "";
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "") // remove special characters
+    .replace(/[\s-]+/g, "-")      // collapse spaces/hyphens
+    .replace(/^-+|-+$/g, "");      // trim trailing hyphens
+}
+
+export async function getBooksByAuthorSlug(
+  slug: string,
+  limit = 48
+): Promise<{ authorName: string; books: Book[] } | null> {
+  try {
+    const supa = getSupabase();
+    
+    // Step 1: Query unique author names of eligible draft books from the books table
+    const { data: rawAuthors, error: authErr } = await supa
+      .from("books")
+      .select("author_name")
+      .eq("ai_quality_status", "draft")
+      .not("author_name", "is", null)
+      .neq("author_name", "")
+      .not("cover_image_url", "is", null)
+      .neq("cover_image_url", "")
+      .not("slug", "is", null)
+      .neq("slug", "")
+      .not("title", "is", null)
+      .neq("title", "");
+      
+    if (authErr || !rawAuthors) {
+      logQueryError("getBooksByAuthorSlug.auth", authErr || new Error("No authors returned"));
+      return null;
+    }
+    
+    // Step 2: Find all matching display author names (Slug-Collision Protection)
+    const uniqueNames = Array.from(new Set(rawAuthors.map(r => r.author_name).filter(Boolean)));
+    const matchingNames = uniqueNames.filter(name => slugify(name) === slug);
+    if (matchingNames.length === 0) {
+      return null; // Author not found or lacks eligible books
+    }
+    
+    if (matchingNames.length > 1) {
+      console.warn(`[author-collision] Slug collision detected for slug: "${slug}". Matching names: ${JSON.stringify(matchingNames)}`);
+      return null; // Return null / notFound on collision to protect author name separation
+    }
+    
+    const primaryName = matchingNames[0];
+    
+    // Step 3: Fetch all eligible draft books written by this author
+    const { data: books, error: booksErr } = await supa
+      .from("books")
+      .select("*")
+      .eq("ai_quality_status", "draft")
+      .eq("author_name", primaryName)
+      .not("cover_image_url", "is", null)
+      .neq("cover_image_url", "")
+      .not("slug", "is", null)
+      .neq("slug", "")
+      .not("title", "is", null)
+      .neq("title", "")
+      .order("recommendation_count", { ascending: false })
+      .limit(limit);
+      
+    if (booksErr || !books) {
+      logQueryError("getBooksByAuthorSlug.books", booksErr || new Error("No books returned"));
+      return null;
+    }
+    
+    if (books.length === 0) {
+      return null;
+    }
+    
+    // Step 4: Exclude books linked to series via live DB check
+    const { data: seriesLinks, error: seriesErr } = await supa
+      .from("book_series")
+      .select("book_id")
+      .in("book_id", books.map(b => b.id));
+      
+    if (seriesErr) {
+      logQueryError("getBooksByAuthorSlug.series", seriesErr);
+    }
+    
+    const seriesIds = new Set((seriesLinks || []).map(s => s.book_id));
+    const nonSeriesBooks = books.filter(b => !seriesIds.has(b.id));
+    
+    // Step 5: Enforce HTTPS cover image eligibility
+    const eligibleBooks = nonSeriesBooks.filter(
+      b => b.cover_image_url && b.cover_image_url.startsWith("https://")
+    );
+    
+    if (eligibleBooks.length === 0) {
+      return null;
+    }
+    
+    return {
+      authorName: primaryName,
+      books: normalizeBookRows(eligibleBooks),
+    };
+  } catch (e) {
+    logQueryError("getBooksByAuthorSlug", e);
+    return null;
+  }
+}
+
