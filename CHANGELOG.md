@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-06-01 — GPT-5 mini post-cover fresh500 promote (415 → 736 drafts)
+
+### Fresh500 candidate build
+- Sourced a fresh set of exactly 500 candidate book IDs from the newly expanded post-cover pool (usable HTTPS cover URLs).
+- Primary editorial model: `openai/gpt-5-mini` via OpenRouter.
+- Excluded all existing draft rows and all prior pilot/test IDs, deduplicated by slug, and enforced description $\ge 180$ chars and correct language/title checks.
+
+### Initial run issue & billing block
+- Launch command: `--concurrency 5 --sleep 0.5 --checkpoint-every 25`.
+- The run successfully parsed its first 25-row checkpoint (20 accepts, 4 weak, 1 reject) but subsequently encountered a massive wave of immediate errors (420 errors total).
+- The entire 500-book batch completed with only **36 accepted rows** and **445 error rows**.
+- **Root Cause Diagnosed**: Investigated the retry attempt and found the errors were not true timeouts or rate limits, but a raw upstream **`HTTP Error 402: Payment Required`** billing block on the OpenRouter account.
+
+### Safe retry after credit refill
+- OpenRouter credits were refilled. 
+- Built an error-only retry ID list containing strictly the 445 error rows (excluding all accepted, weak, and validator-rejected rows).
+- Ran a successful 2-ID smoke test first to confirm billing block cleared and raw JSON payload generated perfectly.
+- Relaunched the 445 error-only retry under safer throughput settings: `--concurrency 2 --sleep 1.0 --max-retries 3 --checkpoint-every 10`.
+- Rerun outcomes:
+  - **285 accepted (`dry_run_update`)**
+  - 110 weak (`generated_but_weak`)
+  - 47 rejected (`rejected`)
+  - **3 errors (`error`)** — network/timeout errors (a tiny 0.67% error rate)
+  - **0 HTTP 402 billing errors**
+
+### Combined promotion results
+- Original 36 accepts + retry 285 accepts = **321 accepted unique books**.
+- All 321 accepted rows promoted live to `draft` status in Supabase:
+  - **Promoted**: `321`
+  - **Skipped**: `0`
+  - **Failed**: `0`
+  - **AI calls made during promote**: `0` (Deterministic write-from-report path)
+  - **Existing drafts overwritten**: `0` (Zero collision risk)
+  - **Duplicate slugs in DB**: `0` (Perfect unique-slug constraint)
+  - **Supabase Live Draft Count**: **`415 → 736`** (+321 drafts)
+  - **Backup snapshot written to**: `backups/editorial_gpt5_mini_post_cover_fresh500_combined_pre_v1.csv` (logging the precise pre-write state of all 321 rows).
+
+### Operational lessons
+- **concurrency 2 + sleep 1.0** is the safest, most robust configuration for large-scale OpenRouter batches to avoid credit/rate-limit pressures.
+- **Idempotency first**: Never re-run successful or graded rows; compile strict error-only sets for recovery.
+- **Fail-fast on 402**: Stop runs immediately upon encountering billing blocks (HTTP 402) rather than letting the script cycle rapidly.
+
 ## 2026-05-31 — Post-cover GPT-5 mini fresh200 promote (273 → 415 drafts)
 
 ### Post-cover fresh200 dry-run (rec_count 5–15)
