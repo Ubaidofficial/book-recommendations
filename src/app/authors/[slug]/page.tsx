@@ -27,6 +27,7 @@ export default async function AuthorDetailPage({ params }: Props) {
   if (!data) notFound();
 
   const { authorName, books } = data;
+  const totalRecs = books.reduce((sum, b) => sum + (b.recommendation_count || 0), 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
@@ -41,8 +42,27 @@ export default async function AuthorDetailPage({ params }: Props) {
         <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight mb-2">
           Books by {authorName}
         </h1>
-        <p className="text-base text-muted max-w-2xl leading-relaxed">
-          Explore books written by {authorName}, structured by community recommendations and quality filters.
+        
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted mb-4">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent-light text-accent font-medium">
+            {books.length} {books.length === 1 ? "book" : "books"}
+          </span>
+          {totalRecs > 0 && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-subtle text-muted">
+              {totalRecs.toLocaleString()} total recommendations
+            </span>
+          )}
+        </div>
+
+        <p className="text-base text-muted max-w-2xl leading-relaxed mb-3">
+          Browse books by {authorName}, ranked by recommendation signals from our public-source dataset.
+        </p>
+        
+        <p className="text-xs text-muted max-w-2xl bg-subtle/50 border border-border/40 rounded-xl p-3 inline-block leading-normal">
+          <strong>Note:</strong> Author pages show books written by this author. Recommender pages live separately under{" "}
+          <a href="/people" className="text-accent hover:underline font-medium">
+            People
+          </a>.
         </p>
       </div>
 

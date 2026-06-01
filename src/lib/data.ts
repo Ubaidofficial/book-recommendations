@@ -1548,27 +1548,49 @@ export async function getBooksByAuthorSlug(
   try {
     const supa = getSupabase();
     
-    // Step 1: Query unique author names of eligible draft books from the books table
-    const { data: rawAuthors, error: authErr } = await supa
-      .from("books")
-      .select("author_name")
-      .eq("ai_quality_status", "draft")
-      .not("author_name", "is", null)
-      .neq("author_name", "")
-      .not("cover_image_url", "is", null)
-      .neq("cover_image_url", "")
-      .not("slug", "is", null)
-      .neq("slug", "")
-      .not("title", "is", null)
-      .neq("title", "");
+    // Step 1: Query unique author names of eligible draft books from the books table in pages
+    const rawAuthors: Array<{ author_name: string | null }> = [];
+    const pageSize = 1000;
+    let offset = 0;
+    
+    while (true) {
+      const from = offset;
+      const to = offset + pageSize - 1;
       
-    if (authErr || !rawAuthors) {
-      logQueryError("getBooksByAuthorSlug.auth", authErr || new Error("No authors returned"));
-      return null;
+      const { data, error } = await supa
+        .from("books")
+        .select("id, author_name")
+        .eq("ai_quality_status", "draft")
+        .not("author_name", "is", null)
+        .neq("author_name", "")
+        .not("cover_image_url", "is", null)
+        .neq("cover_image_url", "")
+        .not("slug", "is", null)
+        .neq("slug", "")
+        .not("title", "is", null)
+        .neq("title", "")
+        .order("id", { ascending: true })
+        .range(from, to);
+        
+      if (error) {
+        logQueryError(`getBooksByAuthorSlug.auth[offset=${offset}]`, error);
+        return null;
+      }
+      
+      if (!data || data.length === 0) {
+        break;
+      }
+      
+      rawAuthors.push(...(data as any[]));
+      
+      if (data.length < pageSize) {
+        break;
+      }
+      offset += data.length;
     }
     
     // Step 2: Find all matching display author names (Slug-Collision Protection)
-    const uniqueNames = Array.from(new Set(rawAuthors.map(r => r.author_name).filter(Boolean)));
+    const uniqueNames = Array.from(new Set(rawAuthors.map(r => r.author_name).filter((x): x is string => !!x)));
     const matchingNames = uniqueNames.filter(name => slugify(name) === slug);
     if (matchingNames.length === 0) {
       return null; // Author not found or lacks eligible books
@@ -1636,4 +1658,153 @@ export async function getBooksByAuthorSlug(
     return null;
   }
 }
+
+export interface AuthorIndexItem {
+  authorName: string;
+  slug: string;
+  eligibleBookCount: number;
+  totalRecommendationCount: number;
+}
+
+export async function getAuthorCatalogIndex(limit = 100): Promise<AuthorIndexItem[]> {
+  try {
+    const supa = getSupabase();
+    
+    // Step 1: Fetch all draft books with valid metadata in pages
+    const books: Array<{
+      id: string;
+      slug: string | null;
+      title: string | null;
+      author_name: string | null;
+      cover_image_url: string | null;
+      recommendation_count: number | null;
+    }> = [];
+    
+    const pageSize = 1000;
+    let offset = 0;
+    
+    while (true) {
+      const from = offset;
+      const to = offset + pageSize - 1;
+      
+      const { data, error } = await supa
+        .from("books")
+        .select("id, slug, title, author_name, cover_image_url, recommendation_count")
+        .eq("ai_quality_status", "draft")
+        .not("author_name", "is", null)
+        .neq("author_name", "")
+        .not("cover_image_url", "is", null)
+        .neq("cover_image_url", "")
+        .not("slug", "is", null)
+        .neq("slug", "")
+        .not("title", "is", null)
+        .neq("title", "")
+        .order("id", { ascending: true })
+        .range(from, to);
+        
+      if (error) {
+        logQueryError(`getAuthorCatalogIndex.books[offset=${offset}]`, error);
+        return [];
+      }
+      
+      if (!data || data.length === 0) {
+        break;
+      }
+      
+      books.push(...(data as any[]));
+      
+      if (data.length < pageSize) {
+        break;
+      }
+      offset += data.length;
+    }
+    
+    // Step 2: Live Supabase series exclusions check in chunked batches
+    const bookIds = books.map(b => b.id);
+    const seriesBookIds = new Set<string>();
+    const chunkBatchSize = 250;
+    
+    for (let i = 0; i < bookIds.length; i += chunkBatchSize) {
+      const chunk = bookIds.slice(i, i + chunkBatchSize);
+      const { data: seriesLinks, error: seriesErr } = await supa
+        .from("book_series")
+        .select("book_id")
+        .in("book_id", chunk);
+        
+      if (seriesErr) {
+        logQueryError(`getAuthorCatalogIndex.series[chunk=${i / chunkBatchSize}]`, seriesErr);
+        continue;
+      }
+      
+      if (seriesLinks) {
+        for (const s of seriesLinks) {
+          if (s.book_id) {
+            seriesBookIds.add(s.book_id);
+          }
+        }
+      }
+    }
+    
+    // Filter non-series books and ensure HTTPS cover URL
+    const eligibleBooks = books.filter(
+      b => !seriesBookIds.has(b.id) && b.cover_image_url && b.cover_image_url.startsWith("https://")
+    );
+    
+    // Step 3: Group books by author_name
+    const authorGroups = new Map<string, any[]>();
+    for (const b of eligibleBooks) {
+      const author = b.author_name as string;
+      if (!authorGroups.has(author)) {
+        authorGroups.set(author, []);
+      }
+      authorGroups.get(author)!.push(b);
+    }
+    
+    // Step 4: Map groups and check for slug collisions
+    const authorItems: AuthorIndexItem[] = [];
+    const slugToNames = new Map<string, string[]>();
+    
+    for (const [authorName, booksWritten] of authorGroups.entries()) {
+      const slug = slugify(authorName);
+      if (!slug) continue;
+      
+      if (!slugToNames.has(slug)) {
+        slugToNames.set(slug, []);
+      }
+      slugToNames.get(slug)!.push(authorName);
+      
+      const totalRecs = booksWritten.reduce((sum, b) => sum + (b.recommendation_count || 0), 0);
+      
+      authorItems.push({
+        authorName,
+        slug,
+        eligibleBookCount: booksWritten.length,
+        totalRecommendationCount: totalRecs,
+      });
+    }
+    
+    // Filter out collided slugs
+    const cleanItems = authorItems.filter(item => {
+      const names = slugToNames.get(item.slug);
+      return names && names.length === 1;
+    });
+    
+    // Sort: eligibleBookCount desc, totalRecommendationCount desc, authorName asc
+    cleanItems.sort((a, b) => {
+      if (b.eligibleBookCount !== a.eligibleBookCount) {
+        return b.eligibleBookCount - a.eligibleBookCount;
+      }
+      if (b.totalRecommendationCount !== a.totalRecommendationCount) {
+        return b.totalRecommendationCount - a.totalRecommendationCount;
+      }
+      return a.authorName.localeCompare(b.authorName);
+    });
+    
+    return cleanItems.slice(0, limit);
+  } catch (e) {
+    logQueryError("getAuthorCatalogIndex", e);
+    return [];
+  }
+}
+
 
