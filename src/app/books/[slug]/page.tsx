@@ -47,6 +47,12 @@ function DetailCoverFallback({ title }: { title: string }) {
   );
 }
 
+function isValidSlug(slug: string | null | undefined): boolean {
+  if (!slug || typeof slug !== "string") return false;
+  const s = slug.trim().toLowerCase();
+  return s !== "" && s !== "undefined" && s !== "null";
+}
+
 interface Props {
   params: Promise<{ slug: string }>;
 }
@@ -169,7 +175,7 @@ export default async function BookDetailPage({ params }: Props) {
     if (similarBooks.length === 0) return null;
     const candidates = similarBooks
       .map((b) => {
-        if (!b.slug || !b.title || !isValidHttpUrl(b.cover_image_url)) {
+        if (!isValidSlug(b.slug) || !b.title || !isValidHttpUrl(b.cover_image_url)) {
           return { b, score: -1 };
         }
         const recCount = typeof b.recommendation_count === "number" ? b.recommendation_count : 0;
@@ -253,6 +259,15 @@ export default async function BookDetailPage({ params }: Props) {
 
   const summaryHook = editorialSummary || whyRecSentence || "";
 
+  // Before You Buy visibility rules based on at least 2 useful signal groups:
+  // 1) Reading specifications (difficulty level or page count)
+  // 2) Themes group (key themes length > 0)
+  // 3) Audience fit group (best_for or not_for has items)
+  const hasReadingSpecs = !!(fitStripDifficulty || rawPageCount);
+  const hasThemes = themesRaw.length > 0;
+  const hasAudienceFit = bestForItems.length > 0 || notForItems.length > 0;
+  const showBeforeYouBuy = ((hasReadingSpecs ? 1 : 0) + (hasThemes ? 1 : 0) + (hasAudienceFit ? 1 : 0)) >= 2;
+
   const jsonld = bookJsonLd(book);
 
   return (
@@ -302,9 +317,13 @@ export default async function BookDetailPage({ params }: Props) {
           {hasAuthor && (
             <p className="text-base text-muted mb-4">
               by{" "}
-              <Link href={`/people/${book.author_slug}`} className="text-accent font-semibold hover:underline">
-                {book.author}
-              </Link>
+              {isValidSlug(book.author_slug) ? (
+                <Link href={`/people/${book.author_slug}`} className="text-accent font-semibold hover:underline">
+                  {book.author}
+                </Link>
+              ) : (
+                <span className="text-accent font-semibold">{book.author}</span>
+              )}
             </p>
           )}
 
@@ -327,12 +346,16 @@ export default async function BookDetailPage({ params }: Props) {
                     </svg>
                     <span className="text-sm font-semibold text-ink">
                       Book {position} of {total} in{" "}
-                      <Link href={`/series/${book.series_slug}`} className="text-accent hover:underline">
-                        {displayTitle(book.series!)}
-                      </Link>
+                      {isValidSlug(book.series_slug) ? (
+                        <Link href={`/series/${book.series_slug}`} className="text-accent hover:underline">
+                          {displayTitle(book.series!)}
+                        </Link>
+                      ) : (
+                        <span className="text-accent font-semibold">{displayTitle(book.series!)}</span>
+                      )}
                     </span>
                   </div>
-                  {isNotFirst && firstBook && (
+                  {isNotFirst && firstBook && isValidSlug(firstBook.slug) && (
                     <Link
                       href={`/books/${firstBook.slug}`}
                       className="text-xs font-bold text-accent hover:text-accent/80 flex items-center gap-1 bg-accent-light px-2 py-1 rounded"
@@ -345,33 +368,55 @@ export default async function BookDetailPage({ params }: Props) {
                 {(prevBook || nextBook) && (
                   <div className="grid grid-cols-2 gap-4 border-t border-border/40 pt-3 text-xs">
                     {prevBook ? (
-                      <Link
-                        href={`/books/${prevBook.slug}`}
-                        className="group flex flex-col gap-0.5 text-left hover:opacity-85"
-                      >
-                        <span className="text-muted font-medium flex items-center gap-1 group-hover:text-accent">
-                          ← Previous Book
-                        </span>
-                        <span className="font-semibold text-ink truncate max-w-full">
-                          {displayBookTitle(prevBook.title)}
-                        </span>
-                      </Link>
+                      isValidSlug(prevBook.slug) ? (
+                        <Link
+                          href={`/books/${prevBook.slug}`}
+                          className="group flex flex-col gap-0.5 text-left hover:opacity-85"
+                        >
+                          <span className="text-muted font-medium flex items-center gap-1 group-hover:text-accent">
+                            ← Previous Book
+                          </span>
+                          <span className="font-semibold text-ink truncate max-w-full">
+                            {displayBookTitle(prevBook.title)}
+                          </span>
+                        </Link>
+                      ) : (
+                        <div className="group flex flex-col gap-0.5 text-left">
+                          <span className="text-muted font-medium flex items-center gap-1">
+                            ← Previous Book
+                          </span>
+                          <span className="font-semibold text-ink truncate max-w-full">
+                            {displayBookTitle(prevBook.title)}
+                          </span>
+                        </div>
+                      )
                     ) : (
                       <div />
                     )}
 
                     {nextBook ? (
-                      <Link
-                        href={`/books/${nextBook.slug}`}
-                        className="group flex flex-col gap-0.5 text-right hover:opacity-85"
-                      >
-                        <span className="text-muted font-medium flex items-center justify-end gap-1 group-hover:text-accent">
-                          Next Book →
-                        </span>
-                        <span className="font-semibold text-ink truncate max-w-full block">
-                          {displayBookTitle(nextBook.title)}
-                        </span>
-                      </Link>
+                      isValidSlug(nextBook.slug) ? (
+                        <Link
+                          href={`/books/${nextBook.slug}`}
+                          className="group flex flex-col gap-0.5 text-right hover:opacity-85"
+                        >
+                          <span className="text-muted font-medium flex items-center justify-end gap-1 group-hover:text-accent">
+                            Next Book →
+                          </span>
+                          <span className="font-semibold text-ink truncate max-w-full block">
+                            {displayBookTitle(nextBook.title)}
+                          </span>
+                        </Link>
+                      ) : (
+                        <div className="group flex flex-col gap-0.5 text-right">
+                          <span className="text-muted font-medium flex items-center justify-end gap-1">
+                            Next Book →
+                          </span>
+                          <span className="font-semibold text-ink truncate max-w-full block">
+                            {displayBookTitle(nextBook.title)}
+                          </span>
+                        </div>
+                      )
                     ) : (
                       <div />
                     )}
@@ -534,7 +579,7 @@ export default async function BookDetailPage({ params }: Props) {
       </div>
 
       {/* Before you buy section */}
-      {(bestForItems.length > 0 || notForItems.length > 0 || fitStripDifficulty || rawPageCount || themesRaw.length > 0) && (
+      {showBeforeYouBuy && (
         <section className="mb-14 rounded-2xl border border-border bg-surface p-6 md:p-8">
           <h2 className="text-xl font-bold text-ink mb-6 tracking-tight flex items-center gap-2">
             <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -686,22 +731,38 @@ export default async function BookDetailPage({ params }: Props) {
                   key={`${p.person.id}-${i}`}
                   className="rounded-xl border border-border bg-surface p-4"
                 >
-                  <Link
-                    href={`/people/${p.person.slug}`}
-                    className="flex items-center gap-3 mb-3 hover:opacity-80 transition-opacity"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-subtle overflow-hidden shrink-0 ring-1 ring-border flex items-center justify-center">
-                      {isValidHttpUrl(p.person.avatar_url) ? (
-                        <img src={p.person.avatar_url} alt={p.person.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-sm font-bold text-muted/40">{p.person.name.charAt(0)}</span>
-                      )}
+                  {isValidSlug(p.person.slug) ? (
+                    <Link
+                      href={`/people/${p.person.slug}`}
+                      className="flex items-center gap-3 mb-3 hover:opacity-80 transition-opacity"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-subtle overflow-hidden shrink-0 ring-1 ring-border flex items-center justify-center">
+                        {isValidHttpUrl(p.person.avatar_url) ? (
+                          <img src={p.person.avatar_url} alt={p.person.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-sm font-bold text-muted/40">{p.person.name.charAt(0)}</span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink truncate">{p.person.name}</p>
+                        <p className="text-xs text-muted">{p.person.role}</p>
+                      </div>
+                    </Link>
+                  ) : (
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-subtle overflow-hidden shrink-0 ring-1 ring-border flex items-center justify-center">
+                        {isValidHttpUrl(p.person.avatar_url) ? (
+                          <img src={p.person.avatar_url} alt={p.person.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-sm font-bold text-muted/40">{p.person.name.charAt(0)}</span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink truncate">{p.person.name}</p>
+                        <p className="text-xs text-muted">{p.person.role}</p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink truncate">{p.person.name}</p>
-                      <p className="text-xs text-muted">{p.person.role}</p>
-                    </div>
-                  </Link>
+                  )}
 
                   {hasQuote ? (
                     <blockquote className="text-sm text-muted italic border-l-2 border-accent/20 pl-3 mb-2 line-clamp-3">
@@ -867,23 +928,37 @@ export default async function BookDetailPage({ params }: Props) {
           <section className="mb-14">
             <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Appears In</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {finalList.map(({ l, kind, displayName }) => (
-                <Link
-                  key={l.id}
-                  href={`/lists/${l.slug}`}
-                  className="p-3.5 rounded-xl border border-border bg-surface hover:shadow-md hover:border-accent/20 transition-all"
-                >
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <p className="text-sm font-semibold text-ink">{displayName}</p>
-                    {kind !== "other" && (
-                      <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${tierBadgeStyle[kind]}`}>
-                        {tierLabel[kind]}
-                      </span>
-                    )}
+              {finalList.map(({ l, kind, displayName }) => {
+                const content = (
+                  <>
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="text-sm font-semibold text-ink">{displayName}</p>
+                      {kind !== "other" && (
+                        <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${tierBadgeStyle[kind]}`}>
+                          {tierLabel[kind]}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted">{l.book_count} books</p>
+                  </>
+                );
+                return isValidSlug(l.slug) ? (
+                  <Link
+                    key={l.id}
+                    href={`/lists/${l.slug}`}
+                    className="p-3.5 rounded-xl border border-border bg-surface hover:shadow-md hover:border-accent/20 transition-all block"
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <div
+                    key={l.id}
+                    className="p-3.5 rounded-xl border border-border bg-surface block"
+                  >
+                    {content}
                   </div>
-                  <p className="text-xs text-muted">{l.book_count} books</p>
-                </Link>
-              ))}
+                );
+              })}
             </div>
           </section>
         );
