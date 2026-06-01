@@ -99,17 +99,19 @@ export default async function PersonDetailPage({ params }: Props) {
         </div>
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-ink mb-1 tracking-tight">{person.name}</h1>
-          <p className="text-sm text-accent font-semibold mb-3">{person.role}</p>
+          {person.role && person.role.trim().length > 0 && (
+            <p className="text-sm text-accent font-semibold mb-3">{person.role}</p>
+          )}
           {hasBio && <p className="text-base text-muted max-w-2xl leading-relaxed mb-3">{person.bio}</p>}
           <div className="flex flex-wrap gap-3">
             {recommendedCount > 0 && (
               <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-accent-light text-accent text-sm font-semibold">
-                {recommendedCount} books recommended
+                {recommendedCount} {recommendedCount === 1 ? "book" : "books"} recommended
               </span>
             )}
             {writtenCount > 0 && (
               <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-subtle text-ink text-sm font-medium">
-                {writtenCount} books written
+                {writtenCount} {writtenCount === 1 ? "book" : "books"} written
               </span>
             )}
           </div>
@@ -117,7 +119,7 @@ export default async function PersonDetailPage({ params }: Props) {
             <Link
               href={person.source_url!}
               target="_blank"
-              rel="noopener noreferrer"
+              rel="noopener noreferrer nofollow"
               className="inline-flex items-center gap-1 text-xs text-accent hover:underline mt-3"
             >
               Profile source →
@@ -129,7 +131,7 @@ export default async function PersonDetailPage({ params }: Props) {
       {/* Recommended Books */}
       {hasRecommendations ? (
         <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Books {person.name} Recommends</h2>
+          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Recommended Books</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {recommendationProof.map((p, i) => (
               <BookCard
@@ -147,7 +149,7 @@ export default async function PersonDetailPage({ params }: Props) {
         </section>
       ) : (
         <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Books {person.name} Recommends</h2>
+          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Recommended Books</h2>
           <div className="rounded-xl border border-border bg-surface p-6 text-center">
             <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-subtle flex items-center justify-center">
               <svg className="w-5 h-5 text-muted/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -184,7 +186,7 @@ export default async function PersonDetailPage({ params }: Props) {
       <section className="mb-14">
         <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">{proofHeading}</h2>
         {proofList.length > 0 ? (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {proofList.map((p, i) => {
               const sourceUrls = parseSourceUrls(p.source_url);
               const hasSource = sourceUrls.length > 0;
@@ -194,36 +196,59 @@ export default async function PersonDetailPage({ params }: Props) {
               return (
                 <div
                   key={`proof-${i}`}
-                  className="rounded-xl border border-border bg-surface p-3.5 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4"
+                  className="rounded-2xl border border-border bg-surface p-5 hover:shadow-md transition-all flex flex-col justify-between"
                 >
-                  <Link
-                    href={`/books/${p.book.slug}`}
-                    className="text-sm font-semibold text-ink hover:text-accent transition-colors shrink-0"
-                  >
-                    {p.book.title}
-                  </Link>
-                  {hasQuote && (
-                    <span className="text-xs text-muted italic line-clamp-2 flex-1">
-                      &ldquo;{p.quote}&rdquo;
-                    </span>
-                  )}
-                  <div className="flex items-center gap-3 shrink-0">
-                    {hasSource ? (
+                  <div className="mb-4">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <Link
+                        href={`/books/${p.book.slug}`}
+                        className="font-bold text-base text-ink hover:text-accent transition-colors line-clamp-1"
+                      >
+                        {p.book.title}
+                      </Link>
+                      {conf && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-subtle text-muted text-[10px] font-semibold tracking-wider uppercase">
+                          {conf} Confidence
+                        </span>
+                      )}
+                    </div>
+                    {p.book.author && (
+                      <p className="text-xs text-muted mb-3">by {p.book.author}</p>
+                    )}
+                    {hasQuote ? (
+                      <blockquote className="text-sm text-muted italic border-l-2 border-accent/20 pl-3 leading-relaxed">
+                        &ldquo;{p.quote}&rdquo;
+                      </blockquote>
+                    ) : (
+                      <p className="text-xs text-muted/65 italic">Recommended by {person.name} without a specific quote snippet.</p>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-auto">
+                    <Link href={`/books/${p.book.slug}`} className="text-xs font-bold text-accent hover:underline">
+                      View book details →
+                    </Link>
+                    {hasSource && (
                       sourceUrls.length === 1 ? (
                         <a
                           href={sourceUrls[0]}
                           target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-accent hover:underline font-medium"
+                          rel="noopener noreferrer nofollow"
+                          className="text-xs text-muted hover:text-accent hover:underline inline-flex items-center gap-1 font-medium"
                         >
-                          View source →
+                          <span>Original source</span>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
                         </a>
                       ) : (
-                        <details className="relative">
-                          <summary className="list-none cursor-pointer text-xs text-accent hover:underline font-medium select-none [&::-webkit-details-marker]:hidden">
-                            View sources ({sourceUrls.length}) ▾
+                        <details className="relative group/srcs">
+                          <summary className="list-none cursor-pointer text-xs text-muted hover:text-accent font-semibold select-none [&::-webkit-details-marker]:hidden flex items-center gap-1">
+                            <span>Sources ({sourceUrls.length})</span>
+                            <svg className="w-3 h-3 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
                           </summary>
-                          <div className="absolute right-0 top-full mt-1 z-20 w-72 max-w-[80vw] rounded-lg border border-border bg-surface shadow-lg p-2 space-y-1">
+                          <div className="absolute right-0 bottom-full mb-1.5 z-20 w-72 max-w-[80vw] rounded-xl border border-border bg-surface shadow-xl p-3.5 space-y-2">
                             {sourceUrls.map((u, j) => {
                               let host = u;
                               try { host = new URL(u).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
@@ -232,7 +257,7 @@ export default async function PersonDetailPage({ params }: Props) {
                                   key={j}
                                   href={u}
                                   target="_blank"
-                                  rel="noopener noreferrer"
+                                  rel="noopener noreferrer nofollow"
                                   className="block text-xs text-accent hover:underline truncate"
                                   title={u}
                                 >
@@ -243,11 +268,6 @@ export default async function PersonDetailPage({ params }: Props) {
                           </div>
                         </details>
                       )
-                    ) : p.source_name ? (
-                      <span className="text-xs text-muted">{p.source_name}</span>
-                    ) : null}
-                    {conf && (
-                      <span className="text-xs text-muted/40 tabular-nums">{conf}</span>
                     )}
                   </div>
                 </div>
@@ -270,7 +290,7 @@ export default async function PersonDetailPage({ params }: Props) {
         )}
       </section>
 
-      {/* Notability */}
+      {/* About this profile */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
         <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">About this profile</h2>
         <p className="text-sm text-muted leading-relaxed">
@@ -279,6 +299,16 @@ export default async function PersonDetailPage({ params }: Props) {
           data, and sufficient recommendation proof.
         </p>
       </section>
+
+      {/* Navigation Footer Prompt */}
+      <div className="flex justify-between items-center mt-8 pt-6 border-t border-border text-sm flex-wrap gap-3">
+        <Link href="/people" className="text-accent font-semibold hover:underline flex items-center gap-1">
+          ← Back to Books Recommended by Famous People
+        </Link>
+        <Link href="/books" className="text-accent font-semibold hover:underline flex items-center gap-1">
+          Browse All Curated Books →
+        </Link>
+      </div>
     </div>
   );
 }
