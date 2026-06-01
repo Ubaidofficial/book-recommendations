@@ -316,14 +316,7 @@ export default async function BookDetailPage({ params }: Props) {
 
           {hasAuthor && (
             <p className="text-base text-muted mb-4">
-              by{" "}
-              {isValidSlug(book.author_slug) ? (
-                <Link href={`/people/${book.author_slug}`} className="text-accent font-semibold hover:underline">
-                  {book.author}
-                </Link>
-              ) : (
-                <span className="text-accent font-semibold">{book.author}</span>
-              )}
+              by <span className="text-accent font-semibold">{book.author}</span>
             </p>
           )}
 

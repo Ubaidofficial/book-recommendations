@@ -66,13 +66,9 @@ export function BookCard({
         <h3 className="font-semibold text-sm text-ink leading-snug mb-1 group-hover:text-accent transition-colors line-clamp-2">
           {title}
         </h3>
-        <Link
-          href={`/people/${authorSlug}`}
-          className="text-xs text-muted hover:text-ink transition-colors"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <span className="text-xs text-muted block">
           {author}
-        </Link>
+        </span>
         <div className="flex items-center gap-2 mt-2.5 text-xs">
           {showRating && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-light text-accent font-medium">
