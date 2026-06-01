@@ -11,7 +11,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const hasParams = !!(sp.q && sp.q.trim());
 
   return pageMetadata({
-    title: "Featured People",
+    title: "Books Recommended by Famous People",
     description: "Discover books recommended by authors, founders, leaders, creators, and public figures with source-backed recommendation proof.",
     path: "/people",
     robots: hasParams ? "noindex, follow" : "index, follow",
@@ -108,11 +108,13 @@ export default async function PeoplePage({ searchParams }: Props) {
       )}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "People" }]} />
       <div className="mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">People</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">
+          {isSearching ? "People" : "Books Recommended by Famous People"}
+        </h1>
         <p className="text-base text-muted">
           {isSearching
             ? `Results for "${q}"`
-            : "Featured people whose recommendations shape what we read."}
+            : "Browse reading lists from entrepreneurs, investors, scientists, authors, creators, and public figures."}
         </p>
       </div>
       <div className="mb-8">
