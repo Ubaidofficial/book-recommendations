@@ -164,6 +164,29 @@ export default async function BookDetailPage({ params }: Props) {
     })
     .slice(0, 8);
 
+  // Scoring algorithm to pick one strong alternative from similarBooks for "Try this instead"
+  const alternativeCandidate = (() => {
+    if (similarBooks.length === 0) return null;
+    const candidates = similarBooks
+      .map((b) => {
+        if (!b.slug || !b.title || !isValidHttpUrl(b.cover_image_url)) {
+          return { b, score: -1 };
+        }
+        const recCount = typeof b.recommendation_count === "number" ? b.recommendation_count : 0;
+        const hasEditorialSummary = b.editorial_summary && b.editorial_summary.trim().length >= 20 ? 15 : 0;
+        const isApprovedOrDraft = (b.ai_quality_status && ["approved", "draft"].includes(b.ai_quality_status.toLowerCase())) ? 10 : 0;
+        const hasBestFor = b.best_for && b.best_for.trim().length > 0 ? 5 : 0;
+        const hasNotFor = b.not_for && b.not_for.trim().length > 0 ? 5 : 0;
+        const hasThemes = (b.key_themes && (Array.isArray(b.key_themes) ? b.key_themes.length > 0 : String(b.key_themes).trim().length > 0)) ? 5 : 0;
+        const score = recCount + hasEditorialSummary + isApprovedOrDraft + hasBestFor + hasNotFor + hasThemes;
+        return { b, score };
+      })
+      .filter((x) => x.score >= 0);
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0].b;
+  })();
+
   // Reading-fit strip: parsed up-front so we can decide whether to render the strip.
   // Themes come from key_themes via the same parser used in the Editorial section,
   // capped at 2 here to act as a "main vibe" preview (full list still appears below).
@@ -364,13 +387,19 @@ export default async function BookDetailPage({ params }: Props) {
                 href={book.amazon_url}
                 target="_blank"
                 rel="noopener noreferrer nofollow sponsored"
+                data-track-slug={book.slug}
+                data-track-section="above-fold"
+                data-track-label="Check price on Amazon"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-all duration-150 hover:shadow-md shadow-sm"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                 </svg>
-                Buy on Amazon
+                Check price on Amazon
               </a>
+              <p className="mt-2 text-xs text-muted">
+                See formats, Kindle, audiobook, and current availability.
+              </p>
             </div>
           )}
 
@@ -435,41 +464,62 @@ export default async function BookDetailPage({ params }: Props) {
 
           {/* Read this if / Skip this if */}
           {(bestForItems.length > 0 || notForItems.length > 0) && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-              {bestForItems.length > 0 && (
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50/20 p-4">
-                  <h4 className="text-xs font-bold text-emerald-900 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
-                    <svg className="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            <div className="mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                {bestForItems.length > 0 && (
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/20 p-4">
+                    <h4 className="text-xs font-bold text-emerald-900 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
+                      <svg className="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Read this if...
+                    </h4>
+                    <ul className="space-y-1.5">
+                      {bestForItems.map((item, i) => (
+                        <li key={i} className="text-xs md:text-sm text-ink/85 leading-relaxed flex gap-2">
+                          <span className="text-emerald-500 shrink-0 select-none">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {notForItems.length > 0 && (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50/30 p-4">
+                    <h4 className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
+                      <svg className="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Skip this if...
+                    </h4>
+                    <ul className="space-y-1.5">
+                      {notForItems.map((item, i) => (
+                        <li key={i} className="text-xs md:text-sm text-muted leading-relaxed flex gap-2">
+                          <span className="text-muted/40 shrink-0 select-none">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {book.amazon_url && (
+                <div className="flex justify-start">
+                  <a
+                    href={book.amazon_url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow sponsored"
+                    data-track-slug={book.slug}
+                    data-track-section="audience-fit"
+                    data-track-label="Check formats on Amazon"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-all duration-150 hover:shadow-sm"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                     </svg>
-                    Read this if...
-                  </h4>
-                  <ul className="space-y-1.5">
-                    {bestForItems.map((item, i) => (
-                      <li key={i} className="text-xs md:text-sm text-ink/85 leading-relaxed flex gap-2">
-                        <span className="text-emerald-500 shrink-0 select-none">•</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {notForItems.length > 0 && (
-                <div className="rounded-xl border border-gray-200 bg-gray-50/30 p-4">
-                  <h4 className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
-                    <svg className="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Skip this if...
-                  </h4>
-                  <ul className="space-y-1.5">
-                    {notForItems.map((item, i) => (
-                      <li key={i} className="text-xs md:text-sm text-muted leading-relaxed flex gap-2">
-                        <span className="text-muted/40 shrink-0 select-none">•</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
+                    Check formats on Amazon
+                  </a>
                 </div>
               )}
             </div>
@@ -482,6 +532,107 @@ export default async function BookDetailPage({ params }: Props) {
           )}
         </div>
       </div>
+
+      {/* Before you buy section */}
+      {(bestForItems.length > 0 || notForItems.length > 0 || fitStripDifficulty || rawPageCount || themesRaw.length > 0) && (
+        <section className="mb-14 rounded-2xl border border-border bg-surface p-6 md:p-8">
+          <h2 className="text-xl font-bold text-ink mb-6 tracking-tight flex items-center gap-2">
+            <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Before You Buy
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              {/* Quick Profile Indicators */}
+              {(fitStripDifficulty || rawPageCount || themesRaw.length > 0) && (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted">Reading Specifications</h3>
+                  <div className="space-y-2 text-sm">
+                    {fitStripDifficulty && (
+                      <p className="flex items-center gap-2 text-ink">
+                        <span className="text-muted w-20 shrink-0">Difficulty:</span>
+                        <span className="font-semibold capitalize">{fitStripDifficulty}</span>
+                      </p>
+                    )}
+                    {rawPageCount && (
+                      <p className="flex items-center gap-2 text-ink">
+                        <span className="text-muted w-20 shrink-0">Length:</span>
+                        <span className="font-semibold">{rawPageCount.toLocaleString()} pages ({lengthBucket})</span>
+                      </p>
+                    )}
+                    {themesRaw.length > 0 && (
+                      <div className="flex items-start gap-2 text-ink">
+                        <span className="text-muted w-20 shrink-0">Themes:</span>
+                        <div className="flex flex-wrap gap-1">
+                          {themesRaw.slice(0, 3).map((t, idx) => (
+                            <span key={idx} className="bg-subtle text-ink text-xs px-2 py-0.5 rounded">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {/* Read this if / Skip this if list if exists */}
+              {(bestForItems.length > 0 || notForItems.length > 0) && (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted">Audience Fit</h3>
+                  <div className="space-y-2.5">
+                    {bestForItems.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block mb-1">Recommended for:</span>
+                        <ul className="text-xs text-ink/90 space-y-1 pl-4 list-disc">
+                          {bestForItems.slice(0, 3).map((item, i) => (
+                            <li key={i}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {notForItems.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider block mb-1">Not ideal if you want:</span>
+                        <ul className="text-xs text-muted space-y-1 pl-4 list-disc">
+                          {notForItems.slice(0, 3).map((item, i) => (
+                            <li key={i}>{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {book.amazon_url && (
+            <div className="mt-6 pt-6 border-t border-border/60 flex flex-wrap items-center justify-between gap-4">
+              <p className="text-xs text-muted max-w-md">
+                Check formats, pricing, and availability options for Kindle, physical print, or audiobooks directly.
+              </p>
+              <a
+                href={book.amazon_url}
+                target="_blank"
+                rel="noopener noreferrer nofollow sponsored"
+                data-track-slug={book.slug}
+                data-track-section="before-you-buy"
+                data-track-label="Check price on Amazon"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-all duration-150 hover:shadow-md shadow-sm"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+                Check price on Amazon
+              </a>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Editorial Themes — relocated summary and lists to the top to improve quick fit evaluation */}
       {showEditorial && themesRaw.length > 0 && (
@@ -777,6 +928,62 @@ export default async function BookDetailPage({ params }: Props) {
       {/* Similar Books — list/topic co-membership first, then series + author fallback.
           Deduped and capped at 8. Section appears even when series/author are empty
           as long as co-membership returns results. */}
+      {/* Try this instead section */}
+      {alternativeCandidate && (
+        <section className="mb-14 rounded-2xl border border-amber-100 bg-amber-50/15 p-6 md:p-8">
+          <div className="flex flex-col md:flex-row gap-6 items-start">
+            <div className="w-24 shrink-0 aspect-[2/3] rounded-lg overflow-hidden shadow-sm bg-subtle">
+              <SafeImage
+                src={alternativeCandidate.cover_image_url}
+                alt={displayBookTitle(alternativeCandidate.title)}
+                className="w-full h-full object-cover"
+                fallback={<div className="w-full h-full bg-border flex items-center justify-center text-[10px] text-muted">No Cover</div>}
+              />
+            </div>
+            <div className="flex-1">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-semibold uppercase tracking-wider mb-2">
+                Try This Instead
+              </span>
+              <h3 className="text-lg font-bold text-ink mb-1">
+                Not sure if this is the right fit?
+              </h3>
+              <p className="text-sm text-muted mb-4">
+                Consider <span className="font-semibold text-ink">{displayBookTitle(alternativeCandidate.title)}</span> by {alternativeCandidate.author}. 
+                {alternativeCandidate.recommendation_count > 0 && ` Recommended by ${alternativeCandidate.recommendation_count} sources.`}
+              </p>
+
+              {alternativeCandidate.editorial_summary && (
+                <p className="text-xs text-muted leading-relaxed italic border-l border-amber-200 pl-3 mb-4 line-clamp-2">
+                  &ldquo;{sanitizeEditorialText(alternativeCandidate.editorial_summary)}&rdquo;
+                </p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  href={`/books/${alternativeCandidate.slug}`}
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 shadow-sm"
+                >
+                  View book details →
+                </Link>
+                {!book.amazon_url && alternativeCandidate.amazon_url && (
+                  <a
+                    href={alternativeCandidate.amazon_url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow sponsored"
+                    data-track-slug={alternativeCandidate.slug}
+                    data-track-section="try-this-instead"
+                    data-track-label="Check price on Amazon"
+                    className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-sm"
+                  >
+                    Check price on Amazon
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {similarBooks.length > 0 && (
         <section className="mb-14">
           <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Similar books</h2>
@@ -797,6 +1004,58 @@ export default async function BookDetailPage({ params }: Props) {
           people rank higher.
         </p>
       </section>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            (function() {
+              document.addEventListener('click', function(e) {
+                var target = e.target.closest('a[data-track-section]');
+                if (target) {
+                  var slug = target.getAttribute('data-track-slug') || '';
+                  var section = target.getAttribute('data-track-section') || '';
+                  var label = target.getAttribute('data-track-label') || '';
+                  
+                  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                    console.log('[Analytics] Outbound Click:', {
+                      book_slug: slug,
+                      page_section: section,
+                      cta_label: label
+                    });
+                  }
+                  
+                  try {
+                    if (typeof window.gtag === 'function') {
+                      window.gtag('event', 'outbound_click', {
+                        book_slug: slug,
+                        page_section: section,
+                        cta_label: label
+                      });
+                    }
+                    if (window.umami && typeof window.umami.track === 'function') {
+                      window.umami.track('outbound_click', {
+                        book_slug: slug,
+                        page_section: section,
+                        cta_label: label
+                      });
+                    }
+                    if (window.plausible && typeof window.plausible === 'function') {
+                      window.plausible('outbound_click', {
+                        props: {
+                          book_slug: slug,
+                          page_section: section,
+                          cta_label: label
+                        }
+                      });
+                    }
+                  } catch (err) {
+                    // ignore
+                  }
+                }
+              });
+            })();
+          `,
+        }}
+      />
     </div>
   );
 }
