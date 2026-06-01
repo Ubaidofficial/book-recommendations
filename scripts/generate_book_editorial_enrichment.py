@@ -1097,8 +1097,35 @@ def call_llm(provider: str, model: str, messages: List[Dict[str, str]], temperat
     return data["choices"][0]["message"]["content"]
 
 
+class ProviderBillingError(Exception):
+    """Custom exception for provider billing/payment required failures."""
+    pass
+
+
+def _calculate_effective_stop(budget_usd: float, reserve_usd: float, stop_at_usd: float) -> float:
+    if budget_usd > 0.0 and stop_at_usd <= 0.0:
+        return max(0.0, budget_usd - reserve_usd)
+    return stop_at_usd
+
+
+def _is_provider_billing_error(exc: Exception) -> bool:
+    """Check if an exception is a provider billing/payment required error."""
+    if isinstance(exc, urllib.error.HTTPError) and exc.code == 402:
+        return True
+    if hasattr(exc, "code") and exc.code == 402:
+        return True
+    if hasattr(exc, "status") and exc.status == 402:
+        return True
+    msg = str(exc).lower()
+    if "402" in msg or "payment required" in msg:
+        return True
+    return False
+
+
 def _is_provider_network_error(exc: Exception) -> bool:
     """Check if an exception is a provider/network timeout or connectivity error."""
+    if _is_provider_billing_error(exc):
+        return False
     msg = str(exc).lower()
     if isinstance(exc, TimeoutError):
         return True
@@ -1109,6 +1136,38 @@ def _is_provider_network_error(exc: Exception) -> bool:
     if isinstance(exc, (urllib.error.URLError, socket.gaierror, ConnectionError, OSError)):
         return True
     return False
+
+
+def _make_provider_billing_error_row(book: Dict[str, Any], report_flat: Dict[str, Any], error_msg: str) -> Dict[str, Any]:
+    """Build an error row for provider billing failures."""
+    return {
+        "status": "error",
+        "reason": "provider_billing_error",
+        "book_id": clean(book.get("id")),
+        "slug": clean(book.get("slug")),
+        "title": clean(book.get("title")),
+        "author": clean(book.get("author", book.get("author_name", ""))),
+        **report_flat,
+        "raw_output": error_msg[:1000],
+        "quality_warnings": "provider_billing_error",
+        "reject_debug_field": "provider",
+        "reject_debug_matched_text": "HTTP 402 Payment Required",
+        "reject_debug_snippet": error_msg[:180],
+        "reject_debug_source": "provider_billing",
+        "reject_debug_attempt": "",
+        "recommended_action": "stop_billing",
+        "reader_fit_specificity": "",
+        "dnf_warning_quality": "",
+        "emotional_fit_quality": "",
+        "pacing_expectation_quality": "",
+        "best_for_specificity": "",
+        "not_for_specificity": "",
+        "generic_ai_safety": "",
+        "fact_minimal_safety": "",
+        "vibe_quality": "",
+        "overall_icp_score": "",
+        "evaluator_notes": "",
+    }
 
 
 def _make_provider_error_row(book: Dict[str, Any], report_flat: Dict[str, Any], error_msg: str) -> Dict[str, Any]:
@@ -3210,9 +3269,15 @@ def main() -> int:
     parser.add_argument("--selftest-v916-narrowing", action="store_true", help="v9.16 — regression tests for hyphenated-proof compounds and reader-desire 'proven' carveout (no DB writes).")
     parser.add_argument("--selftest-v917-narrowing", action="store_true", help="v9.17 — regression tests for proof-\\w+ first-half compounds and word-boundary course/journal/workbook/etc. (no DB writes).")
     parser.add_argument("--selftest-v918-narrowing", action="store_true", help="v9.18 — regression tests for modifier-aware negation (lacks/no/without [adj] exercises) and planner-profession carveout (no DB writes).")
+    parser.add_argument("--selftest-billing-budget-safety", action="store_true", help="Run offline unit tests for billing detection, budget calculations, and billing abort mock rows (no DB or network writes).")
     # v9.10 — deterministic promote-from-report: write already-accepted dry-run candidates without re-calling the AI.
     parser.add_argument("--promote-accepted-from-report", default="", help="Path to a dry-run CSV. Promotes recommended_action=accept_candidate rows with score>=4.7 directly from the report. NO AI calls.")
     parser.add_argument("--confirm-promote-accepted", action="store_true", help="Required second gate for live promote write. Without this, --write in promote mode refuses.")
+    # v9.19 — budget-aware scaling controls
+    parser.add_argument("--budget-usd", type=float, default=0.0, help="Budget in USD (disabled when 0).")
+    parser.add_argument("--reserve-usd", type=float, default=5.0, help="Reserve in USD to subtract from budget.")
+    parser.add_argument("--stop-at-usd", type=float, default=0.0, help="Explicit stop limit in USD. If > 0, overrides budget check calculation.")
+    parser.add_argument("--estimated-cost-per-row", type=float, default=0.0166, help="Estimated model cost per row in USD.")
     args = parser.parse_args()
 
     if args.mock_ai and not args.fixture_file:
@@ -3292,6 +3357,8 @@ def main() -> int:
         return _selftest_v917_narrowing()
     if args.selftest_v918_narrowing:
         return _selftest_v918_narrowing()
+    if args.selftest_billing_budget_safety:
+        return _run_selftest_billing_budget_safety()
 
     # v8.6 — report analysis tooling (exits after completion, no generation)
     if args.analyze_report:
@@ -3535,6 +3602,8 @@ def process_book(book: Dict[str, Any], context: Dict[str, Any], provider: str, m
                 [{"role": "system", "content": scrubbed_sys}, {"role": "user", "content": scrubbed_usr}],
             )
         except Exception as exc:
+            if _is_provider_billing_error(exc):
+                raise ProviderBillingError(str(exc))
             if _is_provider_network_error(exc):
                 return _make_provider_error_row(book, report_flat, str(exc))
             raise
@@ -3551,6 +3620,8 @@ def process_book(book: Dict[str, Any], context: Dict[str, Any], provider: str, m
                      {"role": "user", "content": f"Your previous response could not be parsed as JSON. Return ONLY valid JSON with the required fields. Original error: {parsed['_parse_error']}"}],
                 )
             except Exception as exc:
+                if _is_provider_billing_error(exc):
+                    raise ProviderBillingError(str(exc))
                 if _is_provider_network_error(exc):
                     return _make_provider_error_row(book, report_flat, str(exc))
                 raise
@@ -3575,6 +3646,8 @@ def process_book(book: Dict[str, Any], context: Dict[str, Any], provider: str, m
                     [{"role": "system", "content": system_prompt(GLOBAL_CONTRACT_TEXT)}, {"role": "user", "content": repair_prompt(context, parsed, reason)}],
                 )
             except Exception as exc:
+                if _is_provider_billing_error(exc):
+                    raise ProviderBillingError(str(exc))
                 if _is_provider_network_error(exc):
                     return _make_provider_error_row(book, report_flat, str(exc))
                 raise
@@ -3679,6 +3752,8 @@ def process_book(book: Dict[str, Any], context: Dict[str, Any], provider: str, m
                          {"role": "user", "content": surgical_prompt}],
                     )
                 except Exception as exc:
+                    if _is_provider_billing_error(exc):
+                        raise ProviderBillingError(str(exc))
                     if _is_provider_network_error(exc):
                         break
                     raise
@@ -3714,6 +3789,8 @@ def process_book(book: Dict[str, Any], context: Dict[str, Any], provider: str, m
                          {"role": "user", "content": polish_prompt}],
                     )
                 except Exception as exc:
+                    if _is_provider_billing_error(exc):
+                        raise ProviderBillingError(str(exc))
                     if _is_provider_network_error(exc):
                         break
                     raise
@@ -4147,10 +4224,33 @@ def _run_live_sequential(args: argparse.Namespace, model: str, write_enabled: bo
     generated = failed = 0
     checkpoint = max(1, args.checkpoint_every)
 
-    for idx, book in enumerate(books, 1):
+    # Compute effective stop
+    budget_usd = getattr(args, "budget_usd", 0.0)
+    reserve_usd = getattr(args, "reserve_usd", 5.0)
+    stop_at_usd = getattr(args, "stop_at_usd", 0.0)
+    effective_stop = _calculate_effective_stop(budget_usd, reserve_usd, stop_at_usd)
+
+    budget_enabled = (not write_enabled) and effective_stop > 0.0
+    budget_stop_triggered = False
+    billing_abort_triggered = False
+    abort_reason = ""
+
+    for idx, book in enumerate(books):
         title = clean(book.get("title"))
         author = clean(book.get("author_name"))
-        print(f"[{idx}/{total}] {title} — {author}")
+
+        # Budget Check
+        current_spend = (idx + 1) * getattr(args, "estimated_cost_per_row", 0.0166)
+        if budget_enabled and current_spend > effective_stop:
+            print(f"\n[BUDGET] Next row would exceed effective budget stop of {effective_stop:.4f} USD.")
+            print(f"[BUDGET] Graceful stop triggered after processing {idx} rows.")
+            budget_stop_triggered = True
+            abort_reason = "budget_stop"
+            # Write/checkpoint the report before stopping.
+            _write_checkpoint(args.report, rows, total)
+            break
+
+        print(f"[{idx+1}/{total}] {title} — {author}")
         try:
             context = build_context(book)
             row = process_book(book, context, provider=args.provider, model=model, write_enabled=write_enabled, quality_status=args.quality_status, max_retries=args.max_retries)
@@ -4161,6 +4261,25 @@ def _run_live_sequential(args: argparse.Namespace, model: str, write_enabled: bo
                     _write_book_update(book, row, args.quality_status)
             else:
                 failed += 1
+        except ProviderBillingError as exc:
+            failed += 1
+            # Avoid calling build_context again if context is already local
+            report_flat = context.get("_report_flat", {}) if "context" in locals() and context else {}
+            if not report_flat:
+                report_flat = {
+                    "book_id": book.get("id", ""),
+                    "slug": book.get("slug", ""),
+                    "title": book.get("title", ""),
+                    "author": book.get("author_name", ""),
+                }
+            billing_row = _make_provider_billing_error_row(book, report_flat, str(exc))
+            rows.append(billing_row)
+            _write_checkpoint(args.report, rows, total)
+            print(f"\n[CRITICAL] ProviderBillingError: {exc}")
+            print("[CRITICAL] Billing abort triggered. Stopping sequential run immediately!")
+            billing_abort_triggered = True
+            abort_reason = "provider_billing_error"
+            break
         except Exception as exc:
             failed += 1
             rows.append({
@@ -4171,10 +4290,10 @@ def _run_live_sequential(args: argparse.Namespace, model: str, write_enabled: bo
                 "title": title,
                 "author": author,
             })
-        if not write_enabled and idx % checkpoint == 0 and idx < total:
+        if not write_enabled and (idx + 1) % checkpoint == 0 and (idx + 1) < total:
             _write_checkpoint(args.report, rows, total)
 
-    return _finish_live_run(args, rows, total, generated, failed, model, write_enabled)
+    return _finish_live_run(args, rows, total, generated, failed, model, write_enabled, budget_stop_triggered=budget_stop_triggered)
 
 
 def _process_book_task(book: Dict[str, Any], provider: str, model: str, write_enabled: bool, quality_status: str, max_retries: int) -> Tuple[int, Dict[str, Any]]:
@@ -4184,6 +4303,8 @@ def _process_book_task(book: Dict[str, Any], provider: str, model: str, write_en
         context = build_context(book)
         row = process_book(book, context, provider=provider, model=model, write_enabled=write_enabled, quality_status=quality_status, max_retries=max_retries)
         return idx, row
+    except ProviderBillingError:
+        raise
     except Exception as exc:
         return idx, {
             "status": "error",
@@ -4200,29 +4321,97 @@ def _run_live_parallel(args: argparse.Namespace, model: str, write_enabled: bool
     indexed_results: Dict[int, Dict[str, Any]] = {}
     checkpoint = max(1, args.checkpoint_every)
 
+    # Compute effective stop
+    budget_usd = getattr(args, "budget_usd", 0.0)
+    reserve_usd = getattr(args, "reserve_usd", 5.0)
+    stop_at_usd = getattr(args, "stop_at_usd", 0.0)
+    effective_stop = _calculate_effective_stop(budget_usd, reserve_usd, stop_at_usd)
+
+    budget_enabled = (not write_enabled) and effective_stop > 0.0
+    budget_stop_triggered = False
+    abort_reason = ""
+
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
         futures = {}
         for i, book in enumerate(books):
+            # Budget Check
+            current_spend = (i + 1) * getattr(args, "estimated_cost_per_row", 0.0166)
+            if budget_enabled and current_spend > effective_stop:
+                print(f"\n[BUDGET] Next row would exceed effective budget stop of {effective_stop:.4f} USD.")
+                print(f"[BUDGET] Graceful stop triggered. Submitting stopped at index {i} ({i} rows submitted).")
+                budget_stop_triggered = True
+                abort_reason = "budget_stop"
+                break
+
             book["_idx"] = i
-            futures[executor.submit(_process_book_task, book, args.provider, model, write_enabled, args.quality_status, args.max_retries)] = i
+            futures[executor.submit(_process_book_task, book, args.provider, model, write_enabled, args.quality_status, args.max_retries)] = (i, book)
 
         completed = 0
+        billing_abort = False
+        billing_exc = None
+        billing_book = None
         for future in as_completed(futures):
-            idx, row = future.result()
-            indexed_results[idx] = row
-            completed += 1
-            title = row.get("title", "")
-            status = row.get("status", "error")
-            print(f"[done {idx+1}/{total}] {title} — {status}")
-            if not write_enabled and completed % checkpoint == 0 and completed < total:
-                ordered = [indexed_results[i] for i in sorted(indexed_results.keys())]
-                _write_checkpoint(args.report, ordered, total)
+            idx, book = futures[future]
+            try:
+                idx, row = future.result()
+                indexed_results[idx] = row
+                completed += 1
+                title = row.get("title", "")
+                status = row.get("status", "error")
+                print(f"[done {idx+1}/{total}] {title} — {status}")
+                if not write_enabled and completed % checkpoint == 0 and completed < total:
+                    ordered = [indexed_results[i] for i in sorted(indexed_results.keys())]
+                    _write_checkpoint(args.report, ordered, total)
+            except ProviderBillingError as exc:
+                billing_abort = True
+                billing_exc = exc
+                billing_book = book
+                # Cancel all not-yet-started futures
+                for fut in futures:
+                    fut.cancel()
+                break
 
-    rows = [indexed_results[i] for i in range(total)]
+    if billing_abort:
+        report_flat = {}
+        if billing_book:
+            report_flat = {
+                "book_id": billing_book.get("id", ""),
+                "slug": billing_book.get("slug", ""),
+                "title": billing_book.get("title", ""),
+                "author": billing_book.get("author_name", ""),
+            }
+        billing_row = _make_provider_billing_error_row(billing_book, report_flat, str(billing_exc))
+        indexed_results[billing_book["_idx"]] = billing_row
+
+        completed_indices = sorted(indexed_results.keys())
+        ordered_rows = [indexed_results[i] for i in completed_indices]
+
+        _write_checkpoint(args.report, ordered_rows, total)
+        print(f"\n[CRITICAL] ProviderBillingError inside parallel worker: {billing_exc}")
+        print("[CRITICAL] Parallel billing abort triggered. Cancelling pending tasks and stopping run!")
+
+        generated = sum(1 for r in ordered_rows if r["status"] in ("dry_run_update", "updated"))
+        failed = sum(1 for r in ordered_rows if r["status"] not in ("dry_run_update", "updated"))
+        return _finish_live_run(
+            args, ordered_rows, len(ordered_rows), generated, failed, model, write_enabled,
+            budget_stop_triggered=False,
+            billing_abort_triggered=True,
+            abort_reason="provider_billing_error"
+        )
+
+    # Reconstruct final results
+    # We might have submitted fewer tasks than total due to budget stop
+    actual_total = len(futures)
+    rows = [indexed_results[i] for i in range(actual_total)]
     generated = sum(1 for r in rows if r["status"] in ("dry_run_update", "updated"))
     failed = sum(1 for r in rows if r["status"] not in ("dry_run_update", "updated"))
 
-    return _finish_live_run(args, rows, total, generated, failed, model, write_enabled)
+    return _finish_live_run(
+        args, rows, actual_total, generated, failed, model, write_enabled,
+        budget_stop_triggered=budget_stop_triggered,
+        billing_abort_triggered=False,
+        abort_reason=abort_reason
+    )
 
 
 def _write_checkpoint(path: str, rows: List[Dict[str, Any]], total: int) -> None:
@@ -4231,10 +4420,20 @@ def _write_checkpoint(path: str, rows: List[Dict[str, Any]], total: int) -> None
     print(f"[checkpoint] {len(rows)}/{total} rows written to {path}")
 
 
-def _finish_live_run(args: argparse.Namespace, rows: List[Dict[str, Any]], total: int, generated: int, failed: int, model: str, write_enabled: bool) -> int:
+def _finish_live_run(args: argparse.Namespace, rows: List[Dict[str, Any]], total: int, generated: int, failed: int, model: str, write_enabled: bool, budget_stop_triggered: bool = False, billing_abort_triggered: bool = False, abort_reason: str = "") -> int:
     write_report(args.report, rows)
+    estimated_cost_per_row = getattr(args, "estimated_cost_per_row", 0.0166)
+    estimated_spend = len(rows) * estimated_cost_per_row
+
+    budget_usd = getattr(args, "budget_usd", 0.0)
+    reserve_usd = getattr(args, "reserve_usd", 5.0)
+    stop_at_usd = getattr(args, "stop_at_usd", 0.0)
+    effective_stop = _calculate_effective_stop(budget_usd, reserve_usd, stop_at_usd)
+
     print(json.dumps({
         "processed": total,
+        "target_rows": total,
+        "processed_rows": len(rows),
         "generated": generated,
         "failed": failed,
         "write_enabled": write_enabled,
@@ -4242,6 +4441,14 @@ def _finish_live_run(args: argparse.Namespace, rows: List[Dict[str, Any]], total
         "model": model,
         "quality_status": args.quality_status if write_enabled else "",
         "report": args.report,
+        "budget_usd": budget_usd,
+        "stop_at_usd": effective_stop,
+        "reserve_usd": reserve_usd,
+        "estimated_cost_per_row": estimated_cost_per_row,
+        "estimated_spend_usd": round(estimated_spend, 6),
+        "budget_stop_triggered": budget_stop_triggered,
+        "billing_abort_triggered": billing_abort_triggered,
+        "abort_reason": abort_reason,
     }, indent=2))
     return 0
 
@@ -4334,6 +4541,117 @@ def _write_book_update(book: Dict[str, Any], row: Dict[str, Any], quality_status
         "source_quality_note": clean(row.get("source_quality_note", "")),
     }
     update_book(book["id"], cleaned_data, status=quality_status)
+
+
+def _run_selftest_billing_budget_safety() -> int:
+    """Offline unit tests for billing detection, budget limits, and billing row generation."""
+    print("[selftest] Starting billing & budget safety offline verification...")
+    fails = 0
+
+    # Test A: HTTPError with code 402 is billing
+    try:
+        raise urllib.error.HTTPError("https://api.openrouter.ai", 402, "Payment Required", {}, None)
+    except Exception as e:
+        is_billing = _is_provider_billing_error(e)
+        is_net = _is_provider_network_error(e)
+        if not is_billing:
+            print("  [FAIL] HTTPError with code 402 was not classified as billing")
+            fails += 1
+        else:
+            print("  [PASS] HTTPError with code 402 is correctly billing")
+        if is_net:
+            print("  [FAIL] HTTPError with code 402 was classified as network error")
+            fails += 1
+        else:
+            print("  [PASS] HTTPError with code 402 is not network error")
+
+    # Test B: HTTPError with code 500 is not billing, but is network
+    try:
+        raise urllib.error.HTTPError("https://api.openrouter.ai", 500, "Internal Server Error", {}, None)
+    except Exception as e:
+        is_billing = _is_provider_billing_error(e)
+        is_net = _is_provider_network_error(e)
+        if is_billing:
+            print("  [FAIL] HTTP 500 was classified as billing")
+            fails += 1
+        else:
+            print("  [PASS] HTTP 500 is not billing")
+        if not is_net:
+            print("  [FAIL] HTTP 500 was not classified as network error")
+            fails += 1
+        else:
+            print("  [PASS] HTTP 500 is network error")
+
+    # Test C: Normal TimeoutError is network and not billing
+    try:
+        raise TimeoutError("connection timed out")
+    except Exception as e:
+        is_billing = _is_provider_billing_error(e)
+        is_net = _is_provider_network_error(e)
+        if is_billing:
+            print("  [FAIL] TimeoutError was classified as billing")
+            fails += 1
+        else:
+            print("  [PASS] TimeoutError is not billing")
+        if not is_net:
+            print("  [FAIL] TimeoutError was not classified as network error")
+            fails += 1
+        else:
+            print("  [PASS] TimeoutError is network error")
+
+    # Test D: Billing row maker matches format specifications
+    mock_book = {"id": "123", "slug": "test-book", "title": "Test Title", "author_name": "Test Author"}
+    mock_report = {"context_recommender_names": "Alice"}
+    row = _make_provider_billing_error_row(mock_book, mock_report, "HTTP Error 402: Payment Required")
+    if row.get("status") != "error":
+        print(f"  [FAIL] billing row status is {row.get('status')}, expected 'error'")
+        fails += 1
+    if row.get("reason") != "provider_billing_error":
+        print(f"  [FAIL] billing row reason is {row.get('reason')}, expected 'provider_billing_error'")
+        fails += 1
+    if row.get("recommended_action") != "stop_billing":
+        print(f"  [FAIL] billing row recommended_action is {row.get('recommended_action')}, expected 'stop_billing'")
+        fails += 1
+    if row.get("reject_debug_source") != "provider_billing":
+        print(f"  [FAIL] billing row reject_debug_source is {row.get('reject_debug_source')}, expected 'provider_billing'")
+        fails += 1
+    print("  [PASS] Billing row maker matches format specifications")
+
+    # Test E: Effective stop calculation helper
+    # Case E1: budget_usd = 100.0, reserve_usd = 5.0, stop_at_usd = 0.0 -> effective = 95.0
+    s1 = _calculate_effective_stop(100.0, 5.0, 0.0)
+    if s1 != 95.0:
+        print(f"  [FAIL] budget stop calculation s1={s1}, expected 95.0")
+        fails += 1
+    else:
+        print("  [PASS] budget stop calculation s1 is 95.0")
+
+    # Case E2: budget_usd = 0.0, reserve_usd = 5.0, stop_at_usd = 50.0 -> effective = 50.0
+    s2 = _calculate_effective_stop(0.0, 5.0, 50.0)
+    if s2 != 50.0:
+        print(f"  [FAIL] budget stop calculation s2={s2}, expected 50.0")
+        fails += 1
+    else:
+        print("  [PASS] budget stop calculation s2 is 50.0")
+
+    # Case E3: budget_usd = 10.0, reserve_usd = 5.0, stop_at_usd = 4.0 -> effective = 4.0 (stop_at overrides budget)
+    s3 = _calculate_effective_stop(10.0, 5.0, 4.0)
+    if s3 != 4.0:
+        print(f"  [FAIL] budget stop calculation s3={s3}, expected 4.0")
+        fails += 1
+    else:
+        print("  [PASS] budget stop calculation s3 is 4.0")
+
+    # Case E4: budget_usd = 3.0, reserve_usd = 5.0, stop_at_usd = 0.0 -> effective = 0.0 (max 0 gate)
+    s4 = _calculate_effective_stop(3.0, 5.0, 0.0)
+    if s4 != 0.0:
+        print(f"  [FAIL] budget stop calculation s4={s4}, expected 0.0")
+        fails += 1
+    else:
+        print("  [PASS] budget stop calculation s4 is 0.0")
+
+    print(f"[selftest] Finished: {fails} failures.")
+    return 0 if fails == 0 else 1
 
 
 def _selftest_editorial_list_serializer() -> int:
