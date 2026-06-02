@@ -159,21 +159,39 @@ export async function getBooksPaginated(
     const col = sort === "title" ? "title" : sort;
     const asc = sort === "title";
 
-    let q = getSupabase()
-      .from("books")
-      .select("*", { count: "exact" })
-      .order(col, { ascending: asc, nullsFirst: false });
+    // Build the query as a closure so a retry can construct a fresh builder
+    // (PostgrestFilterBuilder state may otherwise be consumed by the awaited
+    // first attempt). Identical filters / range / sort on each attempt.
+    const runQuery = () => {
+      let q = getSupabase()
+        .from("books")
+        .select("*", { count: "exact" })
+        .order(col, { ascending: asc, nullsFirst: false });
+      if (scope === "curated") {
+        q = q
+          .not("cover_image_url", "is", null)
+          .neq("cover_image_url", "")
+          .gt("recommendation_count", 0);
+      }
+      return q.range(from, to);
+    };
 
-    if (scope === "curated") {
-      q = q
-        .not("cover_image_url", "is", null)
-        .neq("cover_image_url", "")
-        .gt("recommendation_count", 0);
+    // One retry on Supabase error to absorb transient cold-start / network
+    // hiccups that would otherwise render the page as "No books found".
+    let { data, count, error } = await runQuery();
+    if (error) {
+      logQueryError("getBooksPaginated (attempt 1/2)", error);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const retry = await runQuery();
+      if (retry.error) {
+        logQueryError("getBooksPaginated (attempt 2/2 after retry)", retry.error);
+        return { data: [], total: 0, page, pageSize };
+      }
+      data = retry.data;
+      count = retry.count;
+      error = null;
     }
 
-    const { data, count, error } = await q.range(from, to);
-
-    if (error) { logQueryError("getBooksPaginated", error); return { data: [], total: 0, page, pageSize }; }
     let rows = (data || []) as Book[];
     // Drop numeric-artifact titles from the curated default (cheap client-side
     // post-filter; production has only a handful and our window is 48 rows).
