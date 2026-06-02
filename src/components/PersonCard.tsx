@@ -41,7 +41,9 @@ export function PersonCard({
             </span>
           )}
           {writtenCount > 0 && (
-            <span className="text-xs text-muted">{writtenCount} books</span>
+            <span className="text-xs text-muted">
+              {writtenCount} {writtenCount === 1 ? "book" : "books"} written
+            </span>
           )}
         </div>
       </div>
