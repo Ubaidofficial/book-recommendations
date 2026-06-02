@@ -7,6 +7,47 @@ export function isValidHttpUrl(value: string | null | undefined): boolean {
   return /^https?:\/\//i.test(value.trim());
 }
 
+/**
+ * True iff the URL points at an Amazon affiliate domain (incl. regional TLDs and
+ * the amzn.to / amzn.com short-link hosts). Conservative: requires `amazon` to be
+ * a full hostname label, so `pre-amazon.com` and `amazon-asia.com` do NOT match.
+ *
+ * Matches:
+ *   - amazon.com, amazon.co.uk, amazon.ca, amazon.de, amazon.fr, amazon.co.jp,
+ *     amazon.com.au, amazon.es, amazon.it, … (any `amazon.<tld>` or `amazon.<tld>.<tld>`)
+ *   - www.amazon.com, smile.amazon.com, read.amazon.com (any subdomain of amazon.<tld>)
+ *   - amzn.to, amzn.com (short-link hosts)
+ *
+ * Does NOT match: malformed URLs, non-amazon hosts, or substrings inside other domains.
+ */
+export function isAmazonUrl(url: string | null | undefined): boolean {
+  if (!url || typeof url !== "string") return false;
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (host === "amzn.to" || host === "amzn.com") return true;
+  // Either the hostname IS amazon.<tld>[.<tld>], or any subdomain of one
+  // (the `(^|\.)` boundary requires `amazon` to be a full label).
+  return /(^|\.)amazon(\.[a-z]{2,3}){1,2}$/.test(host);
+}
+
+/**
+ * Returns the `rel` attribute value to use on an outbound `<a>` tag.
+ * Amazon links get the affiliate-compliant `sponsored` token added; all
+ * other outbound links keep the safe-default `noopener noreferrer nofollow`.
+ *
+ * Use this on every outbound proof / source / CTA anchor that may carry an
+ * Amazon URL coming from data (e.g. `source_url`, `book.amazon_url`).
+ */
+export function outboundLinkRel(url: string | null | undefined): string {
+  return isAmazonUrl(url)
+    ? "noopener noreferrer nofollow sponsored"
+    : "noopener noreferrer nofollow";
+}
+
 export function isValidRating(value: unknown): boolean {
   if (value == null) return false;
   const n = Number(value);

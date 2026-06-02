@@ -16,6 +16,7 @@ import {
   isUsefulDescription,
   uniqueByNormalizedText,
   parseSourceUrls,
+  outboundLinkRel,
 } from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -119,7 +120,7 @@ export default async function PersonDetailPage({ params }: Props) {
             <Link
               href={person.source_url!}
               target="_blank"
-              rel="noopener noreferrer nofollow"
+              rel={outboundLinkRel(person.source_url)}
               className="inline-flex items-center gap-1 text-xs text-accent hover:underline mt-3"
             >
               Profile source →
@@ -232,7 +233,7 @@ export default async function PersonDetailPage({ params }: Props) {
                         <a
                           href={sourceUrls[0]}
                           target="_blank"
-                          rel="noopener noreferrer nofollow"
+                          rel={outboundLinkRel(sourceUrls[0])}
                           className="text-xs text-muted hover:text-accent hover:underline inline-flex items-center gap-1 font-medium"
                         >
                           <span>Original source</span>
@@ -257,7 +258,7 @@ export default async function PersonDetailPage({ params }: Props) {
                                   key={j}
                                   href={u}
                                   target="_blank"
-                                  rel="noopener noreferrer nofollow"
+                                  rel={outboundLinkRel(u)}
                                   className="block text-xs text-accent hover:underline truncate"
                                   title={u}
                                 >
