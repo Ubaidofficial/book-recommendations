@@ -18,7 +18,8 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     (sp.category && sp.category.trim()) ||
     (sp.sort && sp.sort.trim()) ||
     (sp.page && sp.page.trim()) ||
-    (sp.scope && sp.scope.trim())
+    (sp.scope && sp.scope.trim()) ||
+    (sp.filter && sp.filter.trim())
   );
 
   return pageMetadata({
@@ -56,7 +57,7 @@ type SortKey = (typeof SORT_OPTIONS)[number]["value"];
 const SORT_KEYS = new Set<string>(SORT_OPTIONS.map((s) => s.value));
 
 interface Props {
-  searchParams: Promise<{ q?: string; category?: string; sort?: string; page?: string; scope?: string }>;
+  searchParams: Promise<{ q?: string; category?: string; sort?: string; page?: string; scope?: string; filter?: string }>;
 }
 
 type ScopeKey = "curated" | "all";
@@ -88,11 +89,24 @@ function buildQs(opts: { q?: string | null; category?: string | null; sort?: str
 }
 
 export default async function BooksPage({ searchParams }: Props) {
+  const hasEnv = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  if (!hasEnv) {
+    console.error("CRITICAL ERROR: Supabase environment variables are missing! NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY is undefined.");
+    const isLocalhost = typeof window !== "undefined"
+      ? window.location.hostname === "localhost"
+      : process.env.NODE_ENV === "development" || process.env.HOSTNAME === "localhost" || process.env.PORT === "3000";
+    if (isLocalhost || process.env.NODE_ENV === "development") {
+      throw new Error(
+        "Missing Supabase environment variables: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY. Please verify your .env.local file is configured and sourced."
+      );
+    }
+  }
+
   const sp = await searchParams;
   const q = (sp.q || "").trim();
   const categoryParam = (sp.category || "").trim().toLowerCase();
   const sort: SortKey = parseSort(sp.sort);
-  const scope: ScopeKey = parseScope(sp.scope);
+  const scope: ScopeKey = parseScope(sp.scope || sp.filter);
   const page = parsePage(sp.page);
 
   // Resolve chip — unknown values fall back to "All" so a bad URL doesn't
@@ -132,7 +146,7 @@ export default async function BooksPage({ searchParams }: Props) {
           ? "Full catalogue — includes incomplete and unreviewed entries."
           : "Curated picks — books with covers and at least one source-backed recommendation.";
 
-  const hasParams = !!(q || categoryParam || sp.sort || sp.page || sp.scope);
+  const hasParams = !!(q || categoryParam || sp.sort || sp.page || sp.scope || sp.filter);
   const collectionJsonLd = !hasParams
     ? collectionPageJsonLd({
         name: "Browse Books | BookRecs",
