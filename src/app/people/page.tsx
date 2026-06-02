@@ -1,8 +1,33 @@
 import { Metadata } from "next";
-import { getQualityPeople, getPersonRecommendedCount, getPersonWrittenCount, searchPeople } from "@/lib/data";
+import { getTopRecommendedPeople, getPersonRecommendedCount, getPersonWrittenCount, searchPeople } from "@/lib/data";
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
 import { PersonCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
+
+// Minimum recommendation count for a person to appear in the default
+// (non-search) /people hub. Mirrors the >=6 quality threshold from the
+// people content gap audit.
+const HUB_MIN_REC_COUNT = 6;
+// Conservative surname-alias dedup: drop a single-token-name record only
+// when EXACTLY ONE multi-token canonical with the same surname is present
+// in the candidate pool. Single-token records with 0 or 2+ canonical
+// siblings are preserved (no surname conflict resolution possible).
+function dedupeSurnameAliases<T extends { name: string }>(people: T[]): T[] {
+  const surnameToMultiTokenCount = new Map<string, number>();
+  for (const p of people) {
+    const tokens = (p.name || "").trim().split(/\s+/).filter(Boolean);
+    if (tokens.length >= 2) {
+      const k = tokens[tokens.length - 1].toLowerCase();
+      surnameToMultiTokenCount.set(k, (surnameToMultiTokenCount.get(k) || 0) + 1);
+    }
+  }
+  return people.filter((p) => {
+    const tokens = (p.name || "").trim().split(/\s+/).filter(Boolean);
+    if (tokens.length !== 1) return true;
+    const k = tokens[0].toLowerCase();
+    return surnameToMultiTokenCount.get(k) !== 1;
+  });
+}
 
 export const dynamic = "force-dynamic";
 
@@ -27,30 +52,39 @@ export default async function PeoplePage({ searchParams }: Props) {
   const isSearching = q && q.length >= 2;
   const DISPLAY_LIMIT = 24;
 
-  // Gather raw people — either from search or quality batch
-  let rawPeople;
+  // Gather raw people — either from search or recommendation-count batch.
+  // Default view: pull the top recommenders (rank by book_recommendations
+  // count) so canonical famous recommenders surface even when their
+  // quality_score is 0. Search: search-driven match list.
+  let peopleWithCounts: Array<{
+    id: string;
+    slug: string;
+    name: string;
+    role: string;
+    bio: string;
+    avatar_url: string;
+    quality_score: number;
+    recommendedCount: number;
+    writtenCount: number;
+  }>;
   let rawTotal: number;
 
   if (isSearching) {
     const data = await searchPeople(q, DISPLAY_LIMIT);
-    rawPeople = data;
-    rawTotal = data.length;
+    peopleWithCounts = await Promise.all(
+      data.map(async (p) => {
+        const [rc, wc] = await Promise.all([
+          getPersonRecommendedCount(p.id),
+          getPersonWrittenCount(p.id),
+        ]);
+        return { ...p, recommendedCount: rc, writtenCount: wc };
+      })
+    );
+    rawTotal = peopleWithCounts.length;
   } else {
-    const data = await getQualityPeople(100);
-    rawPeople = data;
-    rawTotal = data.length;
+    peopleWithCounts = await getTopRecommendedPeople(150);
+    rawTotal = peopleWithCounts.length;
   }
-
-  // Fetch counts for all
-  const peopleWithCounts = await Promise.all(
-    rawPeople.map(async (p) => {
-      const [rc, wc] = await Promise.all([
-        getPersonRecommendedCount(p.id),
-        getPersonWrittenCount(p.id),
-      ]);
-      return { ...p, recommendedCount: rc, writtenCount: wc };
-    })
-  );
 
   // Sort: recs desc, then quality_score desc, then name asc
   const sorted = [...peopleWithCounts].sort((a, b) => {
@@ -61,17 +95,26 @@ export default async function PeoplePage({ searchParams }: Props) {
     return a.name.localeCompare(b.name);
   });
 
-  // Filter for default view: hide one-word names without signals
+  // Filter for default view:
+  //   - drop one-word names without any signals (existing guard; keeps merged
+  //     duplicate alias rows like /people/gates out of the hub)
+  //   - drop single-token records that collide with EXACTLY ONE multi-token
+  //     canonical in the same pool (conservative surname-alias dedup; keeps
+  //     legit single-name recommenders intact)
+  //   - require recommendation count >= HUB_MIN_REC_COUNT so the hub matches
+  //     the "Books Recommended by Famous People" promise
   const shown = isSearching
     ? sorted.slice(0, DISPLAY_LIMIT)
-    : sorted.filter((p) => {
-        const name = p.name.trim();
-        const hasSpace = name.includes(" ");
-        if (!hasSpace && p.recommendedCount === 0 && p.writtenCount === 0 && !p.bio) {
-          return false;
-        }
-        return true;
-      }).slice(0, DISPLAY_LIMIT);
+    : dedupeSurnameAliases(
+        sorted.filter((p) => {
+          const name = p.name.trim();
+          const hasSpace = name.includes(" ");
+          if (!hasSpace && p.recommendedCount === 0 && p.writtenCount === 0 && !p.bio) {
+            return false;
+          }
+          return p.recommendedCount >= HUB_MIN_REC_COUNT;
+        })
+      ).slice(0, DISPLAY_LIMIT);
 
   const collectionJsonLd = !isSearching
     ? collectionPageJsonLd({

@@ -421,6 +421,63 @@ export async function getQualityPeople(batch = 100): Promise<Person[]> {
   }
 }
 
+/**
+ * People ranked by their recommendation count.
+ *
+ * Uses a single embedded-aggregate query (`recs:book_recommendations(count)` +
+ * `auths:book_authors(count)`) paginated by 1000-row pages, then sorted in JS.
+ * Returns each person with `recommendedCount` and `writtenCount` already
+ * populated, so callers do NOT need to issue N+1 count queries afterward.
+ *
+ * Used by the /people hub default view so canonical high-recommendation
+ * recommenders (Bill Gates, Naval Ravikant, Tim Ferriss, etc.) surface at
+ * the top — they were previously hidden because the hub fetched by
+ * quality_score, and these rows have quality_score = 0 (never promoted by
+ * the editorial pipeline).
+ *
+ * Read-only. Does not touch index_status, sitemap, or robots metadata.
+ */
+export async function getTopRecommendedPeople(topN = 150): Promise<Array<Person & { recommendedCount: number; writtenCount: number }>> {
+  try {
+    const supa = getSupabase();
+    const out: Array<Person & { recommendedCount: number; writtenCount: number }> = [];
+    const pageSize = 1000;
+    let offset = 0;
+    while (true) {
+      const { data, error } = await supa
+        .from("people")
+        .select("*, recs:book_recommendations(count), auths:book_authors(count)")
+        .range(offset, offset + pageSize - 1);
+      if (error) {
+        logQueryError("getTopRecommendedPeople", error);
+        break;
+      }
+      if (!data || data.length === 0) break;
+      for (const row of data as Array<Record<string, unknown>>) {
+        const recs = row.recs as Array<{ count?: number }> | undefined;
+        const auths = row.auths as Array<{ count?: number }> | undefined;
+        const rc = Array.isArray(recs) && recs[0] && typeof recs[0].count === "number" ? recs[0].count : 0;
+        const wc = Array.isArray(auths) && auths[0] && typeof auths[0].count === "number" ? auths[0].count : 0;
+        const { recs: _r, auths: _a, ...rest } = row;
+        out.push({ ...(rest as unknown as Person), recommendedCount: rc, writtenCount: wc });
+      }
+      if (data.length < pageSize) break;
+      offset += data.length;
+    }
+    out.sort((a, b) => {
+      const r = (b.recommendedCount || 0) - (a.recommendedCount || 0);
+      if (r !== 0) return r;
+      const q = (b.quality_score || 0) - (a.quality_score || 0);
+      if (q !== 0) return q;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+    return out.slice(0, topN);
+  } catch (e) {
+    logQueryError("getTopRecommendedPeople", e);
+    return [];
+  }
+}
+
 export async function getPersonBySlug(slug: string): Promise<Person | null> {
   try {
     const { data, error } = await getSupabase()
