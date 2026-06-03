@@ -138,13 +138,35 @@ export default async function BooksPage({ searchParams }: Props) {
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
 
-  // Phase-4: single batch query for the top 3 recommender names for each book
-  // on this page. Map<book_id, [{slug, name}]>. Cards without data render
-  // identically to the pre-Phase-4 layout.
+  // Phase-4: single batch query for the top recommender names for each book
+  // on this page. Map<book_id, { names, totalValid }>. The recommender row
+  // is decorative; under no circumstance may it block the books grid from
+  // rendering. Two layers of defence:
+  //   * the helper itself is wrapped in try/catch and returns an empty Map
+  //     on any error;
+  //   * here the call is wrapped again with a hard timeout (Promise.race) so
+  //     a slow recommender query never extends the request past the
+  //     getBooksPaginated cold-start retry window. If the timeout fires,
+  //     books still render — just without recommender rows on the cards.
   const bookIds = books.map((b) => b.id).filter((id): id is string => !!id);
-  const recommenderMap = bookIds.length > 0
-    ? await getBookRecommenderSummaries(bookIds, 3)
-    : new Map<string, Array<{ slug: string; name: string }>>();
+  type RecMap = Awaited<ReturnType<typeof getBookRecommenderSummaries>>;
+  const emptyRecMap: RecMap = new Map();
+  let recommenderMap: RecMap = emptyRecMap;
+  if (bookIds.length > 0) {
+    try {
+      const RECOMMENDER_TIMEOUT_MS = 1500;
+      const timeoutPromise = new Promise<RecMap>((resolve) =>
+        setTimeout(() => resolve(emptyRecMap), RECOMMENDER_TIMEOUT_MS)
+      );
+      recommenderMap = await Promise.race([
+        getBookRecommenderSummaries(bookIds, 3),
+        timeoutPromise,
+      ]);
+    } catch (e) {
+      console.error("[books] getBookRecommenderSummaries threw; falling back to empty rec map", e);
+      recommenderMap = emptyRecMap;
+    }
+  }
 
   const subtitle =
     mode === "search"
@@ -301,7 +323,7 @@ export default async function BooksPage({ searchParams }: Props) {
               coverUrl={book.cover_image_url}
               rating={book.rating}
               recommendationCount={book.recommendation_count}
-              recommenders={recommenderMap.get(book.id) || []}
+              recommenders={recommenderMap.get(book.id)}
             />
           ))}
         </div>

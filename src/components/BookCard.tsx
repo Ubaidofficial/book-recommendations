@@ -31,11 +31,15 @@ interface BookCardProps {
   coverUrl: string;
   rating: number;
   recommendationCount: number;
-  // Optional Phase-4 recommender proof row. When 1+ entries are passed, the
-  // card renders a compact "Recommended by …" line under the metadata, with
-  // recommender names linking to /people/<slug>. When absent or empty, the
+  // Optional Phase-4 recommender proof row. `names` is the top-N recognisable
+  // recommenders (passed quality filter upstream). `totalValid` is the count
+  // of recommenders that passed the same filter — used for "+N more". When
+  // omitted, empty, or names.length === 0, the row is not rendered and the
   // card layout is byte-identical to the pre-Phase-4 version.
-  recommenders?: Array<{ slug: string; name: string }>;
+  recommenders?: {
+    names: Array<{ slug: string; name: string }>;
+    totalValid: number;
+  };
 }
 
 export function BookCard({
@@ -50,18 +54,22 @@ export function BookCard({
 }: BookCardProps) {
   const showCover = isValidHttpUrl(coverUrl);
   const showRating = isValidRating(rating);
-  const visibleRecs = (recommenders || []).filter(
+  const visibleRecs = (recommenders?.names || []).filter(
     (r) =>
       r &&
       typeof r.slug === "string" &&
       r.slug.trim() &&
       r.slug !== "undefined" &&
+      r.slug !== "null" &&
       typeof r.name === "string" &&
       r.name.trim()
   );
   const showRecRow = visibleRecs.length > 0;
   const namesShown = visibleRecs.slice(0, 2);
-  const extra = showRecRow ? Math.max(0, (recommendationCount || 0) - namesShown.length) : 0;
+  // "+N more" counts remaining high-signal recommenders (totalValid - namesShown.length),
+  // not book.recommendation_count. Falls back to 0 if totalValid is missing.
+  const totalValid = recommenders?.totalValid ?? visibleRecs.length;
+  const extra = showRecRow ? Math.max(0, totalValid - namesShown.length) : 0;
 
   // Stretched-link pattern: the whole card is clickable via an absolute-inset
   // <Link> overlay at z-10, while interactive recommender names sit at z-20

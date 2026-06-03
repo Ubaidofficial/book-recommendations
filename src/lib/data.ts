@@ -1382,13 +1382,24 @@ export async function getBookRecommenders(
         }
       }
     }
+    // Sort order tuned for the "Recommended by notable people" section:
+    //   1. person-wide recommendation count DESC (well-known canonicals first)
+    //   2. profile completeness DESC (avatar/role/bio present)
+    //   3. multi-token names (full-name canonicals) before single-token aliases
+    //      — this deprioritises unmerged surname-only records like
+    //      mauboussin / o-shaughnessy / rabois / weinstein while still showing
+    //      them at the bottom of the list
+    //   4. name asc for stable ordering
     buffered.sort((a, b) => {
-      const sa = (a.avatar_url ? 4 : 0) + (a.role ? 2 : 0) + (a.bio ? 1 : 0);
-      const sb = (b.avatar_url ? 4 : 0) + (b.role ? 2 : 0) + (b.bio ? 1 : 0);
-      if (sa !== sb) return sb - sa;
       const ra = recCount.get(a._person_id) || 0;
       const rb = recCount.get(b._person_id) || 0;
       if (ra !== rb) return rb - ra;
+      const sa = (a.avatar_url ? 4 : 0) + (a.role ? 2 : 0) + (a.bio ? 1 : 0);
+      const sb = (b.avatar_url ? 4 : 0) + (b.role ? 2 : 0) + (b.bio ? 1 : 0);
+      if (sa !== sb) return sb - sa;
+      const ma = a.person_name.includes(" ");
+      const mb = b.person_name.includes(" ");
+      if (ma !== mb) return ma ? -1 : 1;
       return a.person_name.localeCompare(b.person_name);
     });
     return buffered.slice(0, limit).map(({ _person_id: _id, ...rest }) => rest);
@@ -1407,6 +1418,24 @@ export interface BookRecommenderName {
 }
 
 /**
+ * BookCard summary payload: top-N high-signal recommender names plus the
+ * total count of valid (filtered) recommenders for the "+N more" text.
+ * Note totalValid is NOT the book's raw recommendation_count — it is the
+ * count of recommenders that passed the high-signal quality filter.
+ */
+export interface BookRecommenderCardSummary {
+  names: BookRecommenderName[];
+  totalValid: number;
+}
+
+// Minimum person-wide recommendation count for a person to qualify as "high
+// signal" on a BookCard proof row. Tuned so the well-known canonicals from
+// the batch-1 + batch-2 merges (Bill Gates 310, Naval Ravikant 219, Paul
+// Graham 150, …) clear the bar but the long tail of low-signal accounts and
+// unmerged surname-only aliases do not.
+const BOOKCARD_MIN_REC_COUNT = 40;
+
+/**
  * Batch helper: for a list of `bookIds` (typically the 48 books on a /books
  * page), returns a Map<bookId, top N recommender names>. Single PostgREST
  * round trip with an embedded people join; grouping and per-book limiting
@@ -1419,8 +1448,8 @@ export interface BookRecommenderName {
 export async function getBookRecommenderSummaries(
   bookIds: string[],
   limitPerBook = 3
-): Promise<Map<string, BookRecommenderName[]>> {
-  const out = new Map<string, BookRecommenderName[]>();
+): Promise<Map<string, BookRecommenderCardSummary>> {
+  const out = new Map<string, BookRecommenderCardSummary>();
   if (!bookIds || bookIds.length === 0) return out;
   try {
     const supa = getSupabase();
@@ -1485,18 +1514,39 @@ export async function getBookRecommenderSummaries(
         }
       }
     }
+    // High-signal quality filter for the BookCard row:
+    //   * multi-token name (skips unmerged surname-only aliases like
+    //     mauboussin / rabois / weinstein / pompliano)
+    //   * AND either: person rec count >= BOOKCARD_MIN_REC_COUNT,
+    //                 OR profile has any of avatar/role/bio populated
+    // Single-token names are not allowlisted in this batch — keeps the row
+    // anchored to recognisable canonicals.
+    const passesQualityFilter = (
+      p: { name: string; avatar_url: string | null; role: string | null; bio: string | null; id: string }
+    ): boolean => {
+      if (!p.name.includes(" ")) return false;
+      const rc = recCount.get(p.id) || 0;
+      if (rc >= BOOKCARD_MIN_REC_COUNT) return true;
+      if (p.avatar_url || p.role || p.bio) return true;
+      return false;
+    };
+
     for (const [bookId, peopleMap] of byBook.entries()) {
-      const arr = [...peopleMap.values()];
-      arr.sort((a, b) => {
-        const sa = (a.avatar_url ? 4 : 0) + (a.role ? 2 : 0) + (a.bio ? 1 : 0);
-        const sb = (b.avatar_url ? 4 : 0) + (b.role ? 2 : 0) + (b.bio ? 1 : 0);
-        if (sa !== sb) return sb - sa;
+      const filtered = [...peopleMap.values()].filter(passesQualityFilter);
+      filtered.sort((a, b) => {
         const ra = recCount.get(a.id) || 0;
         const rb = recCount.get(b.id) || 0;
         if (ra !== rb) return rb - ra;
+        const sa = (a.avatar_url ? 4 : 0) + (a.role ? 2 : 0) + (a.bio ? 1 : 0);
+        const sb = (b.avatar_url ? 4 : 0) + (b.role ? 2 : 0) + (b.bio ? 1 : 0);
+        if (sa !== sb) return sb - sa;
         return a.name.localeCompare(b.name);
       });
-      out.set(bookId, arr.slice(0, limitPerBook).map(({ slug, name }) => ({ slug, name })));
+      if (filtered.length === 0) continue; // do not emit empty rows
+      out.set(bookId, {
+        names: filtered.slice(0, limitPerBook).map(({ slug, name }) => ({ slug, name })),
+        totalValid: filtered.length,
+      });
     }
     return out;
   } catch (e) {
