@@ -112,6 +112,24 @@ export default async function BookDetailPage({ params }: Props) {
   const safeAuthorBooks = authorBooks.filter((b: Book | null | undefined) => b != null && b.id);
   const safeProof = rawProof.filter((p: RecommendationProof | null | undefined) => p != null && p.person != null && p.person.id);
 
+  // Trust-signal badge text for the primary (above-fold) Amazon CTA.
+  // Reuses the already-fetched notableRecommenders array (Phase 3 data, sorted
+  // by person-wide rec count desc, top 12). No new DB queries. Returns null
+  // when there are no valid recommender names — in that case the badge
+  // simply does not render.
+  //   1 name  -> "Recommended by <X>"
+  //   2 names -> "Recommended by <X> and <Y>"
+  //   3+      -> "Recommended by <N> notable people, including <X> and <Y>"
+  const notableBadgeText = (() => {
+    const validNames = (notableRecommenders || [])
+      .map((r) => (r && typeof r.person_name === "string" ? r.person_name.trim() : ""))
+      .filter((n) => n.length > 0);
+    if (validNames.length === 0) return null;
+    if (validNames.length === 1) return `Recommended by ${validNames[0]}`;
+    if (validNames.length === 2) return `Recommended by ${validNames[0]} and ${validNames[1]}`;
+    return `Recommended by ${validNames.length} notable people, including ${validNames[0]} and ${validNames[1]}`;
+  })();
+
   // Deduplicate quotes
   const dedupedProof = uniqueByNormalizedText(safeProof, "quote");
 
@@ -426,6 +444,23 @@ export default async function BookDetailPage({ params }: Props) {
 
           {book.amazon_url && (
             <div className="mb-6">
+              {notableBadgeText && (
+                <p
+                  className="mb-2 text-xs font-medium text-ink/80 flex items-start gap-1.5"
+                  data-track-context="above-fold-trust-badge"
+                >
+                  <svg
+                    className="w-3.5 h-3.5 shrink-0 mt-0.5 text-accent"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>{notableBadgeText}</span>
+                </p>
+              )}
               <a
                 href={book.amazon_url}
                 target="_blank"
