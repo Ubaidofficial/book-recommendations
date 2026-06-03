@@ -192,6 +192,45 @@ export async function getBooksPaginated(
       error = null;
     }
 
+    // Second retry path: suspiciously-empty curated default landing.
+    //
+    // Symptom seen post-batch-2 QA: ~10% of cold requests to bare `/books`
+    // returned 0 rows / total=0 with NO Supabase error, so the error-retry
+    // above never fired. The curated catalogue has ~9,148 rows in production
+    // and is never genuinely empty for the default first-page view, so a zero
+    // result here is a transient infrastructure hiccup, not a real state.
+    //
+    // Scope of this retry is intentionally narrow:
+    //   * scope === "curated" (the default landing view)
+    //   * page === 1 (a deep page can legitimately be past the last row)
+    //   * data empty AND count falsy (both checks defend against the
+    //     range-vs-count edge cases)
+    //
+    // Genuine search-empty and category-empty states are NOT affected because
+    // those code paths use searchBooksPaginated / getBooksByListSlugPaginated,
+    // not this function. getBooksPaginated is only reached from the
+    // mode==='all' branch in src/app/books/page.tsx, where no q / category is
+    // set by definition.
+    if (
+      scope === "curated" &&
+      page === 1 &&
+      (!data || data.length === 0) &&
+      (!count || count === 0)
+    ) {
+      console.warn("getBooksPaginated suspicious empty curated result; retrying");
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const retry = await runQuery();
+      if (!retry.error && retry.data && retry.data.length > 0) {
+        data = retry.data;
+        count = retry.count;
+      } else if (retry.error) {
+        logQueryError("getBooksPaginated (suspicious-empty retry error)", retry.error);
+        // Fall through: data remains empty, page renders existing empty state.
+      }
+      // If retry also came back empty with no error, preserve the existing
+      // behavior and return the empty state.
+    }
+
     let rows = (data || []) as Book[];
     // Drop numeric-artifact titles from the curated default (cheap client-side
     // post-filter; production has only a handful and our window is 48 rows).
