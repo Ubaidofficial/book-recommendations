@@ -142,16 +142,36 @@ export default async function PersonDetailPage({ params }: Props) {
           <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Recommended Books</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {recommendationProof.map((p, i) => (
-              <BookCard
-                key={`${p.book.id}-${i}`}
-                title={p.book.title}
-                slug={p.book.slug}
-                author={p.book.author}
-                authorSlug={p.book.author_slug}
-                coverUrl={p.book.cover_image_url}
-                rating={p.book.rating}
-                recommendationCount={p.book.recommendation_count}
-              />
+              // Wrapper around BookCard so we can append a secondary Amazon
+              // CTA below each card on the people detail page WITHOUT
+              // touching BookCard (which is shared with /books and was
+              // reverted from Phase-4 recommender experiments). The CTA is
+              // an independent sibling <a>, so BookCard's internal link to
+              // /books/<slug> stays the primary card click target.
+              <div key={`${p.book.id}-${i}`} className="flex flex-col">
+                <BookCard
+                  title={p.book.title}
+                  slug={p.book.slug}
+                  author={p.book.author}
+                  authorSlug={p.book.author_slug}
+                  coverUrl={p.book.cover_image_url}
+                  rating={p.book.rating}
+                  recommendationCount={p.book.recommendation_count}
+                />
+                {p.book.amazon_url && isValidHttpUrl(p.book.amazon_url) && (
+                  <a
+                    href={p.book.amazon_url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow sponsored"
+                    data-track-slug={p.book.slug}
+                    data-track-section="people-detail-rec"
+                    data-track-label="View on Amazon"
+                    className="mt-2 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200/60 text-amber-900 text-[11px] font-semibold transition-colors"
+                  >
+                    View on Amazon →
+                  </a>
+                )}
+              </div>
             ))}
           </div>
         </section>
