@@ -147,6 +147,52 @@ export function isUsefulDescription(value: string | null | undefined): boolean {
   return true;
 }
 
+// Common placeholder strings authors / scrapers sometimes write into a bio
+// when the real value is unknown. Treated as missing data; would render as
+// noise if shown. The check is case-insensitive on a trimmed value.
+const PERSON_BIO_PLACEHOLDERS = new Set([
+  "null",
+  "undefined",
+  "n/a",
+  "na",
+  "none",
+  "tbd",
+  "coming soon",
+  "to be added",
+  "-",
+]);
+
+/**
+ * Lighter-weight bio gate for person detail pages. Phase A backfilled
+ * hand-curated one-sentence bios (44–109 chars) for hub-visible recommenders,
+ * many of which fall below the 80-char threshold isUsefulDescription was
+ * tuned for (long AI-generated book descriptions with scrape-junk detection).
+ *
+ * Accepts any non-empty, non-placeholder string >= 20 chars. Does NOT run
+ * the English-language detection or the SCRAPED_JUNK_PATTERNS check — those
+ * were designed for book descriptions imported from the wild, not for short
+ * hand-written person bios.
+ *
+ * Returns false for:
+ *   - null / undefined / non-string
+ *   - empty after trim
+ *   - trimmed length < 20
+ *   - case-insensitive placeholder strings (null / undefined / n/a / none /
+ *     tbd / coming soon / to be added / "-")
+ *
+ * Used by src/app/people/[slug]/page.tsx for the visible bio paragraph.
+ * The SEO meta-description fallback and the JSON-LD `description` field on
+ * the same page still use isUsefulDescription — they have different audience
+ * (Google crawler) and tighter quality requirements.
+ */
+export function isUsefulPersonBio(value: string | null | undefined): boolean {
+  if (!value || typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (trimmed.length < 20) return false;
+  if (PERSON_BIO_PLACEHOLDERS.has(trimmed.toLowerCase())) return false;
+  return true;
+}
+
 export function cleanDescription(value: string | null | undefined, maxLength = 700): string | null {
   if (!value || typeof value !== "string") return null;
   const trimmed = value.trim();

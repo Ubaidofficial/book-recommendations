@@ -14,6 +14,7 @@ import {
   isValidHttpUrl,
   formatConfidence,
   isUsefulDescription,
+  isUsefulPersonBio,
   uniqueByNormalizedText,
   parseSourceUrls,
   outboundLinkRel,
@@ -70,7 +71,13 @@ export default async function PersonDetailPage({ params }: Props) {
   const jsonld = personJsonLd(person);
   const hasWritten = safeWrittenBooks.length > 0;
   const hasRecommendations = recommendationProof.length > 0;
-  const hasBio = isUsefulDescription(person.bio);
+  // Use the lighter-weight person-bio gate so hand-curated one-sentence
+  // bios (Phase A backfill: 44–109 chars) render as visible paragraphs.
+  // The page's meta-description fallback (line ~33) and the JSON-LD
+  // description field still use isUsefulDescription — those are SEO
+  // surfaces where the stricter 80-char + English + junk-pattern gate is
+  // intentionally retained.
+  const hasBio = isUsefulPersonBio(person.bio);
 
   // Proof list — top 10 with source data
   const proofList = recommendationProof
