@@ -4,7 +4,6 @@ import {
   getBooksPaginated,
   searchBooksPaginated,
   getBooksByListSlugPaginated,
-  getBookRecommenderSummaries,
 } from "@/lib/data";
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
@@ -137,36 +136,14 @@ export default async function BooksPage({ searchParams }: Props) {
   const totalPages = total > 0 ? Math.ceil(total / PAGE_SIZE) : 1;
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
-
-  // Phase-4: single batch query for the top recommender names for each book
-  // on this page. Map<book_id, { names, totalValid }>. The recommender row
-  // is decorative; under no circumstance may it block the books grid from
-  // rendering. Two layers of defence:
-  //   * the helper itself is wrapped in try/catch and returns an empty Map
-  //     on any error;
-  //   * here the call is wrapped again with a hard timeout (Promise.race) so
-  //     a slow recommender query never extends the request past the
-  //     getBooksPaginated cold-start retry window. If the timeout fires,
-  //     books still render — just without recommender rows on the cards.
-  const bookIds = books.map((b) => b.id).filter((id): id is string => !!id);
-  type RecMap = Awaited<ReturnType<typeof getBookRecommenderSummaries>>;
-  const emptyRecMap: RecMap = new Map();
-  let recommenderMap: RecMap = emptyRecMap;
-  if (bookIds.length > 0) {
-    try {
-      const RECOMMENDER_TIMEOUT_MS = 1500;
-      const timeoutPromise = new Promise<RecMap>((resolve) =>
-        setTimeout(() => resolve(emptyRecMap), RECOMMENDER_TIMEOUT_MS)
-      );
-      recommenderMap = await Promise.race([
-        getBookRecommenderSummaries(bookIds, 3),
-        timeoutPromise,
-      ]);
-    } catch (e) {
-      console.error("[books] getBookRecommenderSummaries threw; falling back to empty rec map", e);
-      recommenderMap = emptyRecMap;
-    }
-  }
+  // Phase-4 BookCard recommender proof rows were temporarily added here and
+  // are now disabled — they correlated with a /books cold-start empty-state
+  // regression (5-9 of 30 hammer attempts returned the "No books found"
+  // fallback after Phase 4 shipped). The hypothesis was Supabase connection
+  // pool contention from the extra batch query + rec-count round trip per
+  // request; the cleanest mitigation while we evaluate options is to remove
+  // the extra DB work entirely from this page. Phase 3 (the rich social
+  // proof section on the book detail page) is unaffected and still runs.
 
   const subtitle =
     mode === "search"
@@ -323,7 +300,6 @@ export default async function BooksPage({ searchParams }: Props) {
               coverUrl={book.cover_image_url}
               rating={book.rating}
               recommendationCount={book.recommendation_count}
-              recommenders={recommenderMap.get(book.id)}
             />
           ))}
         </div>
