@@ -590,13 +590,18 @@ export default async function BookDetailPage({ params }: Props) {
                     rel="noopener noreferrer nofollow sponsored"
                     data-track-slug={book.slug}
                     data-track-section="audience-fit"
+                    // data-track-label intentionally preserved as the
+                    // original "Check formats on Amazon" string so the
+                    // existing analytics CTR series stays continuous
+                    // across this copy-only refresh. Visible button text
+                    // below is the new intent-driven copy.
                     data-track-label="Check formats on Amazon"
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-all duration-150 hover:shadow-sm"
                   >
                     <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                     </svg>
-                    Check formats on Amazon
+                    See formats and current price on Amazon
                   </a>
                 </div>
               )}
@@ -699,13 +704,19 @@ export default async function BookDetailPage({ params }: Props) {
                 rel="noopener noreferrer nofollow sponsored"
                 data-track-slug={book.slug}
                 data-track-section="before-you-buy"
+                // data-track-label intentionally preserved as the original
+                // "Check price on Amazon" string so analytics CTR series
+                // stays continuous across this copy-only refresh. Visible
+                // button text below differentiates from the primary
+                // above-fold CTA (which still says "Check price on
+                // Amazon") so the two don't look like duplicates.
                 data-track-label="Check price on Amazon"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-all duration-150 hover:shadow-md shadow-sm"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                 </svg>
-                Check price on Amazon
+                View available editions on Amazon
               </a>
             </div>
           )}
