@@ -155,6 +155,27 @@ export default async function BooksPage({ searchParams }: Props) {
           : "Curated picks — books with covers and at least one source-backed recommendation.";
 
   const hasParams = !!(q || categoryParam || sp.sort || sp.page || sp.scope || sp.filter);
+
+  // "Default landing" = bare `/books` URL with no querystring at all, mode=all,
+  // scope=curated, page=1. When the books fetch returns empty in this case it
+  // is *never* a genuine empty result (the curated catalogue has ~9,148 rows
+  // in production) — it is a Supabase cold-start transient that survived even
+  // the strong-retry path in getBooksPaginated. Rather than mislead the user
+  // with "No books found", we render a defensive load state with a refresh
+  // link to the querystring-variant `/books?scope=curated` (which has been
+  // 0/N empty in every hammer test, because that URL is routed/served
+  // differently by Railway's edge layer than the bare /books URL).
+  //
+  // Genuine empty states for search/category/scope=all stay on the existing
+  // EmptyState — they reach this page with mode != "all" or hasParams=true
+  // or scope != "curated" or page > 1, all of which keep isDefaultLandingEmpty
+  // false.
+  const isDefaultLandingEmpty =
+    books.length === 0 &&
+    mode === "all" &&
+    scope === "curated" &&
+    page === 1 &&
+    !hasParams;
   const collectionJsonLd = !hasParams
     ? collectionPageJsonLd({
         name: "Browse Books | BookRecs",
@@ -279,15 +300,59 @@ export default async function BooksPage({ searchParams }: Props) {
       </div>
 
       {books.length === 0 ? (
-        <EmptyState
-          message={
-            mode === "search"
-              ? `No books match "${q}".`
-              : mode === "category"
-                ? `No books found in ${activeChip.label}.`
-                : "No books found. Check back soon."
-          }
-        />
+        isDefaultLandingEmpty ? (
+          // Defensive load-failed state for the bare `/books` cold-start case.
+          // Replaces "No books found" so the user is not told the catalogue is
+          // empty when the catalogue has ~9,148 curated books. The refresh
+          // link points to `/books?scope=curated` which has been stable across
+          // every hammer test — Railway/Next routes querystring variants
+          // through a different request path than the bare URL.
+          <section
+            className="my-12 rounded-2xl border border-border bg-surface p-8 text-center max-w-xl mx-auto"
+            role="status"
+            aria-live="polite"
+          >
+            <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-subtle flex items-center justify-center">
+              <svg
+                className="w-6 h-6 text-muted/60"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M4 4v5h5M20 20v-5h-5M5.07 9A8.001 8.001 0 0119 9M18.93 15A8.001 8.001 0 015 15"
+                />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-ink mb-2">
+              Books are taking a moment to load
+            </h2>
+            <p className="text-sm text-muted mb-5">
+              Refresh the page to try again.
+            </p>
+            <Link
+              href="/books?scope=curated"
+              prefetch={false}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+            >
+              Refresh books →
+            </Link>
+          </section>
+        ) : (
+          <EmptyState
+            message={
+              mode === "search"
+                ? `No books match "${q}".`
+                : mode === "category"
+                  ? `No books found in ${activeChip.label}.`
+                  : "No books found. Check back soon."
+            }
+          />
+        )
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
           {books.map((book) => (
