@@ -4,6 +4,7 @@ import {
   getBooksPaginated,
   searchBooksPaginated,
   getBooksByListSlugPaginated,
+  getBookRecommenderSummaries,
 } from "@/lib/data";
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
@@ -136,6 +137,14 @@ export default async function BooksPage({ searchParams }: Props) {
   const totalPages = total > 0 ? Math.ceil(total / PAGE_SIZE) : 1;
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
+
+  // Phase-4: single batch query for the top 3 recommender names for each book
+  // on this page. Map<book_id, [{slug, name}]>. Cards without data render
+  // identically to the pre-Phase-4 layout.
+  const bookIds = books.map((b) => b.id).filter((id): id is string => !!id);
+  const recommenderMap = bookIds.length > 0
+    ? await getBookRecommenderSummaries(bookIds, 3)
+    : new Map<string, Array<{ slug: string; name: string }>>();
 
   const subtitle =
     mode === "search"
@@ -292,6 +301,7 @@ export default async function BooksPage({ searchParams }: Props) {
               coverUrl={book.cover_image_url}
               rating={book.rating}
               recommendationCount={book.recommendation_count}
+              recommenders={recommenderMap.get(book.id) || []}
             />
           ))}
         </div>

@@ -6,11 +6,13 @@ import {
   getBooksByAuthor,
   getBooksBySeries,
   getRecommendationProof,
+  getBookRecommenders,
   getListsForBook,
   getSimilarBooksByLists,
   getPersonIdBySlug,
   getSeriesIdBySlug,
   type Book,
+  type BookRecommenderSummary,
   type RecommendationProof,
 } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
@@ -27,6 +29,7 @@ import {
   parseSourceUrls,
   parseEditorialList,
   sanitizeEditorialText,
+  outboundLinkRel,
 } from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -89,14 +92,16 @@ export default async function BookDetailPage({ params }: Props) {
   let rawProof: Awaited<ReturnType<typeof getRecommendationProof>> = [];
   let lists: Awaited<ReturnType<typeof getListsForBook>> = [];
   let listSimilarBooks: Awaited<ReturnType<typeof getSimilarBooksByLists>> = [];
+  let notableRecommenders: BookRecommenderSummary[] = [];
 
   try {
-    [authorBooks, seriesBooks, rawProof, lists, listSimilarBooks] = await Promise.all([
+    [authorBooks, seriesBooks, rawProof, lists, listSimilarBooks, notableRecommenders] = await Promise.all([
       personId ? getBooksByAuthor(personId, 6) : Promise.resolve([]),
       seriesId ? getBooksBySeries(seriesId, 100) : Promise.resolve([]),
       getRecommendationProof(book.id, 6),
       getListsForBook(book.id, 8),
       getSimilarBooksByLists(book.id, 12),
+      getBookRecommenders(book.id, 12),
     ]);
   } catch (e) {
     console.error("[book-detail] Relation queries failed:", e);
@@ -704,6 +709,59 @@ export default async function BookDetailPage({ params }: Props) {
           <div className="rounded-xl border border-border bg-surface p-4 md:p-5 max-w-3xl">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">Why recommended</p>
             <p className="text-sm md:text-base text-ink leading-relaxed">{whyRecSentence}</p>
+          </div>
+        </section>
+      )}
+
+      {/* Recommended by notable people — compact scannable face grid.
+          Distinct from the rich Recommendation Signals section below, which
+          renders the same data with quotes + sources. This grid primes the
+          user with recognisable recommenders before the quote evidence.
+          Hidden entirely when no recommenders exist; no empty state. */}
+      {notableRecommenders.length > 0 && (
+        <section className="mb-10">
+          <h2 className="text-xl font-bold text-ink mb-2 tracking-tight">Recommended by notable people</h2>
+          <p className="text-sm text-muted mb-5">People and public figures who have recommended this book.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {notableRecommenders.map((r) => (
+              <div
+                key={r.person_slug}
+                className="rounded-xl border border-border bg-surface p-3 flex items-center gap-3"
+              >
+                <Link
+                  href={`/people/${r.person_slug}`}
+                  className="group flex items-center gap-3 min-w-0 flex-1"
+                >
+                  <div className="w-10 h-10 rounded-full bg-subtle overflow-hidden shrink-0 ring-1 ring-border flex items-center justify-center">
+                    {isValidHttpUrl(r.avatar_url) ? (
+                      <img src={r.avatar_url!} alt={r.person_name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-sm font-bold text-muted/40">
+                        {(r.person_name || "?").charAt(0)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink truncate group-hover:text-accent transition-colors">
+                      {r.person_name}
+                    </p>
+                    {r.role && (
+                      <p className="text-xs text-muted truncate">{r.role}</p>
+                    )}
+                  </div>
+                </Link>
+                {isValidHttpUrl(r.source_url) && (
+                  <a
+                    href={r.source_url!}
+                    target="_blank"
+                    rel={outboundLinkRel(r.source_url)}
+                    className="text-[10px] uppercase tracking-wider text-muted hover:text-accent hover:underline shrink-0 font-semibold"
+                  >
+                    Source
+                  </a>
+                )}
+              </div>
+            ))}
           </div>
         </section>
       )}

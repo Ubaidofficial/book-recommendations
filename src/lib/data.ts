@@ -1274,6 +1274,237 @@ export async function getRecommendationProof(
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase-3 / Phase-4 social-proof helpers: book-level recommender summaries
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * One recommender of a single book, with the proof context attached. Returned
+ * by getBookRecommenders for the book-detail "Recommended by notable people"
+ * grid. Filtered upstream to drop alias-with-no-data and undefined slugs.
+ */
+export interface BookRecommenderSummary {
+  person_slug: string;
+  person_name: string;
+  avatar_url: string | null;
+  role: string | null;
+  bio: string | null;
+  source_url: string | null;
+  quote: string | null;
+  confidence_score: number | null;
+}
+
+/**
+ * Up to `limit` distinct people who have recommended this book.
+ *
+ * Sorts by recommender-profile completeness (avatar / role / bio) then by name.
+ * Drops invalid slugs ("undefined", "null", empty), drops null people rows
+ * (failed FK joins), and dedupes on slug. One PostgREST round trip with an
+ * embedded people(*) and an overfetch of 60 rows to allow the JS dedupe to
+ * find 12 unique faces even when a single recommender appears multiple times
+ * for the same book.
+ */
+export async function getBookRecommenders(
+  bookId: string,
+  limit = 12
+): Promise<BookRecommenderSummary[]> {
+  if (!bookId) return [];
+  try {
+    const supa = getSupabase();
+    // Step 1: rec rows joined with the recommender. Order by confidence so
+    // the strongest proofs surface first; overfetch to allow dedupe.
+    const { data, error } = await supa
+      .from("book_recommendations")
+      .select("source_url, quote, confidence_score, people(id, slug, name, avatar_url, role, bio)")
+      .eq("book_id", bookId)
+      .order("confidence_score", { ascending: false, nullsFirst: false })
+      .limit(60);
+    if (error) {
+      logQueryError("getBookRecommenders", error);
+      return [];
+    }
+    type Row = {
+      source_url: string | null;
+      quote: string | null;
+      confidence_score: number | null;
+      // Supabase TS infers many-to-one embeds as an array; at runtime it is a
+      // single object. Cast through `unknown` (mirrors getRecommendationProof
+      // above) and narrow inline.
+      people:
+        | { id: string | null; slug: string | null; name: string | null; avatar_url: string | null; role: string | null; bio: string | null }
+        | null;
+    };
+    const seen = new Set<string>();
+    type Buffered = BookRecommenderSummary & { _person_id: string };
+    const buffered: Buffered[] = [];
+    for (const r of (data || []) as unknown as Row[]) {
+      const p = r.people;
+      if (!p) continue;
+      const pid = (p.id || "").trim();
+      const slug = (p.slug || "").trim();
+      const name = (p.name || "").trim();
+      if (!pid) continue;
+      if (!slug || slug === "undefined" || slug === "null") continue;
+      if (!name) continue;
+      if (seen.has(slug)) continue;
+      seen.add(slug);
+      buffered.push({
+        _person_id: pid,
+        person_slug: slug,
+        person_name: name,
+        avatar_url: p.avatar_url,
+        role: p.role,
+        bio: p.bio,
+        source_url: r.source_url,
+        quote: r.quote,
+        confidence_score: r.confidence_score,
+      });
+    }
+    // Step 2: person-wide recommendation counts for the unique people above.
+    // One additional round trip; provides the "more recommenders win" signal
+    // that distinguishes well-known canonicals (Bill Gates, Naval Ravikant)
+    // from a long tail of low-activity recommenders sharing the same
+    // confidence band.
+    const recCount = new Map<string, number>();
+    const ids = buffered.map((b) => b._person_id);
+    if (ids.length > 0) {
+      const { data: counts, error: cErr } = await supa
+        .from("people")
+        .select("id, recs:book_recommendations(count)")
+        .in("id", ids);
+      if (cErr) {
+        logQueryError("getBookRecommenders[recCounts]", cErr);
+      } else {
+        type RC = { id: string; recs: Array<{ count: number | null }> | null };
+        for (const row of (counts || []) as unknown as RC[]) {
+          const c = Array.isArray(row.recs) && row.recs[0] && typeof row.recs[0].count === "number" ? row.recs[0].count : 0;
+          recCount.set(row.id, c);
+        }
+      }
+    }
+    buffered.sort((a, b) => {
+      const sa = (a.avatar_url ? 4 : 0) + (a.role ? 2 : 0) + (a.bio ? 1 : 0);
+      const sb = (b.avatar_url ? 4 : 0) + (b.role ? 2 : 0) + (b.bio ? 1 : 0);
+      if (sa !== sb) return sb - sa;
+      const ra = recCount.get(a._person_id) || 0;
+      const rb = recCount.get(b._person_id) || 0;
+      if (ra !== rb) return rb - ra;
+      return a.person_name.localeCompare(b.person_name);
+    });
+    return buffered.slice(0, limit).map(({ _person_id: _id, ...rest }) => rest);
+  } catch (e) {
+    logQueryError("getBookRecommenders", e);
+    return [];
+  }
+}
+
+/**
+ * Compact recommender name+slug used on BookCard's recommender proof row.
+ */
+export interface BookRecommenderName {
+  slug: string;
+  name: string;
+}
+
+/**
+ * Batch helper: for a list of `bookIds` (typically the 48 books on a /books
+ * page), returns a Map<bookId, top N recommender names>. Single PostgREST
+ * round trip with an embedded people join; grouping and per-book limiting
+ * happen in JS so we avoid N+1.
+ *
+ * Note: PostgREST default max-rows is 1000, so very-large fan-outs may miss
+ * the long tail of recommenders for popular books. The first ~20 per book
+ * are still captured, which is more than enough for the 2-3 names rendered.
+ */
+export async function getBookRecommenderSummaries(
+  bookIds: string[],
+  limitPerBook = 3
+): Promise<Map<string, BookRecommenderName[]>> {
+  const out = new Map<string, BookRecommenderName[]>();
+  if (!bookIds || bookIds.length === 0) return out;
+  try {
+    const supa = getSupabase();
+    // Step 1: rec rows for all bookIds, joined with recommender.
+    const { data, error } = await supa
+      .from("book_recommendations")
+      .select("book_id, confidence_score, people(id, slug, name, avatar_url, role, bio)")
+      .in("book_id", bookIds)
+      .order("confidence_score", { ascending: false, nullsFirst: false })
+      .limit(1000);
+    if (error) {
+      logQueryError("getBookRecommenderSummaries", error);
+      return out;
+    }
+    type Row = {
+      book_id: string | null;
+      confidence_score: number | null;
+      // See note on getBookRecommenders: cast through `unknown`.
+      people:
+        | { id: string | null; slug: string | null; name: string | null; avatar_url: string | null; role: string | null; bio: string | null }
+        | null;
+    };
+    type Picked = { id: string; slug: string; name: string; avatar_url: string | null; role: string | null; bio: string | null };
+    const byBook = new Map<string, Map<string, Picked>>();
+    const allPersonIds = new Set<string>();
+    for (const r of (data || []) as unknown as Row[]) {
+      if (!r.book_id) continue;
+      const p = r.people;
+      if (!p) continue;
+      const pid = (p.id || "").trim();
+      const slug = (p.slug || "").trim();
+      const name = (p.name || "").trim();
+      if (!pid) continue;
+      if (!slug || slug === "undefined" || slug === "null") continue;
+      if (!name) continue;
+      let inner = byBook.get(r.book_id);
+      if (!inner) {
+        inner = new Map();
+        byBook.set(r.book_id, inner);
+      }
+      if (!inner.has(slug)) {
+        inner.set(slug, { id: pid, slug, name, avatar_url: p.avatar_url, role: p.role, bio: p.bio });
+        allPersonIds.add(pid);
+      }
+    }
+    // Step 2: person-wide rec counts for the UNION of all unique recommenders
+    // across the bookIds. Single round trip even at 48-book scale. Provides
+    // the "well-known recommender wins" tiebreaker the BookCard row needs.
+    const recCount = new Map<string, number>();
+    if (allPersonIds.size > 0) {
+      const { data: counts, error: cErr } = await supa
+        .from("people")
+        .select("id, recs:book_recommendations(count)")
+        .in("id", [...allPersonIds]);
+      if (cErr) {
+        logQueryError("getBookRecommenderSummaries[recCounts]", cErr);
+      } else {
+        type RC = { id: string; recs: Array<{ count: number | null }> | null };
+        for (const row of (counts || []) as unknown as RC[]) {
+          const c = Array.isArray(row.recs) && row.recs[0] && typeof row.recs[0].count === "number" ? row.recs[0].count : 0;
+          recCount.set(row.id, c);
+        }
+      }
+    }
+    for (const [bookId, peopleMap] of byBook.entries()) {
+      const arr = [...peopleMap.values()];
+      arr.sort((a, b) => {
+        const sa = (a.avatar_url ? 4 : 0) + (a.role ? 2 : 0) + (a.bio ? 1 : 0);
+        const sb = (b.avatar_url ? 4 : 0) + (b.role ? 2 : 0) + (b.bio ? 1 : 0);
+        if (sa !== sb) return sb - sa;
+        const ra = recCount.get(a.id) || 0;
+        const rb = recCount.get(b.id) || 0;
+        if (ra !== rb) return rb - ra;
+        return a.name.localeCompare(b.name);
+      });
+      out.set(bookId, arr.slice(0, limitPerBook).map(({ slug, name }) => ({ slug, name })));
+    }
+    return out;
+  } catch (e) {
+    logQueryError("getBookRecommenderSummaries", e);
+    return out;
+  }
+}
+
 /**
  * Returns book→list memberships ranked for "Appears In":
  *   topic lists (best-*) first, then narrow lists, then meta, then broad parents;

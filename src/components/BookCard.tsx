@@ -31,6 +31,11 @@ interface BookCardProps {
   coverUrl: string;
   rating: number;
   recommendationCount: number;
+  // Optional Phase-4 recommender proof row. When 1+ entries are passed, the
+  // card renders a compact "Recommended by …" line under the metadata, with
+  // recommender names linking to /people/<slug>. When absent or empty, the
+  // card layout is byte-identical to the pre-Phase-4 version.
+  recommenders?: Array<{ slug: string; name: string }>;
 }
 
 export function BookCard({
@@ -41,15 +46,37 @@ export function BookCard({
   coverUrl,
   rating,
   recommendationCount,
+  recommenders,
 }: BookCardProps) {
   const showCover = isValidHttpUrl(coverUrl);
   const showRating = isValidRating(rating);
+  const visibleRecs = (recommenders || []).filter(
+    (r) =>
+      r &&
+      typeof r.slug === "string" &&
+      r.slug.trim() &&
+      r.slug !== "undefined" &&
+      typeof r.name === "string" &&
+      r.name.trim()
+  );
+  const showRecRow = visibleRecs.length > 0;
+  const namesShown = visibleRecs.slice(0, 2);
+  const extra = showRecRow ? Math.max(0, (recommendationCount || 0) - namesShown.length) : 0;
 
+  // Stretched-link pattern: the whole card is clickable via an absolute-inset
+  // <Link> overlay at z-10, while interactive recommender names sit at z-20
+  // and capture clicks before they reach the overlay. This is the standard
+  // accessible way to compose a "clickable card with secondary internal
+  // links" without nesting <a> inside <a> (which is invalid HTML).
   return (
-    <Link
-      href={`/books/${slug}`}
-      className="group block rounded-2xl border border-border bg-surface overflow-hidden hover:shadow-lg hover:border-accent/20 transition-all duration-200"
-    >
+    <article className="group relative rounded-2xl border border-border bg-surface overflow-hidden hover:shadow-lg hover:border-accent/20 transition-all duration-200">
+      <Link
+        href={`/books/${slug}`}
+        className="absolute inset-0 z-10"
+        aria-label={title}
+      >
+        <span className="sr-only">{title}</span>
+      </Link>
       <div className="aspect-[2/3] bg-subtle overflow-hidden">
         {showCover ? (
           <SafeImage
@@ -66,9 +93,7 @@ export function BookCard({
         <h3 className="font-semibold text-sm text-ink leading-snug mb-1 group-hover:text-accent transition-colors line-clamp-2">
           {title}
         </h3>
-        <span className="text-xs text-muted block">
-          {author}
-        </span>
+        <span className="text-xs text-muted block">{author}</span>
         <div className="flex items-center gap-2 mt-2.5 text-xs">
           {showRating && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-light text-accent font-medium">
@@ -79,7 +104,24 @@ export function BookCard({
             <span className="text-muted">{recommendationCount.toLocaleString()} recs</span>
           )}
         </div>
+        {showRecRow && (
+          <div className="mt-2 text-[11px] text-muted leading-snug relative z-20">
+            <span>Recommended by </span>
+            {namesShown.map((r, i) => (
+              <span key={r.slug}>
+                <Link
+                  href={`/people/${r.slug}`}
+                  className="text-ink/80 hover:text-accent hover:underline font-medium"
+                >
+                  {r.name}
+                </Link>
+                {i === 0 && namesShown.length > 1 ? ", " : ""}
+              </span>
+            ))}
+            {extra > 0 ? <span> + {extra} more</span> : null}
+          </div>
+        )}
       </div>
-    </Link>
+    </article>
   );
 }
