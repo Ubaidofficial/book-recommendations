@@ -192,43 +192,86 @@ export async function getBooksPaginated(
       error = null;
     }
 
-    // Second retry path: suspiciously-empty curated default landing.
+    // Suspicious-empty handling for the curated default landing view.
     //
-    // Symptom seen post-batch-2 QA: ~10% of cold requests to bare `/books`
-    // returned 0 rows / total=0 with NO Supabase error, so the error-retry
-    // above never fired. The curated catalogue has ~9,148 rows in production
-    // and is never genuinely empty for the default first-page view, so a zero
-    // result here is a transient infrastructure hiccup, not a real state.
+    // Bare `/books` was still rendering "No books found" on first cold
+    // request even with the single-retry above. The curated catalogue has
+    // ~9,148 rows in production and is never genuinely empty for page 1, so
+    // a zero result here is always a transient infrastructure hiccup.
     //
     // Scope of this retry is intentionally narrow:
     //   * scope === "curated" (the default landing view)
     //   * page === 1 (a deep page can legitimately be past the last row)
-    //   * data empty AND count falsy (both checks defend against the
-    //     range-vs-count edge cases)
+    //   * data empty AND count falsy
     //
-    // Genuine search-empty and category-empty states are NOT affected because
-    // those code paths use searchBooksPaginated / getBooksByListSlugPaginated,
-    // not this function. getBooksPaginated is only reached from the
-    // mode==='all' branch in src/app/books/page.tsx, where no q / category is
-    // set by definition.
+    // Genuine search-empty and category-empty states are NOT affected
+    // because those code paths use searchBooksPaginated /
+    // getBooksByListSlugPaginated, not this function. getBooksPaginated is
+    // only reached from the mode==='all' branch in src/app/books/page.tsx,
+    // where no q / category is set by definition.
+    //
+    // Strategy (Option A + Option B):
+    //   (A) Up to 2 additional attempts with backoff (250ms then 750ms) =
+    //       1000ms total wait window; usually clears the cold-start state.
+    //   (B) If all attempts of the count:'exact' query still come back
+    //       empty, run a count-less fallback. The exact-count COUNT(*) is
+    //       the slow part of this query and is the most likely cold-start
+    //       culprit; dropping it bypasses that slow path. Pagination
+    //       degrades to "single page of N" until the next request restores
+    //       the exact count — far better than rendering the empty state.
     if (
       scope === "curated" &&
       page === 1 &&
       (!data || data.length === 0) &&
       (!count || count === 0)
     ) {
-      console.warn("getBooksPaginated suspicious empty curated result; retrying");
-      await new Promise((resolve) => setTimeout(resolve, 250));
-      const retry = await runQuery();
-      if (!retry.error && retry.data && retry.data.length > 0) {
-        data = retry.data;
-        count = retry.count;
-      } else if (retry.error) {
-        logQueryError("getBooksPaginated (suspicious-empty retry error)", retry.error);
-        // Fall through: data remains empty, page renders existing empty state.
+      console.warn("getBooksPaginated suspicious empty curated result; retrying with backoff");
+      const backoffsMs = [250, 750];
+      for (const ms of backoffsMs) {
+        await new Promise((resolve) => setTimeout(resolve, ms));
+        const r = await runQuery();
+        if (r.error) {
+          logQueryError("getBooksPaginated (suspicious-empty retry error)", r.error);
+          continue;
+        }
+        if (r.data && r.data.length > 0) {
+          data = r.data;
+          count = r.count;
+          break;
+        }
       }
-      // If retry also came back empty with no error, preserve the existing
-      // behavior and return the empty state.
+
+      // Last-ditch fallback: drop the exact-count clause. COUNT(*) is the
+      // slowest part of this query on a cold connection and is the most
+      // likely empty-response cause. Without it, the SELECT just returns
+      // the row range, which has been observed to succeed even when the
+      // count-mode variant is still warming up.
+      if (!data || data.length === 0) {
+        console.warn("getBooksPaginated all retries empty; trying count-less fallback");
+        let fb = getSupabase()
+          .from("books")
+          .select("*")
+          .order(col, { ascending: asc, nullsFirst: false });
+        if (scope === "curated") {
+          fb = fb
+            .not("cover_image_url", "is", null)
+            .neq("cover_image_url", "")
+            .gt("recommendation_count", 0);
+        }
+        const fbRes = await fb.range(from, to);
+        if (!fbRes.error && fbRes.data && fbRes.data.length > 0) {
+          data = fbRes.data;
+          // Without an exact count, set total to the number of rows we
+          // actually got so the page renders cards (instead of the empty
+          // state) and the Next button is hidden for this single request.
+          // A subsequent request will get the real exact count.
+          count = fbRes.data.length;
+        } else if (fbRes.error) {
+          logQueryError("getBooksPaginated (count-less fallback)", fbRes.error);
+        }
+        // If even the count-less fallback returned empty, fall through and
+        // render the existing empty state — preserves prior behavior.
+      }
     }
 
     let rows = (data || []) as Book[];
