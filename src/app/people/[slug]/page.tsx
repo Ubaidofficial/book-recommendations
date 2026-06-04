@@ -134,6 +134,13 @@ export default async function PersonDetailPage({ params }: Props) {
               Profile source →
             </Link>
           )}
+          {/* Compact trust note — surfaces methodology near the top so the
+              reader frames the page's recommendations correctly before
+              scrolling. Same wording approved in the audit; conservative
+              language ("sourced from") avoids overclaiming accuracy. */}
+          <p className="mt-3 text-xs text-muted/70 leading-relaxed">
+            Recommendations are sourced from public posts, interviews, and reading lists.
+          </p>
         </div>
       </div>
 
@@ -141,7 +148,12 @@ export default async function PersonDetailPage({ params }: Props) {
       {hasRecommendations ? (
         <section className="mb-14">
           <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Recommended Books</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
+          {/* Density: lg:grid-cols-5 (was lg:grid-cols-6) loosens the
+              desktop pack so each cover gets more breathing room. Mobile
+              (grid-cols-2) and the intermediate sm/md breakpoints are
+              unchanged. lg:gap-6 widens the between-card spacing to
+              match the new column width. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5 lg:gap-6">
             {recommendationProof.map((p, i) => (
               // Wrapper around BookCard so we can append a secondary Amazon
               // CTA below each card on the people detail page WITHOUT
@@ -174,7 +186,12 @@ export default async function PersonDetailPage({ params }: Props) {
                       data-track-slug={p.book.slug}
                       data-track-section="people-detail-rec"
                       data-track-label="View on Amazon"
-                      className="mt-2 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200/60 text-amber-900 text-[11px] font-semibold transition-colors"
+                      // CTA visual upgrade only — href / target / rel /
+                      // data-track-* attributes above are UNCHANGED.
+                      // Stronger amber background and border, darker text,
+                      // larger touch target (px-3 py-2), text-xs (12px)
+                      // instead of [11px]. Same shape, more clickable.
+                      className="mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-100 hover:bg-amber-200 border border-amber-300/70 text-amber-950 text-xs font-bold transition-colors"
                     >
                       View on Amazon →
                     </a>
@@ -253,7 +270,13 @@ export default async function PersonDetailPage({ params }: Props) {
                       <p className="text-xs text-muted mb-3">by {p.book.author}</p>
                     )}
                     {hasQuote ? (
-                      <blockquote className="text-sm text-muted italic border-l-2 border-accent/20 pl-3 leading-relaxed">
+                      // Cap long quotes to 5 visible lines so a single
+                      // long quote stops stretching its grid column.
+                      // Tailwind line-clamp ellipsises overflow text;
+                      // the underlying quote data is unchanged and remains
+                      // fully accessible to screen readers and to the
+                      // /books/<slug> detail page.
+                      <blockquote className="text-sm text-muted italic border-l-2 border-accent/20 pl-3 leading-relaxed line-clamp-5">
                         &ldquo;{p.quote}&rdquo;
                       </blockquote>
                     ) : (
