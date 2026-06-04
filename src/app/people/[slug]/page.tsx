@@ -94,17 +94,67 @@ export default async function PersonDetailPage({ params }: Props) {
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "People", href: "/people" }, { label: person.name }]} />
 
       <div className="flex flex-col sm:flex-row items-start gap-6 mb-14">
-        <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-subtle overflow-hidden shrink-0 ring-3 ring-border flex items-center justify-center">
-          {hasAvatar ? (
-            <SafeImage
-              src={person.avatar_url}
-              alt={person.name}
-              className="w-full h-full object-cover"
-              fallback={<span className="text-2xl font-bold text-muted/40">{person.name.charAt(0)}</span>}
-            />
-          ) : (
-            <span className="text-2xl font-bold text-muted/40">{person.name.charAt(0)}</span>
-          )}
+        <div className="flex flex-col items-center shrink-0 gap-1.5">
+          <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-subtle overflow-hidden ring-3 ring-border flex items-center justify-center">
+            {hasAvatar ? (
+              <SafeImage
+                src={person.avatar_url}
+                alt={person.name}
+                className="w-full h-full object-cover"
+                fallback={<span className="text-2xl font-bold text-muted/40">{person.name.charAt(0)}</span>}
+              />
+            ) : (
+              <span className="text-2xl font-bold text-muted/40">{person.name.charAt(0)}</span>
+            )}
+          </div>
+          {/* Wikimedia Commons attribution micro-credit — required by
+              CC BY / CC BY-SA license terms when the image is shown
+              publicly. Renders ONLY when:
+                (a) avatar_url is a real http(s) URL (no attribution on the
+                    initials-fallback case), AND
+                (b) at least one attribution field is populated.
+              Falls through a small precedence chain so we always show the
+              most informative line we have:
+                1. avatar_attribution (pre-composed credit string)
+                2. "Photo: <author> (<license>)" when both are present
+                3. "Photo via <license>" when only license is known
+                4. plain "Source" link when only the Commons page URL is
+                   known (rare; conservative fallback)
+              Wrapped in an anchor that links to the Commons file page
+              when avatar_source_url is a valid URL; uses outboundLinkRel
+              so the rel attribute is set correctly. Public-domain photos
+              that ship with neither author nor license render no line —
+              attribution is not required for PD. */}
+          {hasAvatar && (() => {
+            const attr = (person.avatar_attribution || "").trim();
+            const author = (person.avatar_author || "").trim();
+            const license = (person.avatar_license || "").trim();
+            const text = attr
+              ? attr
+              : author && license
+                ? `Photo: ${author} (${license})`
+                : license
+                  ? `Photo via ${license}`
+                  : isValidHttpUrl(person.avatar_source_url)
+                    ? "Image source"
+                    : "";
+            if (!text) return null;
+            const className = "text-[10px] text-muted/60 leading-snug text-center max-w-[7rem] line-clamp-2";
+            if (isValidHttpUrl(person.avatar_source_url)) {
+              return (
+                <a
+                  href={person.avatar_source_url!}
+                  target="_blank"
+                  rel={outboundLinkRel(person.avatar_source_url)}
+                  className={className + " hover:text-accent hover:underline"}
+                  title={text}
+                >
+                  {text}
+                </a>
+              );
+            }
+            return <p className={className} title={text}>{text}</p>;
+          })()}
         </div>
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-ink mb-1 tracking-tight">{person.name}</h1>

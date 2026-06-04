@@ -62,6 +62,16 @@ export interface Person {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+  // Wikimedia Commons attribution metadata — added in the
+  // people_avatar_attribution_schema migration. All nullable text;
+  // populated only when avatar_url is sourced from a Commons file that
+  // requires (or benefits from) credit. Render code shows a compact
+  // micro-credit line below the avatar circle only when any of these
+  // fields is non-empty.
+  avatar_source_url?: string | null;
+  avatar_license?: string | null;
+  avatar_attribution?: string | null;
+  avatar_author?: string | null;
 }
 
 export interface BookList {
