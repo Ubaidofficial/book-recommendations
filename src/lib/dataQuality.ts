@@ -48,6 +48,90 @@ export function outboundLinkRel(url: string | null | undefined): string {
     : "noopener noreferrer nofollow";
 }
 
+/**
+ * Normalize a raw `books.amazon_url` for safe CTA rendering. Repairs the
+ * dominant data-quality bug in `books.amazon_url` (≈23% of rows) where a
+ * `/dp/<ASIN>` path carries a 22-character "ASIN" that is actually a valid
+ * 10-char ASIN concatenated with a 12-char hex hash, e.g.
+ *
+ *     /dp/148145731490a4537824dd  →  /dp/1481457314
+ *     /dp/B08DC19QY8e97bee4139c6  →  /dp/B08DC19QY8
+ *     /dp/B00BSBVK4Ae293cb7549ed  →  /dp/B00BSBVK4A
+ *
+ * Without this repair, Amazon's product lookup fails on the broken ASIN and
+ * the user lands on a "page not found" page — the commercial click is wasted
+ * and reads as broken to the user.
+ *
+ * Behavior:
+ *   - null / undefined / empty / non-string         → null
+ *   - URL fails parse / non-http(s) protocol         → null
+ *   - Non-Amazon host (per `isAmazonUrl`)            → null
+ *     (lets the caller suppress the CTA cleanly)
+ *   - Already-valid `/dp/<10-char-ASIN>` URLs        → returned unchanged
+ *   - 22-char `/dp/` candidate whose first 10 chars
+ *     match the ASIN/ISBN-10 shape `[A-Z0-9]{10}`    → truncated to first 10
+ *   - Search URLs (`/s?…`) and other Amazon paths    → returned unchanged
+ *   - Other malformed lengths (5, 6, 11, …)          → returned unchanged
+ *     (too uncertain to auto-repair)
+ *
+ * Preserves: protocol, host (including regional TLDs like amazon.ca),
+ * query string, and any pre/post-ASIN path segments (so the canonical
+ * `/Some-Book-Title/dp/<ASIN>/ref=…` SEO form is preserved).
+ *
+ * Does NOT:
+ *   - add or modify any affiliate tag (no `?tag=…` appended)
+ *   - rewrite hosts
+ *   - convert non-Amazon URLs into Amazon URLs
+ *   - touch any tracking parameters
+ *
+ * Apply at the CTA render site only — never write the normalized value back
+ * to the database from this helper.
+ */
+export function normalizeAmazonUrl(url: string | null | undefined): string | null {
+  if (!url || typeof url !== "string") return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  let u: URL;
+  try {
+    u = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+
+  if (!isAmazonUrl(trimmed)) return null;
+
+  // Canonical ASIN: exactly 10 alphanumeric chars. ISBN-10 allows `X` as the
+  // check digit (uppercase per spec). Accept any case on input; emit upper.
+  const VALID_ASIN = /^[A-Z0-9]{10}$/i;
+
+  // Match the `/dp/<candidate>` segment anywhere in the path so the canonical
+  // SEO form `/Some-Title/dp/<ASIN>/ref=…` is also covered. The candidate
+  // capture stops at `/`, `?`, or `#`.
+  const m = u.pathname.match(/^(.*\/dp\/)([^\/?#]+)(.*)$/);
+  if (!m) {
+    // Not a `/dp/` URL (e.g. `/s?k=…` search). Leave alone.
+    return trimmed;
+  }
+  const [, prefix, candidate, suffix] = m;
+
+  // Already valid — return byte-identical.
+  if (VALID_ASIN.test(candidate)) return trimmed;
+
+  // Repair the dominant 22-char concat pattern: 10-char ASIN + 12-char hex.
+  if (candidate.length === 22) {
+    const first10 = candidate.slice(0, 10).toUpperCase();
+    if (VALID_ASIN.test(first10)) {
+      u.pathname = prefix + first10 + suffix;
+      return u.toString();
+    }
+  }
+
+  // Other malformations (length 5, 6, 11, …) — too uncertain to repair.
+  return trimmed;
+}
+
 export function isValidRating(value: unknown): boolean {
   if (value == null) return false;
   const n = Number(value);

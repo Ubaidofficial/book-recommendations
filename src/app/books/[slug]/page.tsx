@@ -30,6 +30,7 @@ import {
   parseEditorialList,
   sanitizeEditorialText,
   outboundLinkRel,
+  normalizeAmazonUrl,
 } from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -83,6 +84,14 @@ export default async function BookDetailPage({ params }: Props) {
   const { slug } = await params;
   const book = await getBookBySlug(slug);
   if (!book) notFound();
+
+  // Repaired Amazon CTA href. `book.amazon_url` is malformed for ~23% of
+  // rows in production (a 10-char ASIN concatenated with a 12-char hex hash,
+  // which lands users on Amazon's page-not-found view). normalizeAmazonUrl
+  // truncates the corrupt suffix; it also returns null for non-Amazon hosts
+  // (8 rows in DB) so the CTAs are simply suppressed for those books. No
+  // affiliate tag is appended. Render-time only — DB is not modified.
+  const normalizedAmazonUrl = normalizeAmazonUrl(book.amazon_url);
 
   const personId = book.author_slug ? await getPersonIdBySlug(book.author_slug) : null;
   const seriesId = book.series_slug ? await getSeriesIdBySlug(book.series_slug) : null;
@@ -442,7 +451,7 @@ export default async function BookDetailPage({ params }: Props) {
             );
           })()}
 
-          {book.amazon_url && (
+          {normalizedAmazonUrl && (
             <div className="mb-6">
               {notableBadgeText && (
                 <p
@@ -462,7 +471,7 @@ export default async function BookDetailPage({ params }: Props) {
                 </p>
               )}
               <a
-                href={book.amazon_url}
+                href={normalizedAmazonUrl}
                 target="_blank"
                 rel="noopener noreferrer nofollow sponsored"
                 data-track-slug={book.slug}
@@ -582,10 +591,10 @@ export default async function BookDetailPage({ params }: Props) {
                 )}
               </div>
 
-              {book.amazon_url && (
+              {normalizedAmazonUrl && (
                 <div className="flex justify-start">
                   <a
-                    href={book.amazon_url}
+                    href={normalizedAmazonUrl}
                     target="_blank"
                     rel="noopener noreferrer nofollow sponsored"
                     data-track-slug={book.slug}
@@ -693,13 +702,13 @@ export default async function BookDetailPage({ params }: Props) {
             </div>
           </div>
 
-          {book.amazon_url && (
+          {normalizedAmazonUrl && (
             <div className="mt-6 pt-6 border-t border-border/60 flex flex-wrap items-center justify-between gap-4">
               <p className="text-xs text-muted max-w-md">
                 Check formats, pricing, and availability options for Kindle, physical print, or audiobooks directly.
               </p>
               <a
-                href={book.amazon_url}
+                href={normalizedAmazonUrl}
                 target="_blank"
                 rel="noopener noreferrer nofollow sponsored"
                 data-track-slug={book.slug}
@@ -1150,19 +1159,28 @@ export default async function BookDetailPage({ params }: Props) {
                 >
                   View book details →
                 </Link>
-                {!book.amazon_url && alternativeCandidate.amazon_url && (
-                  <a
-                    href={alternativeCandidate.amazon_url}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow sponsored"
-                    data-track-slug={alternativeCandidate.slug}
-                    data-track-section="try-this-instead"
-                    data-track-label="Check price on Amazon"
-                    className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-sm"
-                  >
-                    Check price on Amazon
-                  </a>
-                )}
+                {!normalizedAmazonUrl && (() => {
+                  // try-this-instead is the fallback CTA when the *current*
+                  // book has no usable Amazon URL. We surface the alternative
+                  // book's Amazon link only after normalizing it, so a broken
+                  // /dp/<22-char-ASIN> alternative also renders cleanly (or
+                  // is suppressed if the alternative's URL is non-Amazon).
+                  const altUrl = normalizeAmazonUrl(alternativeCandidate.amazon_url);
+                  if (!altUrl) return null;
+                  return (
+                    <a
+                      href={altUrl}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow sponsored"
+                      data-track-slug={alternativeCandidate.slug}
+                      data-track-section="try-this-instead"
+                      data-track-label="Check price on Amazon"
+                      className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-sm"
+                    >
+                      Check price on Amazon
+                    </a>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -1249,7 +1267,7 @@ export default async function BookDetailPage({ params }: Props) {
           below the fold for most book detail pages. Same rel / target /
           tracking attributes as the existing CTAs. Page-wrapper has
           `pb-28 md:pb-8` so the last section is not covered. */}
-      {book.amazon_url && isValidHttpUrl(book.amazon_url) && (
+      {normalizedAmazonUrl && (
         <div
           className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-surface border-t border-border shadow-[0_-4px_12px_rgba(0,0,0,0.06)] px-3 pt-2.5 flex items-center gap-3"
           style={{ paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom))" }}
@@ -1270,7 +1288,7 @@ export default async function BookDetailPage({ params }: Props) {
             {displayBookTitle(book.title)}
           </p>
           <a
-            href={book.amazon_url}
+            href={normalizedAmazonUrl}
             target="_blank"
             rel="noopener noreferrer nofollow sponsored"
             data-track-slug={book.slug}

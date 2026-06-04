@@ -18,6 +18,7 @@ import {
   uniqueByNormalizedText,
   parseSourceUrls,
   outboundLinkRel,
+  normalizeAmazonUrl,
 } from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -158,19 +159,27 @@ export default async function PersonDetailPage({ params }: Props) {
                   rating={p.book.rating}
                   recommendationCount={p.book.recommendation_count}
                 />
-                {p.book.amazon_url && isValidHttpUrl(p.book.amazon_url) && (
-                  <a
-                    href={p.book.amazon_url}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow sponsored"
-                    data-track-slug={p.book.slug}
-                    data-track-section="people-detail-rec"
-                    data-track-label="View on Amazon"
-                    className="mt-2 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200/60 text-amber-900 text-[11px] font-semibold transition-colors"
-                  >
-                    View on Amazon →
-                  </a>
-                )}
+                {(() => {
+                  // normalizeAmazonUrl repairs the dominant 22-char malformed
+                  // ASIN pattern and returns null for non-Amazon hosts, so
+                  // the CTA is suppressed cleanly when the URL isn't usable.
+                  // Render-time only — DB is not modified.
+                  const ctaUrl = normalizeAmazonUrl(p.book.amazon_url);
+                  if (!ctaUrl) return null;
+                  return (
+                    <a
+                      href={ctaUrl}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow sponsored"
+                      data-track-slug={p.book.slug}
+                      data-track-section="people-detail-rec"
+                      data-track-label="View on Amazon"
+                      className="mt-2 inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200/60 text-amber-900 text-[11px] font-semibold transition-colors"
+                    >
+                      View on Amazon →
+                    </a>
+                  );
+                })()}
               </div>
             ))}
           </div>
