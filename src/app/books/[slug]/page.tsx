@@ -796,16 +796,29 @@ export default async function BookDetailPage({ params }: Props) {
                     )}
                   </div>
                 </Link>
-                {isValidHttpUrl(r.source_url) && (
-                  <a
-                    href={r.source_url!}
-                    target="_blank"
-                    rel={outboundLinkRel(r.source_url)}
-                    className="text-[10px] uppercase tracking-wider text-muted hover:text-accent hover:underline shrink-0 font-semibold"
-                  >
-                    Source
-                  </a>
-                )}
+                {(() => {
+                  // r.source_url may be a pipe-concatenated string of multiple
+                  // URLs (true for ~64% of non-null source_url rows in
+                  // production). Parse first, then render only the primary
+                  // (first) parsed URL so the <a href> is a single valid URL
+                  // and `rel` is computed against the URL that the click
+                  // actually navigates to. The deeper "Recommendation Proof /
+                  // Signals" section below the face grid already surfaces all
+                  // parsed URLs via its <details> dropdown, so the compact
+                  // face card only needs the first URL.
+                  const first = parseSourceUrls(r.source_url)[0];
+                  if (!first) return null;
+                  return (
+                    <a
+                      href={first}
+                      target="_blank"
+                      rel={outboundLinkRel(first)}
+                      className="text-[10px] uppercase tracking-wider text-muted hover:text-accent hover:underline shrink-0 font-semibold"
+                    >
+                      Source
+                    </a>
+                  );
+                })()}
               </div>
             ))}
           </div>
