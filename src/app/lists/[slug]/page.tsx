@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getListBySlug, getBooksForList, getBooksForListByRecommendations, getRelatedLists } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { displayListTitle, listKindFromSlug, listKindLabel } from "@/lib/display";
-import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating } from "@/lib/dataQuality";
+import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl } from "@/lib/dataQuality";
 import { itemListJsonLd } from "@/lib/jsonld";
 import { Breadcrumbs, SafeImage, EmptyState } from "@/components";
 
@@ -249,19 +249,33 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                     >
                       View full recommendation details →
                     </Link>
-                    {book.amazon_url && (
-                      <a
-                        href={book.amazon_url}
-                        target="_blank"
-                        rel="noopener noreferrer nofollow sponsored"
-                        className="text-xs text-muted hover:text-accent hover:underline inline-flex items-center gap-1 font-semibold"
-                      >
-                        <span>View on Amazon</span>
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </a>
-                    )}
+                    {(() => {
+                      // normalizeAmazonUrl repairs the dominant 22-char malformed
+                      // ASIN pattern (≈25% of with-amazon-url books) and returns
+                      // null for non-Amazon hosts, so the CTA is suppressed cleanly
+                      // when the URL isn't usable. Render-time only — DB unchanged.
+                      // No affiliate tag is appended (we don't have an approved tag
+                      // yet — the env-gated withAmazonAffiliateTag helper proposed in
+                      // the readiness audit is intentionally not used here).
+                      const ctaUrl = normalizeAmazonUrl(book.amazon_url);
+                      if (!ctaUrl) return null;
+                      return (
+                        <a
+                          href={ctaUrl}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow sponsored"
+                          data-track-slug={book.slug}
+                          data-track-section="list-book"
+                          data-track-label="View on Amazon"
+                          className="text-xs text-muted hover:text-accent hover:underline inline-flex items-center gap-1 font-semibold"
+                        >
+                          <span>View on Amazon</span>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </a>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
