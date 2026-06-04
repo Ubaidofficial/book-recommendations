@@ -1268,7 +1268,22 @@ export async function getRecommendationProof(
         quote: r.quote,
         confidence_score: r.confidence_score,
       })
-    ).filter((p: RecommendationProof) => p.person != null && p.person.id);
+    ).filter((p: RecommendationProof) =>
+      // Existing null-/missing-id guards from the previous shape:
+      p.person != null && p.person.id &&
+      // Launch-safety filter: drop single-token-name persons with no
+      // profile signals so the "Recommendation Signals" drawer matches
+      // the face grid + /people hub hygiene. Same structural predicate
+      // (isProfilelessSurnameAlias) used in getBookRecommenders and the
+      // /people hub. Direct /people/<slug> pages stay reachable; only
+      // proof-drawer inclusion is suppressed.
+      !isProfilelessSurnameAlias({
+        name: p.person.name,
+        role: p.person.role,
+        bio: p.person.bio,
+        avatar_url: p.person.avatar_url,
+      })
+    );
   } catch (e) {
     logQueryError("getRecommendationProof", e);
     return [];
