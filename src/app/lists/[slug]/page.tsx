@@ -108,6 +108,16 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
             A curated collection of books related to {displayName}, ranked by recommendation signals.
           </p>
         )}
+        {/* Compact methodology framing — sits under the description so the
+            reader knows what kind of list this is before they scroll into
+            the grid. Deliberately conservative wording: no "expert-curated"
+            claim, no "hand-picked" framing. The list-detail page is the
+            weakest page type in the corpus per the live-readiness audit;
+            this single sentence is the lightest possible uplift to its
+            credibility above the fold. Always renders. */}
+        <p className="text-xs text-muted/70 max-w-2xl leading-relaxed mt-3">
+          Built from recommendation data and source-backed book records. Open any book to see proof, context, and Amazon options.
+        </p>
         {list.curator && (
           <p className="text-sm text-accent font-medium mt-2">Curated by {list.curator}</p>
         )}
@@ -314,14 +324,24 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
         </section>
       )}
 
-      {/* About list */}
+      {/* About list — methodology footer. Rewritten to be more transparent
+          about WHAT data drives the list (recommendation signals, category
+          memberships, public sources) and less generic. Deliberately
+          avoids "expert-curated" / "hand-picked" framing because most
+          lists are generated from category memberships, not human
+          editorial. The previous copy was the same generic stub on every
+          list and contributed to the "templated feel" the live-readiness
+          audit flagged. */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
         <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">About this list</h2>
         <p className="text-sm text-muted leading-relaxed">
-          {displayName} is built from recommendation and category data collected across public sources.
-          Books are ranked by their position in the list — those appearing higher have stronger placement
-          signals. Recommendation counts and ratings are shown where available so you can quickly
-          identify standout titles.
+          This list aggregates books that appear in public recommendation
+          sources, reader-interest signals, and category data. Books are
+          ranked by their position from the source list; recommendation
+          counts and ratings are shown where available. Open any book to
+          see source-backed recommendation proof, editorial context, and
+          Amazon options — the per-book detail page is where the trust
+          signals live.
         </p>
       </section>
 

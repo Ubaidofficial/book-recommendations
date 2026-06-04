@@ -836,7 +836,15 @@ export default async function BookDetailPage({ params }: Props) {
 
       {/* Recommendation Proof / Signals */}
       <section className="mb-14">
-        <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">{proofHeading}</h2>
+        <h2 className="text-xl font-bold text-ink mb-1 tracking-tight">{proofHeading}</h2>
+        {/* Compact trust/methodology note — mirrors the wording shipped on
+            /people/[slug] and frames the proof drawer that follows. Sits
+            tight under the section H2 (h2 mb-1 + this paragraph mb-5 =
+            same total rhythm as the previous mb-5). Always renders; does
+            not crowd the Amazon CTA which lives above this section. */}
+        <p className="text-xs text-muted/70 leading-relaxed mb-5">
+          Recommendation proof is sourced from public posts, interviews, reading lists, and cited references.
+        </p>
         {hasProof ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {proof.map((p, i) => {
