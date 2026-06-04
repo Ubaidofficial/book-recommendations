@@ -1,4 +1,5 @@
 import { supabase as getSupabase } from "./supabase";
+import { isProfilelessSurnameAlias } from "./dataQuality";
 
 // --- Types (matched to actual Supabase schema) ---
 
@@ -1347,6 +1348,13 @@ export async function getBookRecommenders(
       if (!slug || slug === "undefined" || slug === "null") continue;
       if (!name) continue;
       if (seen.has(slug)) continue;
+      // Launch-safety filter: drop single-token-name persons with no
+      // profile signals (e.g. bare `hitchens` / `brand` / `watson`). These
+      // rows aggregated content from many recommenders sharing a surname
+      // and would otherwise outrank the canonical full-name person on raw
+      // recommendation count. Direct /people/<slug> pages stay reachable;
+      // only face-grid inclusion is suppressed.
+      if (isProfilelessSurnameAlias({ name, role: p.role, bio: p.bio, avatar_url: p.avatar_url })) continue;
       seen.add(slug);
       buffered.push({
         _person_id: pid,

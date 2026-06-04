@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { getTopRecommendedPeople, getPersonRecommendedCount, getPersonWrittenCount, searchPeople } from "@/lib/data";
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
+import { isProfilelessSurnameAlias } from "@/lib/dataQuality";
 import { PersonCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
 
 // Minimum recommendation count for a person to appear in the default
@@ -107,6 +108,14 @@ export default async function PeoplePage({ searchParams }: Props) {
     ? sorted.slice(0, DISPLAY_LIMIT)
     : dedupeSurnameAliases(
         sorted.filter((p) => {
+          // Launch-safety filter: drop single-token-name rows with no
+          // profile signals (no role, no bio, no avatar). These are
+          // bare-surname alias rows (e.g. `hitchens`, `brand`, `watson`,
+          // `sabatini`, `rowling`, `harris`) that aggregated content from
+          // many distinct recommenders and can outrank a canonical
+          // full-name person on raw recommendation count. The row itself
+          // is preserved in the DB; only listing inclusion is suppressed.
+          if (isProfilelessSurnameAlias(p)) return false;
           const name = p.name.trim();
           const hasSpace = name.includes(" ");
           if (!hasSpace && p.recommendedCount === 0 && p.writtenCount === 0 && !p.bio) {

@@ -277,6 +277,42 @@ export function isUsefulPersonBio(value: string | null | undefined): boolean {
   return true;
 }
 
+/**
+ * Launch-safety predicate: detect bare-surname alias rows that carry no
+ * profile signals. These rows (e.g. `hitchens`, `brand`, `watson`,
+ * `sabatini`, `rowling`, `harris`) typically aggregate book recommendations
+ * from many distinct recommenders sharing a surname, with the result that
+ * a single anonymous "Hitchens" entry can outrank the canonical
+ * "Christopher Hitchens" by raw recommendation count.
+ *
+ * Returns true when ALL of the following hold:
+ *   - `name` has no whitespace after trim (single-token surname only)
+ *   - `role` is empty / null / whitespace-only
+ *   - `bio`  is empty / null / whitespace-only
+ *   - `avatar_url` is empty / null / whitespace-only
+ *
+ * Used as a structural filter on listing surfaces (the `/people` hub and
+ * the book-detail "Recommended by notable people" face grid). Direct
+ * `/people/<slug>` pages remain reachable — the row is preserved in the
+ * database and accessible at its URL; only its prominence on listing
+ * surfaces is suppressed. Reversible by populating any one of role / bio /
+ * avatar_url, or by removing this helper from the relevant call site.
+ */
+export function isProfilelessSurnameAlias(p: {
+  name: string | null | undefined;
+  role: string | null | undefined;
+  bio: string | null | undefined;
+  avatar_url: string | null | undefined;
+}): boolean {
+  const name = (p.name || "").trim();
+  if (!name) return false;             // empty-name rows handled by other guards
+  if (name.includes(" ")) return false; // multi-token names are out of scope
+  const role = (p.role || "").trim();
+  const bio = (p.bio || "").trim();
+  const avatar = (p.avatar_url || "").trim();
+  return !role && !bio && !avatar;
+}
+
 export function cleanDescription(value: string | null | undefined, maxLength = 700): string | null {
   if (!value || typeof value !== "string") return null;
   const trimmed = value.trim();
