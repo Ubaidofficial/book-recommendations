@@ -702,9 +702,16 @@ export async function getListsPaginated(
     const asc = sort === "title";
 
     // count: 'exact' returns the REAL total in `count`, not just the slice length.
+    // Public-discovery filter (see LIST_PUBLIC_OR docstring): excludes
+    // draft/concat rows like `parentingrelationships-family` while keeping
+    // canonical broad categories (which are also `draft` but allow-listed)
+    // and any other non-draft list.
     const { data, count, error } = await getSupabase()
       .from("lists")
       .select("*", { count: "exact" })
+      .or(LIST_PUBLIC_OR)
+      .not("slug", "is", null)
+      .neq("slug", "")
       .order(col, { ascending: asc })
       .range(from, to);
 
@@ -726,6 +733,29 @@ const BROAD_CATEGORY_SLUGS = [
   "biography", "poetry", "music", "food", "travel", "design", "writing",
   "programming", "management", "entrepreneurship",
 ];
+
+// Public-discovery filter for list browsing surfaces. A row is publicly
+// discoverable iff:
+//   (a) its slug is non-empty, AND
+//   (b) EITHER its `index_status` is NOT 'draft',
+//       OR its slug is in the canonical broad-category allowlist above.
+//
+// Rationale:
+//   - 246 lists have machine-concatenated camel-cased titles (e.g.
+//     "FoodHobbies", "RomanceFiction"). All 38 with book_count>=10 are
+//     index_status='draft' and should NOT appear in public listing/search.
+//   - The 31 broad-category slugs ARE also `draft` in the DB but are the
+//     intentionally allow-listed launch surface and must remain visible.
+//   - This filter is applied to listing helpers (getListsPaginated,
+//     searchLists, getRelatedLists, getListsForBook). It is intentionally
+//     NOT applied to getListBySlug so direct `/lists/<slug>` URLs still
+//     resolve. Combined with the existing robotsDirective `noindex,follow`
+//     baseline on /lists/[slug], that keeps direct links reachable while
+//     hiding the row from discovery surfaces.
+//
+// Encoded as a PostgREST .or() string. Used with chained `.not("slug","is",null).neq("slug","")`
+// to enforce the non-empty-slug requirement.
+const LIST_PUBLIC_OR = `index_status.neq.draft,slug.in.(${BROAD_CATEGORY_SLUGS.join(",")})`;
 
 export async function getBroadCategoryLists(limit = 12): Promise<BookList[]> {
   try {
@@ -1040,11 +1070,16 @@ export async function getRelatedLists(listId: string, limit = 6): Promise<BookLi
       const myCluster = clusterTokensFor(slug);
 
       // Step 1 — pull all best-* topic lists once; rank locally by token similarity.
+      // Public-discovery filter: exclude draft best-* rows (unless they were
+      // allow-listed as broad categories, which best-* slugs cannot be).
       const { data: allTopic } = await supa
         .from("lists")
         .select("*")
         .like("slug", "best-%")
         .neq("id", listId)
+        .or(LIST_PUBLIC_OR)
+        .not("slug", "is", null)
+        .neq("slug", "")
         .limit(2000);
       const tokenScored = (allTopic || [])
         .map((c: BookList) => {
@@ -1092,7 +1127,9 @@ export async function getRelatedLists(listId: string, limit = 6): Promise<BookLi
         if (counts.size > 0) {
           const candidateIds = Array.from(counts.keys()).filter((id) => !have.has(id));
           if (candidateIds.length > 0) {
-            const { data: cands } = await supa.from("lists").select("*").in("id", candidateIds);
+            // Public-discovery filter: drop draft/concat rows from the
+            // co-membership related-list candidate pool.
+            const { data: cands } = await supa.from("lists").select("*").in("id", candidateIds).or(LIST_PUBLIC_OR).not("slug", "is", null).neq("slug", "");
             coRanked = ((cands || []) as BookList[])
               .filter((c) => {
                 const s = (c.slug || "").toLowerCase();
@@ -1462,7 +1499,16 @@ export async function getListsForBook(bookId: string, limit = 8): Promise<BookLi
     const ids = rows.map(r => r.list_id).filter((x): x is string => !!x);
     if (ids.length === 0) return [];
 
-    const { data: lists, error: listErr } = await supa.from("lists").select("*").in("id", ids);
+    // Public-discovery filter: book-detail "Appears In" must not surface
+    // draft/concat lists. Same predicate as listing/search helpers — canonical
+    // broad categories (which are also `draft`) remain visible.
+    const { data: lists, error: listErr } = await supa
+      .from("lists")
+      .select("*")
+      .in("id", ids)
+      .or(LIST_PUBLIC_OR)
+      .not("slug", "is", null)
+      .neq("slug", "");
     if (listErr) { logQueryError("getListsForBook[lists]", listErr); return []; }
     const rankByListId = new Map<string, number | null>();
     for (const r of rows) if (r.list_id) rankByListId.set(r.list_id, r.rank);
@@ -1821,15 +1867,29 @@ export async function searchLists(q: string, limit = 8): Promise<BookList[]> {
   if (!q || q.length < 2) return [];
   try {
     const pattern = `%${q}%`;
+    // Public-discovery filter applied client-side after the title/description
+    // text-match query — PostgREST's single-`.or()` per builder makes chaining
+    // a second `.or(LIST_PUBLIC_OR)` ambiguous, so we overfetch (×6) and
+    // filter resolved rows in JS before slicing to `limit`. Same predicate
+    // as LIST_PUBLIC_OR: non-draft OR canonical broad category, plus
+    // non-empty slug.
+    const broad = new Set(BROAD_CATEGORY_SLUGS);
+    const fetchLimit = Math.max(limit * 6, 24);
     const { data, error } = await getSupabase()
       .from("lists")
       .select("*")
       .or(`title.ilike.${pattern},description.ilike.${pattern}`)
       .order("book_count", { ascending: false })
-      .limit(limit);
+      .limit(fetchLimit);
 
     if (error) { logQueryError("searchLists", error); return []; }
-    return data || [];
+    const filtered = (data || []).filter((l: BookList) => {
+      const slug = (l.slug || "").trim();
+      if (!slug) return false;
+      if (l.index_status !== "draft") return true;
+      return broad.has(slug);
+    });
+    return filtered.slice(0, limit);
   } catch (e) {
     logQueryError("searchLists", e);
     return [];
