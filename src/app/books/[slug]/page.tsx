@@ -302,6 +302,108 @@ export default async function BookDetailPage({ params }: Props) {
 
   const jsonld = bookJsonLd(book);
 
+  // Social Proof Summary Row
+  const socialProofRow = (() => {
+    const validRecs = (notableRecommenders || [])
+      .filter((r) => r && typeof r.person_name === "string" && r.person_name.trim().length > 0);
+    if (validRecs.length === 0) return null;
+
+    const cluster = validRecs.slice(0, 3);
+    const remainingCount = validRecs.length - 2;
+
+    return (
+      <div className="flex items-center gap-3 mb-4 flex-wrap text-xs md:text-sm text-muted">
+        <div className="flex -space-x-2 shrink-0">
+          {cluster.map((r, idx) => {
+            const hasAvatar = isValidHttpUrl(r.avatar_url);
+            const initials = (r.person_name || "?").charAt(0);
+            const content = hasAvatar ? (
+              <SafeImage
+                src={r.avatar_url!}
+                alt={r.person_name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-[9px] font-bold text-muted/60">{initials}</span>
+            );
+
+            return r.person_slug ? (
+              <Link
+                key={r.person_slug}
+                href={`/people/${r.person_slug}`}
+                className="w-6.5 h-6.5 rounded-full bg-subtle border border-surface overflow-hidden flex items-center justify-center hover:z-10 transition-transform hover:scale-105 shrink-0"
+                title={r.person_name}
+              >
+                {content}
+              </Link>
+            ) : (
+              <div
+                key={idx}
+                className="w-6.5 h-6.5 rounded-full bg-subtle border border-surface overflow-hidden flex items-center justify-center shrink-0"
+                title={r.person_name}
+              >
+                {content}
+              </div>
+            );
+          })}
+        </div>
+
+        <span className="leading-relaxed">
+          Recommended by{" "}
+          {validRecs.length === 1 && (
+            validRecs[0].person_slug ? (
+              <Link href={`/people/${validRecs[0].person_slug}`} className="font-semibold text-ink hover:text-accent hover:underline">
+                {validRecs[0].person_name}
+              </Link>
+            ) : (
+              <span className="font-semibold text-ink">{validRecs[0].person_name}</span>
+            )
+          )}
+          {validRecs.length === 2 && (
+            <>
+              {validRecs[0].person_slug ? (
+                <Link href={`/people/${validRecs[0].person_slug}`} className="font-semibold text-ink hover:text-accent hover:underline">
+                  {validRecs[0].person_name}
+                </Link>
+              ) : (
+                <span className="font-semibold text-ink">{validRecs[0].person_name}</span>
+              )}
+              {" and "}
+              {validRecs[1].person_slug ? (
+                <Link href={`/people/${validRecs[1].person_slug}`} className="font-semibold text-ink hover:text-accent hover:underline">
+                  {validRecs[1].person_name}
+                </Link>
+              ) : (
+                <span className="font-semibold text-ink">{validRecs[1].person_name}</span>
+              )}
+            </>
+          )}
+          {validRecs.length >= 3 && (
+            <>
+              {validRecs[0].person_slug ? (
+                <Link href={`/people/${validRecs[0].person_slug}`} className="font-semibold text-ink hover:text-accent hover:underline">
+                  {validRecs[0].person_name}
+                </Link>
+              ) : (
+                <span className="font-semibold text-ink">{validRecs[0].person_name}</span>
+              )}
+              {", "}
+              {validRecs[1].person_slug ? (
+                <Link href={`/people/${validRecs[1].person_slug}`} className="font-semibold text-ink hover:text-accent hover:underline">
+                  {validRecs[1].person_name}
+                </Link>
+              ) : (
+                <span className="font-semibold text-ink">{validRecs[1].person_name}</span>
+              )}
+              {" + "}
+              <span className="font-semibold text-ink">{remainingCount} more</span>
+            </>
+          )}
+        </span>
+      </div>
+    );
+  })();
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 pb-28 md:pb-8">
       {jsonld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />}
@@ -313,16 +415,17 @@ export default async function BookDetailPage({ params }: Props) {
             <img
               src={book.cover_image_url}
               alt=""
-              className="w-full h-full object-cover blur-[80px] opacity-[0.06] scale-110 origin-center"
+              className="w-full h-full object-cover blur-[80px] opacity-[0.10] scale-110 origin-center"
               loading="lazy"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent opacity-60" />
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-8 md:gap-10">
-          <div className="max-w-[180px] mx-auto md:max-w-full">
-            <div className="rounded-2xl overflow-hidden shadow-[0_20px_45px_rgba(0,0,0,0.28)] bg-subtle aspect-[2/3] ring-1 ring-ink/10 transition-transform duration-300 hover:scale-[1.015]">
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-8 lg:gap-12">
+          {/* Left sticky rail (desktop only) */}
+          <aside className="hidden lg:flex lg:flex-col lg:sticky lg:top-24 lg:self-start lg:w-[320px] gap-5 shrink-0">
+            <div className="w-[300px] max-w-[300px] mx-auto rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] bg-subtle aspect-[2/3] ring-1 ring-ink/10 transition-transform duration-300 hover:scale-[1.02]">
               {hasCover ? (
                 <SafeImage
                   src={book.cover_image_url}
@@ -334,174 +437,220 @@ export default async function BookDetailPage({ params }: Props) {
                 <DetailCoverFallback title={displayBookTitle(book.title)} />
               )}
             </div>
-          </div>
-
-        <div>
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            {showRating && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold">
-                ★ {formatRating(book.rating)}
-              </span>
+            {normalizedAmazonUrl && (
+              <div className="w-[300px] mx-auto text-center">
+                <a
+                  href={normalizedAmazonUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow sponsored"
+                  data-track-slug={book.slug}
+                  data-track-section="above-fold"
+                  data-track-label="Check price on Amazon"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-all duration-150 hover:shadow-md shadow-sm"
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                  Check price on Amazon
+                </a>
+                {book.recommendation_count > 0 && (
+                  <p className="mt-2 text-xs font-semibold text-accent" data-track-context="above-fold-trust-badge">
+                    Recommended by {book.recommendation_count.toLocaleString()} sources
+                  </p>
+                )}
+                <p className="mt-1 text-[11px] text-muted leading-normal">
+                  See formats, Kindle, audiobook & availability.
+                </p>
+              </div>
             )}
-            {book.recommendation_count > 0 && (
-              <span className="text-sm text-muted">{book.recommendation_count.toLocaleString()} recommendations</span>
-            )}
-            {showVerifiedBadge && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-subtle border border-border text-xs text-muted font-medium">
-                <svg className="w-3 h-3 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                Verified
-              </span>
-            )}
-          </div>
+          </aside>
 
-          <h1 className="text-2xl md:text-4xl font-bold text-ink mb-2 tracking-tight">{displayBookTitle(book.title)}</h1>
-          {book.subtitle && <p className="text-base text-muted mb-2">{book.subtitle}</p>}
-
-          {hasAuthor && (
-            <p className="text-base text-muted mb-4">
-              by <span className="text-accent font-semibold">{book.author}</span>
-            </p>
-          )}
-
-          {hasSeries && safeSeriesBooks.length > 0 && (() => {
-            const currentIndex = safeSeriesBooks.findIndex((b) => b.id === book.id);
-            if (currentIndex === -1) return null;
-            const position = currentIndex + 1;
-            const total = safeSeriesBooks.length;
-            const prevBook = currentIndex > 0 ? safeSeriesBooks[currentIndex - 1] : null;
-            const nextBook = currentIndex < total - 1 ? safeSeriesBooks[currentIndex + 1] : null;
-            const firstBook = safeSeriesBooks[0];
-            const isNotFirst = currentIndex > 0;
-
-            return (
-              <div className="flex flex-col gap-3 p-4 rounded-xl border border-border bg-subtle/25 mb-5 max-w-xl">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
-                    <span className="text-sm font-semibold text-ink">
-                      Book {position} of {total} in{" "}
-                      {isValidSlug(book.series_slug) ? (
-                        <Link href={`/series/${book.series_slug}`} className="text-accent hover:underline">
-                          {displayTitle(book.series!)}
-                        </Link>
-                      ) : (
-                        <span className="text-accent font-semibold">{displayTitle(book.series!)}</span>
-                      )}
-                    </span>
-                  </div>
-                  {isNotFirst && firstBook && isValidSlug(firstBook.slug) && (
-                    <Link
-                      href={`/books/${firstBook.slug}`}
-                      className="text-xs font-bold text-accent hover:text-accent/80 flex items-center gap-1 bg-accent-light px-2 py-1 rounded"
-                    >
-                      Start series here
-                    </Link>
-                  )}
-                </div>
-
-                {(prevBook || nextBook) && (
-                  <div className="grid grid-cols-2 gap-4 border-t border-border/40 pt-3 text-xs">
-                    {prevBook ? (
-                      isValidSlug(prevBook.slug) ? (
-                        <Link
-                          href={`/books/${prevBook.slug}`}
-                          className="group flex flex-col gap-0.5 text-left hover:opacity-85"
-                        >
-                          <span className="text-muted font-medium flex items-center gap-1 group-hover:text-accent">
-                            ← Previous Book
-                          </span>
-                          <span className="font-semibold text-ink truncate max-w-full">
-                            {displayBookTitle(prevBook.title)}
-                          </span>
-                        </Link>
-                      ) : (
-                        <div className="group flex flex-col gap-0.5 text-left">
-                          <span className="text-muted font-medium flex items-center gap-1">
-                            ← Previous Book
-                          </span>
-                          <span className="font-semibold text-ink truncate max-w-full">
-                            {displayBookTitle(prevBook.title)}
-                          </span>
-                        </div>
-                      )
-                    ) : (
-                      <div />
-                    )}
-
-                    {nextBook ? (
-                      isValidSlug(nextBook.slug) ? (
-                        <Link
-                          href={`/books/${nextBook.slug}`}
-                          className="group flex flex-col gap-0.5 text-right hover:opacity-85"
-                        >
-                          <span className="text-muted font-medium flex items-center justify-end gap-1 group-hover:text-accent">
-                            Next Book →
-                          </span>
-                          <span className="font-semibold text-ink truncate max-w-full block">
-                            {displayBookTitle(nextBook.title)}
-                          </span>
-                        </Link>
-                      ) : (
-                        <div className="group flex flex-col gap-0.5 text-right">
-                          <span className="text-muted font-medium flex items-center justify-end gap-1">
-                            Next Book →
-                          </span>
-                          <span className="font-semibold text-ink truncate max-w-full block">
-                            {displayBookTitle(nextBook.title)}
-                          </span>
-                        </div>
-                      )
-                    ) : (
-                      <div />
-                    )}
-                  </div>
+          {/* Right scrolling column */}
+          <div className="flex-1 min-w-0">
+            {/* Mobile/Tablet Cover (hidden on desktop) */}
+            <div className="mb-6 flex justify-center lg:hidden">
+              <div className="w-[200px] max-w-[200px] rounded-2xl overflow-hidden shadow-[0_15px_35px_rgba(0,0,0,0.2)] bg-subtle aspect-[2/3] ring-1 ring-ink/10">
+                {hasCover ? (
+                  <SafeImage
+                    src={book.cover_image_url}
+                    alt={displayBookTitle(book.title)}
+                    className="w-full h-full object-cover"
+                    fallback={<DetailCoverFallback title={displayBookTitle(book.title)} />}
+                  />
+                ) : (
+                  <DetailCoverFallback title={displayBookTitle(book.title)} />
                 )}
               </div>
-            );
-          })()}
-
-          {normalizedAmazonUrl && (
-            <div className="mb-6">
-              {notableBadgeText && (
-                <p
-                  className="mb-2 text-xs font-medium text-ink/80 flex items-start gap-1.5"
-                  data-track-context="above-fold-trust-badge"
-                >
-                  <svg
-                    className="w-3.5 h-3.5 shrink-0 mt-0.5 text-accent"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>{notableBadgeText}</span>
-                </p>
-              )}
-              <a
-                href={normalizedAmazonUrl}
-                target="_blank"
-                rel="noopener noreferrer nofollow sponsored"
-                data-track-slug={book.slug}
-                data-track-section="above-fold"
-                data-track-label="Check price on Amazon"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-all duration-150 hover:shadow-md shadow-sm"
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-                Check price on Amazon
-              </a>
-              <p className="mt-2 text-xs text-muted">
-                See formats, Kindle, audiobook, and current availability.
-              </p>
             </div>
-          )}
+
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              {showRating && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold">
+                  ★ {formatRating(book.rating)}
+                </span>
+              )}
+              {book.recommendation_count > 0 && (
+                <span className="text-sm text-muted">{book.recommendation_count.toLocaleString()} recommendations</span>
+              )}
+              {showVerifiedBadge && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-subtle border border-border text-xs text-muted font-medium">
+                  <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  Verified
+                </span>
+              )}
+            </div>
+
+            <h1 className="text-2xl md:text-4xl font-bold text-ink mb-2 tracking-tight">{displayBookTitle(book.title)}</h1>
+            {book.subtitle && <p className="text-base text-muted mb-2">{book.subtitle}</p>}
+
+            {hasAuthor && (
+              <p className="text-base text-muted mb-4">
+                by <span className="text-accent font-semibold">{book.author}</span>
+              </p>
+            )}
+
+            {socialProofRow}
+
+            {hasSeries && safeSeriesBooks.length > 0 && (() => {
+              const currentIndex = safeSeriesBooks.findIndex((b) => b.id === book.id);
+              if (currentIndex === -1) return null;
+              const position = currentIndex + 1;
+              const total = safeSeriesBooks.length;
+              const prevBook = currentIndex > 0 ? safeSeriesBooks[currentIndex - 1] : null;
+              const nextBook = currentIndex < total - 1 ? safeSeriesBooks[currentIndex + 1] : null;
+              const firstBook = safeSeriesBooks[0];
+              const isNotFirst = currentIndex > 0;
+
+              return (
+                <div className="flex flex-col gap-3 p-4 rounded-xl border border-border bg-subtle/25 mb-5 max-w-xl">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                      <span className="text-sm font-semibold text-ink">
+                        Book {position} of {total} in{" "}
+                        {isValidSlug(book.series_slug) ? (
+                          <Link href={`/series/${book.series_slug}`} className="text-accent hover:underline">
+                            {displayTitle(book.series!)}
+                          </Link>
+                        ) : (
+                          <span className="text-accent font-semibold">{displayTitle(book.series!)}</span>
+                        )}
+                      </span>
+                    </div>
+                    {isNotFirst && firstBook && isValidSlug(firstBook.slug) && (
+                      <Link
+                        href={`/books/${firstBook.slug}`}
+                        className="text-xs font-bold text-accent hover:text-accent/80 flex items-center gap-1 bg-accent-light px-2 py-1 rounded"
+                      >
+                        Start series here
+                      </Link>
+                    )}
+                  </div>
+
+                  {(prevBook || nextBook) && (
+                    <div className="grid grid-cols-2 gap-4 border-t border-border/40 pt-3 text-xs">
+                      {prevBook ? (
+                        isValidSlug(prevBook.slug) ? (
+                          <Link
+                            href={`/books/${prevBook.slug}`}
+                            className="group flex flex-col gap-0.5 text-left hover:opacity-85"
+                          >
+                            <span className="text-muted font-medium flex items-center gap-1 group-hover:text-accent">
+                              ← Previous Book
+                            </span>
+                            <span className="font-semibold text-ink truncate max-w-full">
+                              {displayBookTitle(prevBook.title)}
+                            </span>
+                          </Link>
+                        ) : (
+                          <div className="group flex flex-col gap-0.5 text-left">
+                            <span className="text-muted font-medium flex items-center gap-1">
+                              ← Previous Book
+                            </span>
+                            <span className="font-semibold text-ink truncate max-w-full">
+                              {displayBookTitle(prevBook.title)}
+                            </span>
+                          </div>
+                        )
+                      ) : (
+                        <div />
+                      )}
+
+                      {nextBook ? (
+                        isValidSlug(nextBook.slug) ? (
+                          <Link
+                            href={`/books/${nextBook.slug}`}
+                            className="group flex flex-col gap-0.5 text-right hover:opacity-85"
+                          >
+                            <span className="text-muted font-medium flex items-center justify-end gap-1 group-hover:text-accent">
+                              Next Book →
+                            </span>
+                            <span className="font-semibold text-ink truncate max-w-full block">
+                              {displayBookTitle(nextBook.title)}
+                            </span>
+                          </Link>
+                        ) : (
+                          <div className="group flex flex-col gap-0.5 text-right">
+                            <span className="text-muted font-medium flex items-center justify-end gap-1">
+                              Next Book →
+                            </span>
+                            <span className="font-semibold text-ink truncate max-w-full block">
+                              {displayBookTitle(nextBook.title)}
+                            </span>
+                          </div>
+                        )
+                      ) : (
+                        <div />
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {normalizedAmazonUrl && (
+              <div className="mb-6 lg:hidden">
+                {notableBadgeText && (
+                  <p
+                    className="mb-2 text-xs font-medium text-ink/80 flex items-start gap-1.5"
+                    data-track-context="above-fold-trust-badge"
+                  >
+                    <svg
+                      className="w-3.5 h-3.5 shrink-0 mt-0.5 text-accent"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>{notableBadgeText}</span>
+                  </p>
+                )}
+                <a
+                  href={normalizedAmazonUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow sponsored"
+                  data-track-slug={book.slug}
+                  data-track-section="above-fold"
+                  data-track-label="Check price on Amazon"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-all duration-150 hover:shadow-md shadow-sm"
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                  Check price on Amazon
+                </a>
+                <p className="mt-2 text-xs text-muted">
+                  See formats, Kindle, audiobook, and current availability.
+                </p>
+              </div>
+            )}
+
 
           {/* Reading Profile Widget */}
           {showFitStrip && (() => {
