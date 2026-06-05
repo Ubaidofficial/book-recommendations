@@ -471,14 +471,14 @@ export default async function BookDetailPage({ params }: Props) {
     <div className="relative w-full py-8 pb-28 md:pb-8">
       {/* Full-width blurred cover-art band behind hero */}
       {hasCover && (
-        <div className="absolute inset-x-0 top-0 h-[260px] lg:h-[380px] -z-10 pointer-events-none select-none overflow-hidden" aria-hidden="true">
+        <div className="absolute inset-x-0 top-0 h-[280px] lg:h-[420px] -z-10 pointer-events-none select-none overflow-hidden" aria-hidden="true">
           <img
             src={book.cover_image_url}
             alt=""
-            className="w-full h-full object-cover blur-[100px] opacity-[0.18] scale-125 origin-center"
+            className="w-full h-full object-cover blur-[100px] opacity-[0.22] scale-125 origin-center"
             loading="lazy"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/25 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-transparent" />
         </div>
       )}
 
@@ -521,12 +521,15 @@ export default async function BookDetailPage({ params }: Props) {
                   Check price on Amazon
                 </a>
                 {book.recommendation_count > 0 && (
-                  <p className="mt-2 text-xs font-semibold text-accent" data-track-context="above-fold-trust-badge">
+                  <p className="mt-2 text-xs font-bold text-accent" data-track-context="above-fold-trust-badge">
                     Recommended by {book.recommendation_count.toLocaleString()} sources
                   </p>
                 )}
-                <p className="mt-1 text-[11px] text-muted leading-normal">
-                  See formats, Kindle, audiobook & availability.
+                <p className="mt-1 text-[11px] text-muted font-medium leading-normal">
+                  Proof-backed recommendation
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted font-medium leading-normal">
+                  Amazon availability
                 </p>
               </div>
             )}
@@ -712,8 +715,11 @@ export default async function BookDetailPage({ params }: Props) {
                   </svg>
                   Check price on Amazon
                 </a>
-                <p className="mt-2 text-xs text-muted">
-                  See formats, Kindle, audiobook, and current availability.
+                <p className="mt-2 text-[11px] text-muted font-medium leading-normal">
+                  Proof-backed recommendation
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted font-medium leading-normal">
+                  Amazon availability
                 </p>
               </div>
             )}
@@ -1142,7 +1148,7 @@ export default async function BookDetailPage({ params }: Props) {
                         )}
                       </div>
                     ) : (
-                      <details className="w-full mt-2">
+                      <details className="w-full mt-2 mb-1.5">
                         <summary className="list-none cursor-pointer flex items-center justify-between gap-2 text-xs select-none [&::-webkit-details-marker]:hidden">
                           <span className="text-accent hover:underline font-medium">View sources ({sourceUrls.length}) ▾</span>
                           {conf && <span className="text-muted/40 tabular-nums">{conf}</span>}
