@@ -93,7 +93,7 @@ export default async function PersonDetailPage({ params }: Props) {
       {jsonld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "People", href: "/people" }, { label: person.name }]} />
 
-      <div className="flex flex-col sm:flex-row items-start gap-6 mb-14">
+      <div className="flex flex-col sm:flex-row items-start gap-6 mb-8">
         <div className="flex flex-col items-center shrink-0 gap-1.5">
           <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-subtle overflow-hidden ring-3 ring-border flex items-center justify-center">
             {hasAvatar ? (
@@ -194,12 +194,22 @@ export default async function PersonDetailPage({ params }: Props) {
         </div>
       </div>
 
+      {/* Top Trust Panel */}
+      <div className="mb-8 p-3.5 rounded-xl border border-border bg-subtle/30 text-xs text-muted leading-relaxed max-w-3xl flex items-start gap-2.5">
+        <svg className="w-4.5 h-4.5 text-accent shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+        <span>
+          BookRecs tracks public recommendations from interviews, posts, reading lists, and source references. Books with available evidence include proof links below.
+        </span>
+      </div>
+
       {/* Recommended Books */}
       {hasRecommendations ? (
         <section className="mb-14">
           <h2 className="text-xl font-bold text-ink mb-1.5 tracking-tight">Recommended Books</h2>
           <p className="text-xs text-muted/70 max-w-2xl mb-5">
-            These recommendations are linked to public posts, interviews, reading lists, and source references where available.
+            These books include Amazon options and source proof where available.
           </p>
           {/* Density: lg:grid-cols-5 (was lg:grid-cols-6) loosens the
               desktop pack so each cover gets more breathing room. Mobile
@@ -227,12 +237,11 @@ export default async function PersonDetailPage({ params }: Props) {
                       rating={p.book.rating}
                       recommendationCount={p.book.recommendation_count}
                     />
-                    {hasProof ? (
-                      <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[11px] leading-none text-muted/60">
-                        <span className="font-semibold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
-                          Source-backed
+                    {hasProof && p.book.slug ? (
+                      <div className="mt-2.5 flex flex-col items-center justify-center gap-1 text-[11px] text-center">
+                        <span className="font-semibold text-emerald-700 flex items-center gap-0.5 justify-center">
+                          ✓ Source proof available
                         </span>
-                        <span>·</span>
                         <a
                           href={`#proof-${p.book.slug}`}
                           className="text-accent hover:underline font-semibold"
@@ -241,7 +250,7 @@ export default async function PersonDetailPage({ params }: Props) {
                         </a>
                       </div>
                     ) : (
-                      <div className="mt-2.5 h-[18px]" aria-hidden="true" />
+                      <div className="mt-2.5 h-[34px]" aria-hidden="true" />
                     )}
                   </div>
                   {(() => {
@@ -425,13 +434,11 @@ export default async function PersonDetailPage({ params }: Props) {
         )}
       </section>
 
-      {/* About this profile */}
+      {/* How this profile is built */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
-        <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">About this profile</h2>
+        <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">How this profile is built</h2>
         <p className="text-sm text-muted leading-relaxed">
-          {person.name} is tracked across {recommendationProof.length} book recommendations and {writtenBooks.length} authored
-          books. We only surface pages when they have enough useful information — complete metadata, verified
-          data, and sufficient recommendation proof.
+          This profile tracks book recommendations and authored books for {person.name}. We compile recommendations from verifiable public sources, including interviews, articles, social posts, and official reading lists. Profiles are only published when they meet our thresholds for completeness, verified details, and supporting evidence.
         </p>
       </section>
 
