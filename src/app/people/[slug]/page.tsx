@@ -197,58 +197,82 @@ export default async function PersonDetailPage({ params }: Props) {
       {/* Recommended Books */}
       {hasRecommendations ? (
         <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Recommended Books</h2>
+          <h2 className="text-xl font-bold text-ink mb-1.5 tracking-tight">Recommended Books</h2>
+          <p className="text-xs text-muted/70 max-w-2xl mb-5">
+            These recommendations are linked to public posts, interviews, reading lists, and source references where available.
+          </p>
           {/* Density: lg:grid-cols-5 (was lg:grid-cols-6) loosens the
               desktop pack so each cover gets more breathing room. Mobile
               (grid-cols-2) and the intermediate sm/md breakpoints are
               unchanged. lg:gap-6 widens the between-card spacing to
               match the new column width. */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5 lg:gap-6">
-            {recommendationProof.map((p, i) => (
-              // Wrapper around BookCard so we can append a secondary Amazon
-              // CTA below each card on the people detail page WITHOUT
-              // touching BookCard (which is shared with /books and was
-              // reverted from Phase-4 recommender experiments). The CTA is
-              // an independent sibling <a>, so BookCard's internal link to
-              // /books/<slug> stays the primary card click target.
-              <div key={`${p.book.id}-${i}`} className="flex flex-col">
-                <BookCard
-                  title={p.book.title}
-                  slug={p.book.slug}
-                  author={p.book.author}
-                  authorSlug={p.book.author_slug}
-                  coverUrl={p.book.cover_image_url}
-                  rating={p.book.rating}
-                  recommendationCount={p.book.recommendation_count}
-                />
-                {(() => {
-                  // normalizeAmazonUrl repairs the dominant 22-char malformed
-                  // ASIN pattern and returns null for non-Amazon hosts, so
-                  // the CTA is suppressed cleanly when the URL isn't usable.
-                  // Render-time only — DB is not modified.
-                  const ctaUrl = normalizeAmazonUrl(p.book.amazon_url);
-                  if (!ctaUrl) return null;
-                  return (
-                    <a
-                      href={ctaUrl}
-                      target="_blank"
-                      rel="noopener noreferrer nofollow sponsored"
-                      data-track-slug={p.book.slug}
-                      data-track-section="people-detail-rec"
-                      data-track-label="View on Amazon"
-                      // CTA visual upgrade only — href / target / rel /
-                      // data-track-* attributes above are UNCHANGED.
-                      // Stronger amber background and border, darker text,
-                      // larger touch target (px-3 py-2), text-xs (12px)
-                      // instead of [11px]. Same shape, more clickable.
-                      className="mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-100 hover:bg-amber-200 border border-amber-300/70 text-amber-950 text-xs font-bold transition-colors"
-                    >
-                      View on Amazon →
-                    </a>
-                  );
-                })()}
-              </div>
-            ))}
+            {recommendationProof.map((p, i) => {
+              const hasProof = proofList.some((pl) => pl.book.id === p.book.id);
+              return (
+                // Wrapper around BookCard so we can append a secondary Amazon
+                // CTA below each card on the people detail page WITHOUT
+                // touching BookCard (which is shared with /books and was
+                // reverted from Phase-4 recommender experiments). The CTA is
+                // an independent sibling <a>, so BookCard's internal link to
+                // /books/<slug> stays the primary card click target.
+                <div key={`${p.book.id}-${i}`} className="flex flex-col h-full justify-between">
+                  <div>
+                    <BookCard
+                      title={p.book.title}
+                      slug={p.book.slug}
+                      author={p.book.author}
+                      authorSlug={p.book.author_slug}
+                      coverUrl={p.book.cover_image_url}
+                      rating={p.book.rating}
+                      recommendationCount={p.book.recommendation_count}
+                    />
+                    {hasProof ? (
+                      <div className="mt-2.5 flex items-center justify-center gap-1.5 text-[11px] leading-none text-muted/60">
+                        <span className="font-semibold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                          Source-backed
+                        </span>
+                        <span>·</span>
+                        <a
+                          href={`#proof-${p.book.slug}`}
+                          className="text-accent hover:underline font-semibold"
+                        >
+                          View proof ↓
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="mt-2.5 h-[18px]" aria-hidden="true" />
+                    )}
+                  </div>
+                  {(() => {
+                    // normalizeAmazonUrl repairs the dominant 22-char malformed
+                    // ASIN pattern and returns null for non-Amazon hosts, so
+                    // the CTA is suppressed cleanly when the URL isn't usable.
+                    // Render-time only — DB is not modified.
+                    const ctaUrl = normalizeAmazonUrl(p.book.amazon_url);
+                    if (!ctaUrl) return null;
+                    return (
+                      <a
+                        href={ctaUrl}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow sponsored"
+                        data-track-slug={p.book.slug}
+                        data-track-section="people-detail-rec"
+                        data-track-label="View on Amazon"
+                        // CTA visual upgrade only — href / target / rel /
+                        // data-track-* attributes above are UNCHANGED.
+                        // Stronger amber background and border, darker text,
+                        // larger touch target (px-3 py-2), text-xs (12px)
+                        // instead of [11px]. Same shape, more clickable.
+                        className="mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-100 hover:bg-amber-200 border border-amber-300/70 text-amber-950 text-xs font-bold transition-colors"
+                      >
+                        View on Amazon →
+                      </a>
+                    );
+                  })()}
+                </div>
+              );
+            })}
           </div>
         </section>
       ) : (
@@ -300,7 +324,8 @@ export default async function PersonDetailPage({ params }: Props) {
               return (
                 <div
                   key={`proof-${i}`}
-                  className="rounded-2xl border border-border bg-surface p-5 hover:shadow-md transition-all flex flex-col justify-between"
+                  id={`proof-${p.book.slug}`}
+                  className="scroll-mt-24 rounded-2xl border border-border bg-surface p-5 hover:shadow-md transition-all flex flex-col justify-between"
                 >
                   <div className="mb-4">
                     <div className="flex items-start justify-between gap-3 mb-2">
