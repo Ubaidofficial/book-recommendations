@@ -108,16 +108,46 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
             A curated collection of books related to {displayName}, ranked by recommendation signals.
           </p>
         )}
-        {/* Compact methodology framing — sits under the description so the
-            reader knows what kind of list this is before they scroll into
-            the grid. Deliberately conservative wording: no "expert-curated"
-            claim, no "hand-picked" framing. The list-detail page is the
-            weakest page type in the corpus per the live-readiness audit;
-            this single sentence is the lightest possible uplift to its
-            credibility above the fold. Always renders. */}
-        <p className="text-xs text-muted/70 max-w-2xl leading-relaxed mt-3">
-          Built from recommendation data and source-backed book records. Open any book to see proof, context, and Amazon options.
-        </p>
+        {/* Compact trust & curation panel explaining data signals honestly without overclaiming */}
+        <div className="mt-4 p-4 rounded-xl border border-border/50 bg-subtle/25 max-w-2xl text-xs md:text-sm">
+          <div className="flex gap-2.5 items-start">
+            <svg className="w-4 h-4 text-accent mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
+            </svg>
+            <div className="space-y-2 text-muted">
+              <p className="leading-relaxed">
+                Built from recommendation data, category signals, and source-backed book records. Use this list as a starting point; open any book to see proof, context, and Amazon options where available.
+              </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-medium text-muted/65">
+                <span className="flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-accent" />
+                  Recommendation data
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-accent" />
+                  Category signals
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-accent" />
+                  Source-backed book records
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-accent" />
+                  Open book pages for proof/context
+                </span>
+              </div>
+              <div className="flex gap-3 pt-0.5 text-[11px] font-semibold text-accent">
+                <Link href="/books" className="hover:underline">
+                  Browse all books
+                </Link>
+                <span className="text-muted/30 font-normal">|</span>
+                <Link href="/people" className="hover:underline">
+                  Explore recommenders
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
         {list.curator && (
           <p className="text-sm text-accent font-medium mt-2">Curated by {list.curator}</p>
         )}

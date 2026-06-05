@@ -307,21 +307,34 @@ export default async function BookDetailPage({ params }: Props) {
       {jsonld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Books", href: "/books" }, { label: displayBookTitle(book.title) }]} />
 
-      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-8 md:gap-10 mb-14">
-        <div className="max-w-[180px] mx-auto md:max-w-full">
-          <div className="rounded-2xl overflow-hidden shadow-md bg-subtle aspect-[2/3]">
-            {hasCover ? (
-              <SafeImage
-                src={book.cover_image_url}
-                alt={displayBookTitle(book.title)}
-                className="w-full h-full object-cover"
-                fallback={<DetailCoverFallback title={displayBookTitle(book.title)} />}
-              />
-            ) : (
-              <DetailCoverFallback title={displayBookTitle(book.title)} />
-            )}
+      <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-b from-surface/90 via-surface/75 to-surface/40 p-6 md:p-8 mb-14 shadow-sm">
+        {hasCover && (
+          <div className="absolute inset-0 -z-10 pointer-events-none select-none overflow-hidden" aria-hidden="true">
+            <img
+              src={book.cover_image_url}
+              alt=""
+              className="w-full h-full object-cover blur-[80px] opacity-[0.06] scale-110 origin-center"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent opacity-60" />
           </div>
-        </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-8 md:gap-10">
+          <div className="max-w-[180px] mx-auto md:max-w-full">
+            <div className="rounded-2xl overflow-hidden shadow-[0_20px_45px_rgba(0,0,0,0.28)] bg-subtle aspect-[2/3] ring-1 ring-ink/10 transition-transform duration-300 hover:scale-[1.015]">
+              {hasCover ? (
+                <SafeImage
+                  src={book.cover_image_url}
+                  alt={displayBookTitle(book.title)}
+                  className="w-full h-full object-cover"
+                  fallback={<DetailCoverFallback title={displayBookTitle(book.title)} />}
+                />
+              ) : (
+                <DetailCoverFallback title={displayBookTitle(book.title)} />
+              )}
+            </div>
+          </div>
 
         <div>
           <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -624,6 +637,7 @@ export default async function BookDetailPage({ params }: Props) {
           )}
         </div>
       </div>
+    </div>
 
       {/* Before you buy section */}
       {showBeforeYouBuy && (
