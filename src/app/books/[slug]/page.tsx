@@ -396,7 +396,70 @@ export default async function BookDetailPage({ params }: Props) {
                 <span className="font-semibold text-ink">{validRecs[1].person_name}</span>
               )}
               {" + "}
-              <span className="font-semibold text-ink">{remainingCount} more</span>
+              <details className="relative inline group/popover recommenders-popover">
+                <summary className="list-none inline cursor-pointer font-semibold text-accent hover:text-accent-hover hover:underline focus:outline-none select-none [&::-webkit-details-marker]:hidden">
+                  {remainingCount} more
+                </summary>
+                <div className="absolute left-1/2 -translate-x-1/2 md:translate-x-0 md:left-0 top-full mt-2 z-30 w-80 max-w-[90vw] rounded-xl border border-border bg-surface shadow-xl p-3 space-y-2.5 text-left font-normal text-xs md:text-sm text-ink">
+                  <p className="font-bold text-ink border-b border-border pb-1.5 mb-1.5">More Recommenders</p>
+                  <div className="max-h-60 overflow-y-auto space-y-3 pr-1">
+                    {validRecs.slice(2).map((r, idx) => {
+                      const initials = (r.person_name || "?").charAt(0);
+                      const hasAvatar = isValidHttpUrl(r.avatar_url);
+                      const firstSource = r.source_url ? parseSourceUrls(r.source_url)[0] : null;
+                      return (
+                        <div key={idx} className="flex gap-2.5 items-start">
+                          <div className="w-7 h-7 rounded-full bg-subtle shrink-0 border border-border overflow-hidden flex items-center justify-center">
+                            {hasAvatar ? (
+                              <SafeImage src={r.avatar_url!} alt={r.person_name} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-[10px] font-bold text-muted/50">{initials}</span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline justify-between gap-1.5">
+                              {r.person_slug ? (
+                                <Link
+                                  href={`/people/${r.person_slug}`}
+                                  className="font-semibold text-ink hover:text-accent hover:underline text-xs truncate"
+                                >
+                                  {r.person_name}
+                                </Link>
+                              ) : (
+                                <span className="font-semibold text-ink text-xs truncate">{r.person_name}</span>
+                              )}
+                            </div>
+                            {r.role && <p className="text-[10px] text-muted truncate mt-0.5">{r.role}</p>}
+                            {r.quote && (
+                              <p className="text-[11px] text-muted/80 leading-relaxed italic border-l border-accent/20 pl-2 mt-1 line-clamp-2">
+                                &ldquo;{r.quote}&rdquo;
+                              </p>
+                            )}
+                            {firstSource && (
+                              <a
+                                href={firstSource}
+                                target="_blank"
+                                rel={outboundLinkRel(firstSource)}
+                                className="text-[10px] text-accent hover:underline inline-block mt-1 font-semibold"
+                              >
+                                Source →
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="border-t border-border pt-2 text-center">
+                    <a
+                      href="#proof-signals"
+                      className="text-xs text-accent font-semibold hover:underline"
+                    >
+                      View full proof ({validRecs.length} signals) ↓
+                    </a>
+                  </div>
+                </div>
+              </details>
             </>
           )}
         </span>
@@ -405,24 +468,28 @@ export default async function BookDetailPage({ params }: Props) {
   })();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 pb-28 md:pb-8">
-      {jsonld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />}
-      <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Books", href: "/books" }, { label: displayBookTitle(book.title) }]} />
+    <div className="relative w-full py-8 pb-28 md:pb-8">
+      {/* Full-width blurred cover-art band behind hero */}
+      {hasCover && (
+        <div className="absolute inset-x-0 top-0 h-[260px] lg:h-[380px] -z-10 pointer-events-none select-none overflow-hidden" aria-hidden="true">
+          <img
+            src={book.cover_image_url}
+            alt=""
+            className="w-full h-full object-cover blur-[100px] opacity-[0.18] scale-125 origin-center"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/25 to-transparent" />
+        </div>
+      )}
 
-      <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-b from-surface/90 via-surface/75 to-surface/40 p-6 md:p-8 mb-14 shadow-sm">
-        {hasCover && (
-          <div className="absolute inset-0 -z-10 pointer-events-none select-none overflow-hidden" aria-hidden="true">
-            <img
-              src={book.cover_image_url}
-              alt=""
-              className="w-full h-full object-cover blur-[80px] opacity-[0.10] scale-110 origin-center"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-surface via-transparent to-transparent opacity-60" />
-          </div>
-        )}
+      {/* Main page content wrapper */}
+      <div className="max-w-7xl mx-auto px-4 md:px-6">
+        {jsonld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />}
+        <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Books", href: "/books" }, { label: displayBookTitle(book.title) }]} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-8 lg:gap-12">
+        {/* Full-page sticky sidebar grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-8 lg:gap-12 items-start mt-6">
+          
           {/* Left sticky rail (desktop only) */}
           <aside className="hidden lg:flex lg:flex-col lg:sticky lg:top-24 lg:self-start lg:w-[320px] gap-5 shrink-0">
             <div className="w-[300px] max-w-[300px] mx-auto rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] bg-subtle aspect-[2/3] ring-1 ring-ink/10 transition-transform duration-300 hover:scale-[1.02]">
@@ -466,7 +533,7 @@ export default async function BookDetailPage({ params }: Props) {
           </aside>
 
           {/* Right scrolling column */}
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0">
             {/* Mobile/Tablet Cover (hidden on desktop) */}
             <div className="mb-6 flex justify-center lg:hidden">
               <div className="w-[200px] max-w-[200px] rounded-2xl overflow-hidden shadow-[0_15px_35px_rgba(0,0,0,0.2)] bg-subtle aspect-[2/3] ring-1 ring-ink/10">
@@ -784,9 +851,6 @@ export default async function BookDetailPage({ params }: Props) {
               <p>{descriptionText}</p>
             </div>
           )}
-        </div>
-      </div>
-    </div>
 
       {/* Before you buy section */}
       {showBeforeYouBuy && (
@@ -1062,9 +1126,9 @@ export default async function BookDetailPage({ params }: Props) {
                     <p className="text-xs text-muted/50">Recommended this book</p>
                   )}
 
-                  <div className="flex items-center justify-between gap-2 text-xs mt-2">
-                    {hasSource ? (
-                      sourceUrls.length === 1 ? (
+                  {hasSource ? (
+                    sourceUrls.length === 1 ? (
+                      <div className="flex items-center justify-between gap-2 text-xs mt-2">
                         <a
                           href={sourceUrls[0]}
                           target="_blank"
@@ -1073,38 +1137,46 @@ export default async function BookDetailPage({ params }: Props) {
                         >
                           View source →
                         </a>
-                      ) : (
-                        <details className="relative group/srcs">
-                          <summary className="list-none cursor-pointer text-accent hover:underline font-medium select-none [&::-webkit-details-marker]:hidden">
-                            View sources ({sourceUrls.length}) ▾
-                          </summary>
-                          <div className="absolute left-0 top-full mt-1 z-20 w-72 max-w-[80vw] rounded-lg border border-border bg-surface shadow-lg p-2 space-y-1">
-                            {sourceUrls.map((u, j) => {
-                              let host = u;
-                              try { host = new URL(u).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
-                              return (
-                                <a
-                                  key={j}
-                                  href={u}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block text-xs text-accent hover:underline truncate"
-                                  title={u}
-                                >
-                                  {j + 1}. {host}
-                                </a>
-                              );
-                            })}
-                          </div>
-                        </details>
-                      )
-                    ) : p.source_name ? (
-                      <span className="text-muted">{p.source_name}</span>
-                    ) : null}
-                    {conf && (
-                      <span className="text-muted/40 tabular-nums">{conf}</span>
-                    )}
-                  </div>
+                        {conf && (
+                          <span className="text-muted/40 tabular-nums">{conf}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <details className="w-full mt-2">
+                        <summary className="list-none cursor-pointer flex items-center justify-between gap-2 text-xs select-none [&::-webkit-details-marker]:hidden">
+                          <span className="text-accent hover:underline font-medium">View sources ({sourceUrls.length}) ▾</span>
+                          {conf && <span className="text-muted/40 tabular-nums">{conf}</span>}
+                        </summary>
+                        <div className="mt-2 w-full rounded-lg border border-border bg-subtle/50 p-2 space-y-1 text-xs">
+                          {sourceUrls.map((u, j) => {
+                            let host = u;
+                            try { host = new URL(u).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
+                            return (
+                              <a
+                                key={j}
+                                href={u}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block text-xs text-accent hover:underline truncate"
+                                title={u}
+                              >
+                                {j + 1}. {host}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    )
+                  ) : (
+                    <div className="flex items-center justify-between gap-2 text-xs mt-2">
+                      {p.source_name ? (
+                        <span className="text-muted">{p.source_name}</span>
+                      ) : <span />}
+                      {conf && (
+                        <span className="text-muted/40 tabular-nums">{conf}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -1378,11 +1450,22 @@ export default async function BookDetailPage({ params }: Props) {
           people rank higher.
         </p>
       </section>
+          </div> {/* min-w-0 right column closed */}
+        </div> {/* lg:grid closed */}
+      </div> {/* max-w-7xl content wrapper closed */}
       <script
         dangerouslySetInnerHTML={{
           __html: `
             (function() {
               document.addEventListener('click', function(e) {
+                // Click outside to close details popovers
+                var popovers = document.querySelectorAll('details.recommenders-popover[open]');
+                popovers.forEach(function(p) {
+                  if (!p.contains(e.target)) {
+                    p.removeAttribute('open');
+                  }
+                });
+
                 var target = e.target.closest('a[data-track-section]');
                 if (target) {
                   var slug = target.getAttribute('data-track-slug') || '';
