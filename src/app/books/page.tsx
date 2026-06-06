@@ -182,6 +182,12 @@ export default async function BooksPage({ searchParams }: Props) {
   if (books.length === 0 && (mode === "all" || mode === "category")) {
     noStore();
   }
+
+  const isDefaultLanding =
+    mode === "all" &&
+    scope === "curated" &&
+    page === 1 &&
+    !hasParams;
   const collectionJsonLd = !hasParams
     ? collectionPageJsonLd({
         name: "Browse Books | BookRecs",
@@ -216,21 +222,105 @@ export default async function BooksPage({ searchParams }: Props) {
         />
       )}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Books" }]} />
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Browse Books</h1>
-          <p className="text-base text-muted">{subtitle}</p>
+      {isDefaultLanding ? (
+        <section className="mb-10 p-6 md:p-8 rounded-2xl border border-border bg-gradient-to-br from-subtle/60 to-subtle/20">
+          <div className="max-w-3xl">
+            <h1 className="text-3xl md:text-4xl font-bold text-ink mb-3 tracking-tight">
+              Discover books recommended by notable people
+            </h1>
+            <p className="text-base text-muted mb-6 leading-relaxed">
+              Browse source-backed book recommendations from founders, authors, investors, scientists, creators, and public figures.
+            </p>
+            
+            {/* Trust strip */}
+            <div className="flex flex-wrap items-center gap-y-3 gap-x-6 text-xs text-muted mb-6 pb-6 border-b border-border/60">
+              <span className="flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
+                </svg>
+                Source-backed recommendations
+              </span>
+              <span className="flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
+                </svg>
+                Public proof where available
+              </span>
+              <span className="flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
+                </svg>
+                Amazon options on book pages
+              </span>
+            </div>
+
+            {/* Quick discovery chips */}
+            <div>
+              <span className="block text-xs font-semibold text-ink mb-3 uppercase tracking-wider">Quick Discovery</span>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/lists/most-recommended-books"
+                  className="text-xs px-3 py-1.5 rounded-xl bg-accent text-white font-semibold hover:bg-accent-hover transition-colors"
+                >
+                  ★ Most Recommended
+                </Link>
+                <Link
+                  href="/books?q=business"
+                  className="text-xs px-3 py-1.5 rounded-xl border border-border bg-surface text-ink hover:border-accent hover:text-accent transition-colors"
+                >
+                  Business
+                </Link>
+                <Link
+                  href="/books?q=science"
+                  className="text-xs px-3 py-1.5 rounded-xl border border-border bg-surface text-ink hover:border-accent hover:text-accent transition-colors"
+                >
+                  Science
+                </Link>
+                <Link
+                  href="/books?q=startup"
+                  className="text-xs px-3 py-1.5 rounded-xl border border-border bg-surface text-ink hover:border-accent hover:text-accent transition-colors"
+                >
+                  Startups
+                </Link>
+                <Link
+                  href="/books?q=artificial%20intelligence"
+                  className="text-xs px-3 py-1.5 rounded-xl border border-border bg-surface text-ink hover:border-accent hover:text-accent transition-colors"
+                >
+                  AI
+                </Link>
+                <Link
+                  href="/books?q=history"
+                  className="text-xs px-3 py-1.5 rounded-xl border border-border bg-surface text-ink hover:border-accent hover:text-accent transition-colors"
+                >
+                  History
+                </Link>
+                <Link
+                  href="/people"
+                  className="text-xs px-3 py-1.5 rounded-xl border border-accent/20 bg-accent-light text-accent font-semibold hover:bg-accent/15 transition-colors"
+                >
+                  Explore People →
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : (
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Browse Books</h1>
+            <p className="text-base text-muted">{subtitle}</p>
+          </div>
+          <Link
+            href="/people"
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-xs md:text-sm font-semibold text-accent bg-accent-light hover:bg-accent/15 border border-accent/20 rounded-xl transition-all self-start sm:self-center shrink-0"
+          >
+            <span>Books recommended by notable people</span>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
         </div>
-        <Link
-          href="/people"
-          className="inline-flex items-center gap-2 px-4 py-2.5 text-xs md:text-sm font-semibold text-accent bg-accent-light hover:bg-accent/15 border border-accent/20 rounded-xl transition-all self-start sm:self-center shrink-0"
-        >
-          <span>Books recommended by notable people</span>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </Link>
-      </div>
+      )}
 
       <div className="mb-8">
         <SearchBar placeholder="Search by title or author…" />

@@ -16,7 +16,7 @@ import {
 import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual } from "@/components";
 import { websiteJsonLd, organizationJsonLd } from "@/lib/jsonld";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function HomePage() {
   const CARD_COUNT = 4;
@@ -69,21 +69,9 @@ export default async function HomePage() {
     return getFallbackSeries(CARD_COUNT);
   })();
 
-  let peopleWithCounts: (typeof people[number] & { recommendedCount: number; writtenCount: number })[] = [];
-  try {
-    peopleWithCounts = await Promise.all(
-      people.map(async (p) => {
-        const [rc, wc] = await Promise.all([
-          getPersonRecommendedCount(p.id),
-          getPersonWrittenCount(p.id),
-        ]);
-        return { ...p, recommendedCount: rc, writtenCount: wc };
-      })
-    );
-  } catch (e) {
-    console.error("[homepage] Person counts fetch failed:", e);
-    peopleWithCounts = people.map((p) => ({ ...p, recommendedCount: 0, writtenCount: 0 }));
-  }
+  // Remove N+1 query overhead by setting badge counts to 0 on the homepage.
+  // The details will load when clicking through to the individual profiles.
+  const peopleWithCounts = people.map((p) => ({ ...p, recommendedCount: 0, writtenCount: 0 }));
 
   return (
     <>
@@ -95,25 +83,157 @@ export default async function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
       />
-      <section className="py-20 md:py-28 px-4">
+      <section className="py-20 md:py-24 px-4">
         <div className="max-w-3xl mx-auto text-center">
           <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-ink leading-tight mb-5 tracking-tight">
-            Discover books<br />
-            <span className="text-accent">people you admire</span> recommend
+            Find books recommended by <span className="text-accent">people you trust</span>.
           </h1>
-          <p className="text-base md:text-lg text-muted max-w-xl mx-auto mb-10 leading-relaxed">
-            Explore hand-picked book recommendations from authors, leaders, and thinkers. Backed by real sources.
+          <p className="text-base md:text-lg text-muted max-w-2xl mx-auto mb-8 leading-relaxed">
+            Explore source-backed recommendations from founders, authors, investors, scientists, creators, and public figures — with Amazon options on book pages.
           </p>
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
+            <Link
+              href="/books"
+              className="px-6 py-3 rounded-full bg-accent text-white font-semibold hover:bg-accent-hover transition-colors shadow-sm text-sm"
+            >
+              Browse Books
+            </Link>
+            <Link
+              href="/people"
+              className="px-6 py-3 rounded-full border border-border bg-surface text-ink font-semibold hover:bg-subtle transition-colors text-sm"
+            >
+              Explore People
+            </Link>
+          </div>
           <GlobalSearch placeholder="Search for books, authors, or topics…" className="max-w-2xl mx-auto" />
           <div className="mt-7 flex items-center justify-center gap-3 text-sm text-muted">
             <span>Popular:</span>
-            <Link href="/books" className="hover:text-ink transition-colors">Fiction</Link>
+            <Link href="/books?q=business" className="hover:text-ink transition-colors font-medium">Business</Link>
             <span className="text-border">·</span>
-            <Link href="/books" className="hover:text-ink transition-colors">Non-Fiction</Link>
+            <Link href="/books?q=science" className="hover:text-ink transition-colors font-medium">Science</Link>
             <span className="text-border">·</span>
-            <Link href="/books" className="hover:text-ink transition-colors">Science</Link>
+            <Link href="/books?q=startup" className="hover:text-ink transition-colors font-medium">Startups</Link>
             <span className="text-border">·</span>
-            <Link href="/books" className="hover:text-ink transition-colors">Classics</Link>
+            <Link href="/books?q=history" className="hover:text-ink transition-colors font-medium">History</Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust / Value Strip */}
+      <section className="border-y border-border bg-subtle/30 py-6 px-4">
+        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3">
+            <div className="w-10 h-10 rounded-full bg-accent-light flex items-center justify-center shrink-0 text-accent">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Public recommendations</h3>
+              <p className="text-xs text-muted mt-0.5">Sourced from public interviews & lists</p>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3">
+            <div className="w-10 h-10 rounded-full bg-accent-light flex items-center justify-center shrink-0 text-accent">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Source-backed proof</h3>
+              <p className="text-xs text-muted mt-0.5">Verifiable links for every recommendation</p>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3">
+            <div className="w-10 h-10 rounded-full bg-accent-light flex items-center justify-center shrink-0 text-accent">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.907c.961 0 1.371 1.24.588 1.81l-3.97 2.88a1 1 0 00-.364 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.971-2.88a1 1 0 00-1.175 0l-3.97 2.88c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.364-1.118l-3.97-2.88c-.783-.57-.38-1.81.588-1.81h4.908a1 1 0 00.951-.69l1.519-4.674z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Notable recommenders</h3>
+              <p className="text-xs text-muted mt-0.5">Founders, authors, and industry experts</p>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3">
+            <div className="w-10 h-10 rounded-full bg-accent-light flex items-center justify-center shrink-0 text-accent">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-ink">Fast book discovery</h3>
+              <p className="text-xs text-muted mt-0.5">Lightning fast browse & search interface</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Start Exploring / Discovery Cards */}
+      <section className="py-16 px-4 bg-surface">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="text-xl font-bold text-ink mb-6 tracking-tight">Start Exploring</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Link
+              href="/lists/most-recommended-books"
+              className="group flex flex-col justify-between p-6 rounded-2xl border border-border bg-subtle/20 hover:border-accent/30 hover:shadow-lg transition-all duration-200"
+            >
+              <div>
+                <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
+                  ★
+                </div>
+                <h3 className="font-bold text-base text-ink mb-2 group-hover:text-accent transition-colors">Most Recommended</h3>
+                <p className="text-xs text-muted leading-relaxed">The all-time top recommended books based on consolidated public mentions.</p>
+              </div>
+              <span className="text-xs font-semibold text-accent mt-4 inline-flex items-center gap-1">
+                View list →
+              </span>
+            </Link>
+            <Link
+              href="/people"
+              className="group flex flex-col justify-between p-6 rounded-2xl border border-border bg-subtle/20 hover:border-accent/30 hover:shadow-lg transition-all duration-200"
+            >
+              <div>
+                <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
+                  👤
+                </div>
+                <h3 className="font-bold text-base text-ink mb-2 group-hover:text-accent transition-colors">Explore People</h3>
+                <p className="text-xs text-muted leading-relaxed">Browse recommendations from tech founders, investors, authors, and creators.</p>
+              </div>
+              <span className="text-xs font-semibold text-accent mt-4 inline-flex items-center gap-1">
+                View recommenders →
+              </span>
+            </Link>
+            <Link
+              href="/lists"
+              className="group flex flex-col justify-between p-6 rounded-2xl border border-border bg-subtle/20 hover:border-accent/30 hover:shadow-lg transition-all duration-200"
+            >
+              <div>
+                <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
+                  📚
+                </div>
+                <h3 className="font-bold text-base text-ink mb-2 group-hover:text-accent transition-colors">Browse Topics</h3>
+                <p className="text-xs text-muted leading-relaxed">Explore curated reading lists across business, science fiction, history, and development.</p>
+              </div>
+              <span className="text-xs font-semibold text-accent mt-4 inline-flex items-center gap-1">
+                Browse lists →
+              </span>
+            </Link>
+            <Link
+              href="/books"
+              className="group flex flex-col justify-between p-6 rounded-2xl border border-border bg-subtle/20 hover:border-accent/30 hover:shadow-lg transition-all duration-200"
+            >
+              <div>
+                <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
+                  📖
+                </div>
+                <h3 className="font-bold text-base text-ink mb-2 group-hover:text-accent transition-colors">Browse All Books</h3>
+                <p className="text-xs text-muted leading-relaxed">Explore the full curated catalogue of books with recommendations and options.</p>
+              </div>
+              <span className="text-xs font-semibold text-accent mt-4 inline-flex items-center gap-1">
+                Browse books →
+              </span>
+            </Link>
           </div>
         </div>
       </section>
