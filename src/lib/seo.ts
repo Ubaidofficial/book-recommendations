@@ -5,12 +5,11 @@ export function canonicalUrl(path: string): string {
 }
 
 export function isIndexable(row: { index_status?: string } | null | undefined): boolean {
-  // Detail pages are unconditionally gated from indexation for initial launch
-  return false;
+  return row?.index_status === "index";
 }
 
 export function robotsDirective(row: { index_status?: string } | null | undefined): string {
-  return "noindex, follow";
+  return isIndexable(row) ? "index, follow" : "noindex, follow";
 }
 
 export function pageMetadata({

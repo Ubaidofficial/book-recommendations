@@ -581,6 +581,35 @@ export async function getPersonBySlug(slug: string): Promise<Person | null> {
   }
 }
 
+/**
+ * Projected helper for sitemap generation only.
+ * Returns the minimal { slug, updated_at } pairs for people whose
+ * index_status is 'index'. Filters out empty/null slugs defensively.
+ * Capped at 500 rows to guard against accidental mass-promotion.
+ *
+ * Read-only. Does not touch index_status, sitemap, or robots metadata.
+ */
+export async function getIndexedPeopleForSitemap(): Promise<Array<{ slug: string; updated_at: string }>> {
+  try {
+    const { data, error } = await getSupabase()
+      .from("people")
+      .select("slug, updated_at")
+      .eq("index_status", "index")
+      .neq("slug", "")
+      .limit(500);
+
+    if (error) {
+      logQueryError("getIndexedPeopleForSitemap", error);
+      return [];
+    }
+    // Belt-and-suspenders: drop any rows where slug is null/empty after fetch
+    return (data || []).filter((p) => p.slug && p.slug.trim().length > 0);
+  } catch (e) {
+    logQueryError("getIndexedPeopleForSitemap", e);
+    return [];
+  }
+}
+
 // Count of books recommended BY this person (via book_recommendations)
 export async function getPersonRecommendedCount(personId: string): Promise<number> {
   try {
