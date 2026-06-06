@@ -210,21 +210,38 @@ export default async function ListsPage({ searchParams }: Props) {
     );
   }
 
+  const recommenderSlugs = [
+    "books-recommended-by-founders",
+    "books-recommended-by-writers",
+    "books-recommended-by-billionaires",
+    "books-recommended-by-investors",
+    "books-recommended-by-ceos",
+    "books-recommended-by-bill-gates",
+  ];
+
   // ── Default: sectioned discovery hub ──────────────────────────
   // Overfetch fiction/nonfiction so we can dedupe IDs already shown in "Popular".
-  const [broad, popular, fictionAll, nonfictionAll, meta] = await Promise.all([
+  const [broad, popular, fictionAll, nonfictionAll, meta, ...recommendersRaw] = await Promise.all([
     getBroadCategoryLists(12),
     getTopicLists({ limit: 12, sort: "book_count" }),
     getTopicLists({ limit: 24, filter: "fiction" }),
     getTopicLists({ limit: 24, filter: "nonfiction" }),
     getListBySlug("most-recommended-books"),
+    ...recommenderSlugs.map((slug) => getListBySlug(slug)),
   ]);
+
+  const recommenderLists = recommendersRaw.filter((l): l is BookList => l !== null);
 
   const popularIds = new Set(popular.data.map((l) => l.id));
   const fiction = fictionAll.data.filter((l) => !popularIds.has(l.id)).slice(0, 8);
   const nonfiction = nonfictionAll.data.filter((l) => !popularIds.has(l.id)).slice(0, 8);
 
-  const allCollectionLists = [...(meta ? [meta] : []), ...broad, ...popular.data];
+  const allCollectionLists = [
+    ...(meta ? [meta] : []),
+    ...recommenderLists,
+    ...broad,
+    ...popular.data,
+  ];
   const collectionJsonLd = collectionPageJsonLd({
     name: "Book Lists | BookRecs",
     description: "Browse curated book lists — broad categories, fine-grained topic lists, fiction, nonfiction, and the most recommended books.",
@@ -311,6 +328,13 @@ export default async function ListsPage({ searchParams }: Props) {
           </Link>
         </section>
       )}
+
+      <Section
+        title="Recommended by Founders, Investors & CEOs"
+        subtitle="Curated reading lists from builders, VCs, executives, bestselling writers, self-made billionaires, and Bill Gates."
+        lists={recommenderLists}
+        kindForAll="meta"
+      />
 
       <Section
         title="Popular Topic Lists"
