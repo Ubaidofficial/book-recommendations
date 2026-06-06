@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
+import { unstable_noStore as noStore } from "next/cache";
 import {
   getBooksPaginated,
   searchBooksPaginated,
@@ -174,8 +175,13 @@ export default async function BooksPage({ searchParams }: Props) {
     books.length === 0 &&
     mode === "all" &&
     scope === "curated" &&
-    page === 1 &&
-    !hasParams;
+    page === 1;
+
+  // Opt out of caching if the query returned a suspicious empty result for browse pages.
+  // This prevents Next.js ISR from caching a transient database cold start/timeout.
+  if (books.length === 0 && (mode === "all" || mode === "category")) {
+    noStore();
+  }
   const collectionJsonLd = !hasParams
     ? collectionPageJsonLd({
         name: "Browse Books | BookRecs",
