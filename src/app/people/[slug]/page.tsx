@@ -19,7 +19,6 @@ import {
   parseSourceUrls,
   outboundLinkRel,
   normalizeAmazonUrl,
-  getProofDisplaySafety,
 } from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -81,14 +80,9 @@ export default async function PersonDetailPage({ params }: Props) {
   // intentionally retained.
   const hasBio = isUsefulPersonBio(person.bio);
 
-  const recommendationProofWithSafety = recommendationProof.map((p) => ({
-    ...p,
-    safety: getProofDisplaySafety(p, person)
-  }));
-
-  // Filter list to keep only those with valid display cues (not 'none')
-  const proofList = recommendationProofWithSafety
-    .filter((p) => p.safety.cardCue !== "none")
+  // Proof list — top 10 with source data
+  const proofList = recommendationProof
+    .filter((p) => isValidHttpUrl(p.source_url) || p.source_name || (p.quote && p.quote.trim().length > 30))
     .slice(0, 10);
 
   const hasFullProof = proofList.every((p) => parseSourceUrls(p.source_url).length > 0);
@@ -224,8 +218,7 @@ export default async function PersonDetailPage({ params }: Props) {
               match the new column width. */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5 lg:gap-6">
             {recommendationProof.map((p, i) => {
-              const matchedProof = proofList.find((pl) => pl.book.id === p.book.id);
-              const cardCue = matchedProof ? matchedProof.safety.cardCue : "none";
+              const hasProof = proofList.some((pl) => pl.book.id === p.book.id);
               return (
                 // Wrapper around BookCard so we can append a secondary Amazon
                 // CTA below each card on the people detail page WITHOUT
@@ -244,16 +237,16 @@ export default async function PersonDetailPage({ params }: Props) {
                       rating={p.book.rating}
                       recommendationCount={p.book.recommendation_count}
                     />
-                    {cardCue !== "none" && p.book.slug ? (
+                    {hasProof && p.book.slug ? (
                       <div className="mt-2.5 flex flex-col items-center justify-center gap-1 text-[11px] text-center">
                         <span className="font-semibold text-emerald-700 flex items-center gap-0.5 justify-center">
-                          {cardCue === "proof" ? "✓ Source proof available" : "✓ Source link available"}
+                          ✓ Source proof available
                         </span>
                         <a
                           href={`#proof-${p.book.slug}`}
                           className="text-accent hover:underline font-semibold"
                         >
-                          {cardCue === "proof" ? "View proof ↓" : "View source ↓"}
+                          View proof ↓
                         </a>
                       </div>
                     ) : (
@@ -334,12 +327,13 @@ export default async function PersonDetailPage({ params }: Props) {
             {proofList.map((p, i) => {
               const sourceUrls = parseSourceUrls(p.source_url);
               const hasSource = sourceUrls.length > 0;
+              const hasQuote = p.quote && p.quote.trim().length > 30;
               const conf = formatConfidence(p.confidence_score);
 
               return (
                 <div
                   key={`proof-${i}`}
-                  id={p.book.slug ? `proof-${p.book.slug}` : undefined}
+                  id={`proof-${p.book.slug}`}
                   className="scroll-mt-24 rounded-2xl border border-border bg-surface p-5 hover:shadow-md transition-all flex flex-col justify-between"
                 >
                   <div className="mb-4">
@@ -359,7 +353,7 @@ export default async function PersonDetailPage({ params }: Props) {
                     {p.book.author && (
                       <p className="text-xs text-muted mb-3">by {p.book.author}</p>
                     )}
-                    {p.safety.showQuote ? (
+                    {hasQuote ? (
                       // Cap long quotes to 5 visible lines so a single
                       // long quote stops stretching its grid column.
                       // Tailwind line-clamp ellipsises overflow text;
@@ -367,12 +361,8 @@ export default async function PersonDetailPage({ params }: Props) {
                       // fully accessible to screen readers and to the
                       // /books/<slug> detail page.
                       <blockquote className="text-sm text-muted italic border-l-2 border-accent/20 pl-3 leading-relaxed line-clamp-5">
-                        &ldquo;{p.safety.displayQuote}&rdquo;
+                        &ldquo;{p.quote}&rdquo;
                       </blockquote>
-                    ) : p.safety.warningText ? (
-                      <p className="text-xs text-muted/65 italic pl-3 border-l-2 border-amber-300 bg-amber-50/50 py-2.5 rounded-r-lg pr-3 leading-relaxed">
-                        {p.safety.warningText}
-                      </p>
                     ) : (
                       <p className="text-xs text-muted/65 italic">Recommended by {person.name} without a specific quote snippet.</p>
                     )}
