@@ -1,11 +1,9 @@
 import Link from "next/link";
 import {
-  getFeaturedBooks,
-  getFeaturedPeople,
+  getHomepageCoverRichBooks,
+  getHomepageAvatarRichPeople,
   getFeaturedLists,
   getFeaturedSeries,
-  getPersonRecommendedCount,
-  getPersonWrittenCount,
 } from "@/lib/data";
 import {
   getFallbackBooks,
@@ -13,7 +11,7 @@ import {
   getFallbackLists,
   getFallbackSeries,
 } from "@/lib/fallback";
-import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual } from "@/components";
+import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading } from "@/components";
 import { websiteJsonLd, organizationJsonLd } from "@/lib/jsonld";
 
 export const revalidate = 60;
@@ -23,37 +21,43 @@ export default async function HomePage() {
   const websiteSchema = websiteJsonLd();
   const orgSchema = organizationJsonLd();
 
-  let featuredBooks: Awaited<ReturnType<typeof getFeaturedBooks>> = [];
-  let featuredPeople: Awaited<ReturnType<typeof getFeaturedPeople>> = [];
+  let homepageBooks: Awaited<ReturnType<typeof getHomepageCoverRichBooks>> = [];
+  let homepagePeople: Awaited<ReturnType<typeof getHomepageAvatarRichPeople>> = [];
   let featuredLists: Awaited<ReturnType<typeof getFeaturedLists>> = [];
   let featuredSeries: Awaited<ReturnType<typeof getFeaturedSeries>> = [];
 
   try {
-    [featuredBooks, featuredPeople, featuredLists, featuredSeries] =
+    [homepageBooks, homepagePeople, featuredLists, featuredSeries] =
       await Promise.all([
-        getFeaturedBooks(CARD_COUNT),
-        getFeaturedPeople(CARD_COUNT),
+        getHomepageCoverRichBooks(12),
+        getHomepageAvatarRichPeople(12),
         getFeaturedLists(CARD_COUNT),
         getFeaturedSeries(CARD_COUNT),
       ]);
+    console.log("[homepage] SUPABASE_FETCH_SUCCESS: books count =", homepageBooks.length, "people count =", homepagePeople.length, "lists count =", featuredLists.length, "series count =", featuredSeries.length);
   } catch (e) {
     console.error("[homepage] QUERY_ERROR: Supabase fetch threw exception, using fallback data:", e);
   }
 
-  const books = (() => {
-    if (featuredBooks.length > 0) {
-      return featuredBooks;
+  // Padding helper to ensure we always have 12 items for columns in case of empty/partial data
+  const padArray = <T,>(arr: T[], targetLength: number): T[] => {
+    if (arr.length === 0) return [];
+    const result: T[] = [];
+    while (result.length < targetLength) {
+      result.push(...arr);
     }
-    console.warn("[homepage] FALLBACK_BOOKS: zero rows returned from Supabase books query");
-    return getFallbackBooks(CARD_COUNT);
-  })();
-  const people = (() => {
-    if (featuredPeople.length > 0) {
-      return featuredPeople;
-    }
-    console.warn("[homepage] FALLBACK_PEOPLE: zero rows returned from Supabase people query");
-    return getFallbackPeople(CARD_COUNT);
-  })();
+    return result.slice(0, targetLength);
+  };
+
+  const rawBooks = homepageBooks.length > 0 ? homepageBooks : getFallbackBooks(12);
+  const rawPeople = homepagePeople.length > 0 ? homepagePeople : getFallbackPeople(12);
+
+  const booksForMarquee = padArray(rawBooks, 12);
+  const peopleForCluster = padArray(rawPeople, 5);
+
+  const books = rawBooks.slice(0, 8);
+  const people = rawPeople.slice(0, 8);
+
   const lists = (() => {
     if (featuredLists.length > 0) {
       return featuredLists;
@@ -61,6 +65,7 @@ export default async function HomePage() {
     console.warn("[homepage] FALLBACK_LISTS: zero rows returned from Supabase lists query");
     return getFallbackLists(CARD_COUNT);
   })();
+
   const series = (() => {
     if (featuredSeries.length > 0) {
       return featuredSeries;
@@ -70,7 +75,6 @@ export default async function HomePage() {
   })();
 
   // Remove N+1 query overhead by setting badge counts to 0 on the homepage.
-  // The details will load when clicking through to the individual profiles.
   const peopleWithCounts = people.map((p) => ({ ...p, recommendedCount: 0, writtenCount: 0 }));
 
   return (
@@ -83,38 +87,131 @@ export default async function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
       />
-      <section className="py-20 md:py-24 px-4">
-        <div className="max-w-3xl mx-auto text-center">
-          <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-ink leading-tight mb-5 tracking-tight">
-            Find books recommended by <span className="text-accent">people you trust</span>.
-          </h1>
-          <p className="text-base md:text-lg text-muted max-w-2xl mx-auto mb-8 leading-relaxed">
-            Explore source-backed recommendations from founders, authors, investors, scientists, creators, and public figures — with Amazon options on book pages.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
-            <Link
-              href="/books"
-              className="px-6 py-3 rounded-full bg-accent text-white font-semibold hover:bg-accent-hover transition-colors shadow-sm text-sm"
-            >
-              Browse Books
-            </Link>
-            <Link
-              href="/people"
-              className="px-6 py-3 rounded-full border border-border bg-surface text-ink font-semibold hover:bg-subtle transition-colors text-sm"
-            >
-              Explore People
-            </Link>
+      
+      {/* Hero Section */}
+      <section className="py-12 md:py-20 lg:py-24 px-4 max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          {/* Left Column (Content & Search) */}
+          <div className="lg:col-span-7 flex flex-col text-center lg:text-left">
+            <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-ink leading-tight mb-5 tracking-tight">
+              Find books recommended by <span className="text-accent">people you trust</span>.
+            </h1>
+            <p className="text-base md:text-lg text-muted max-w-2xl mx-auto lg:mx-0 mb-6 leading-relaxed">
+              Explore source-backed recommendations from founders, authors, investors, scientists, creators, and public figures — with Amazon options on book pages.
+            </p>
+
+            {/* Social Proof / Avatar Cluster */}
+            {peopleForCluster.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3 mb-8">
+                <div className="flex -space-x-3">
+                  {peopleForCluster.map((person) => (
+                    <div
+                      key={person.id}
+                      className="w-9 h-9 rounded-full border-2 border-surface bg-subtle overflow-hidden shrink-0 shadow-sm transition-transform hover:scale-110 hover:z-10"
+                      title={person.name}
+                    >
+                      {person.avatar_url && /^https?:\/\//i.test(person.avatar_url) ? (
+                        <img
+                          src={person.avatar_url}
+                          alt={person.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-accent-light text-accent text-xs font-bold">
+                          {person.name.charAt(0)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="text-xs text-muted text-center sm:text-left font-medium">
+                  Trusted recommendations from <span className="text-ink font-semibold">Bill Gates</span>, <span className="text-ink font-semibold">Naval Ravikant</span>, and other leaders.
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 mb-8">
+              <Link
+                href="/books"
+                className="px-6 py-3 rounded-full bg-accent text-white font-semibold hover:bg-accent-hover transition-all hover:shadow-md text-sm active:scale-98"
+              >
+                Browse Books
+              </Link>
+              <Link
+                href="/people"
+                className="px-6 py-3 rounded-full border border-border bg-surface text-ink font-semibold hover:bg-subtle transition-all text-sm active:scale-98"
+              >
+                Explore People
+              </Link>
+            </div>
+            
+            <GlobalSearch placeholder="Search for books, authors, or topics…" className="max-w-2xl w-full mx-auto lg:mx-0" />
+            
+            <div className="mt-7 flex flex-wrap items-center justify-center lg:justify-start gap-3 text-sm text-muted">
+              <span>Popular:</span>
+              <Link href="/books?q=business" className="hover:text-ink transition-colors font-medium">Business</Link>
+              <span className="text-border">·</span>
+              <Link href="/books?q=science" className="hover:text-ink transition-colors font-medium">Science</Link>
+              <span className="text-border">·</span>
+              <Link href="/books?q=startup" className="hover:text-ink transition-colors font-medium">Startups</Link>
+              <span className="text-border">·</span>
+              <Link href="/books?q=history" className="hover:text-ink transition-colors font-medium">History</Link>
+            </div>
           </div>
-          <GlobalSearch placeholder="Search for books, authors, or topics…" className="max-w-2xl mx-auto" />
-          <div className="mt-7 flex items-center justify-center gap-3 text-sm text-muted">
-            <span>Popular:</span>
-            <Link href="/books?q=business" className="hover:text-ink transition-colors font-medium">Business</Link>
-            <span className="text-border">·</span>
-            <Link href="/books?q=science" className="hover:text-ink transition-colors font-medium">Science</Link>
-            <span className="text-border">·</span>
-            <Link href="/books?q=startup" className="hover:text-ink transition-colors font-medium">Startups</Link>
-            <span className="text-border">·</span>
-            <Link href="/books?q=history" className="hover:text-ink transition-colors font-medium">History</Link>
+
+          {/* Right Column (Visual Book Cover Marquee Collage on Desktop) */}
+          <div className="hidden lg:block lg:col-span-5 relative h-[500px] w-full overflow-hidden rounded-3xl bg-gradient-to-tr from-accent/5 to-warm/5 border border-border/40 p-4 shadow-sm">
+            {/* Soft gradient overlays for premium depth */}
+            <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-bg via-bg/85 to-transparent z-10 pointer-events-none" />
+            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-bg via-bg/85 to-transparent z-10 pointer-events-none" />
+            
+            <div className="grid grid-cols-3 gap-3 h-full select-none justify-center">
+              {/* Column 1 (Marquee Up) */}
+              <div className="flex flex-col gap-3 animate-marquee-up pause-on-hover cursor-pointer">
+                {booksForMarquee.slice(0, 4).concat(booksForMarquee.slice(0, 4)).map((book, idx) => (
+                  <Link href={`/books/${book.slug}`} key={`col1-${book.id}-${idx}`} className="group block aspect-[2/3] w-full bg-subtle rounded-xl overflow-hidden border border-border/60 shadow-md hover:scale-[1.04] hover:shadow-xl transition-all duration-300">
+                    {book.cover_image_url ? (
+                      <img src={book.cover_image_url} alt={book.title} className="w-full h-full object-cover pointer-events-none" loading="lazy" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center p-3 text-center bg-subtle text-xs text-muted">
+                        {book.title}
+                      </div>
+                    )}
+                  </Link>
+                ))}
+              </div>
+              
+              {/* Column 2 (Marquee Down) */}
+              <div className="flex flex-col gap-3 animate-marquee-down pause-on-hover cursor-pointer">
+                {booksForMarquee.slice(4, 8).concat(booksForMarquee.slice(4, 8)).map((book, idx) => (
+                  <Link href={`/books/${book.slug}`} key={`col2-${book.id}-${idx}`} className="group block aspect-[2/3] w-full bg-subtle rounded-xl overflow-hidden border border-border/60 shadow-md hover:scale-[1.04] hover:shadow-xl transition-all duration-300">
+                    {book.cover_image_url ? (
+                      <img src={book.cover_image_url} alt={book.title} className="w-full h-full object-cover pointer-events-none" loading="lazy" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center p-3 text-center bg-subtle text-xs text-muted">
+                        {book.title}
+                      </div>
+                    )}
+                  </Link>
+                ))}
+              </div>
+              
+              {/* Column 3 (Marquee Up) */}
+              <div className="flex flex-col gap-3 animate-marquee-up pause-on-hover cursor-pointer pt-6">
+                {booksForMarquee.slice(8, 12).concat(booksForMarquee.slice(8, 12)).map((book, idx) => (
+                  <Link href={`/books/${book.slug}`} key={`col3-${book.id}-${idx}`} className="group block aspect-[2/3] w-full bg-subtle rounded-xl overflow-hidden border border-border/60 shadow-md hover:scale-[1.04] hover:shadow-xl transition-all duration-300">
+                    {book.cover_image_url ? (
+                      <img src={book.cover_image_url} alt={book.title} className="w-full h-full object-cover pointer-events-none" loading="lazy" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center p-3 text-center bg-subtle text-xs text-muted">
+                        {book.title}
+                      </div>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -238,8 +335,50 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Trust & Visual */}
-      <section className="py-16 px-4 bg-subtle/40 border-y border-border">
+      {/* How BookRecs works Section */}
+      <section className="py-16 px-4 bg-subtle/30 border-y border-border">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <h2 className="text-2xl font-bold text-ink tracking-tight">How BookRecs works</h2>
+            <p className="text-sm text-muted mt-2 leading-relaxed">
+              Find your next favorite book through a simple, transparent, and source-backed process.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-surface border border-border p-6 rounded-2xl shadow-sm hover:shadow-md hover:border-accent/15 transition-all duration-200 hover:-translate-y-0.5">
+              <div className="text-xs font-bold text-accent uppercase tracking-wider mb-2">01</div>
+              <h3 className="font-bold text-base text-ink mb-2">Pick people you trust</h3>
+              <p className="text-xs text-muted leading-relaxed">
+                Follow recommendations from founders, authors, and creators whose achievements you admire.
+              </p>
+            </div>
+            <div className="bg-surface border border-border p-6 rounded-2xl shadow-sm hover:shadow-md hover:border-accent/15 transition-all duration-200 hover:-translate-y-0.5">
+              <div className="text-xs font-bold text-accent uppercase tracking-wider mb-2">02</div>
+              <h3 className="font-bold text-base text-ink mb-2">Browse recommended books</h3>
+              <p className="text-xs text-muted leading-relaxed">
+                Discover the exact books that influenced them, organized by topic, list, and popularity.
+              </p>
+            </div>
+            <div className="bg-surface border border-border p-6 rounded-2xl shadow-sm hover:shadow-md hover:border-accent/15 transition-all duration-200 hover:-translate-y-0.5">
+              <div className="text-xs font-bold text-accent uppercase tracking-wider mb-2">03</div>
+              <h3 className="font-bold text-base text-ink mb-2">Check source proof</h3>
+              <p className="text-xs text-muted leading-relaxed">
+                View links to the public interviews, articles, and podcasts where they shared their reviews.
+              </p>
+            </div>
+            <div className="bg-surface border border-border p-6 rounded-2xl shadow-sm hover:shadow-md hover:border-accent/15 transition-all duration-200 hover:-translate-y-0.5">
+              <div className="text-xs font-bold text-accent uppercase tracking-wider mb-2">04</div>
+              <h3 className="font-bold text-base text-ink mb-2">Buy on Amazon</h3>
+              <p className="text-xs text-muted leading-relaxed">
+                Use affiliate and search options directly on the book pages to start reading immediately.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Trust & Source Proof Summary */}
+      <section className="py-16 px-4 bg-surface border-b border-border">
         <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
           <div>
             <h2 className="text-2xl font-bold text-ink mb-4 tracking-tight">Recommendations backed by real sources</h2>
@@ -279,8 +418,17 @@ export default async function HomePage() {
               </div>
             </div>
           </div>
-          <div className="flex justify-center">
-            <HomepageVisual />
+          <div className="flex flex-col gap-4 bg-subtle/20 border border-border p-6 rounded-2xl shadow-sm">
+            <h3 className="font-bold text-lg text-ink">Verified Sources</h3>
+            <p className="text-xs text-muted leading-relaxed">
+              We trace recommendations back to their origin. Each reader profile references transcripts, verified social posts, or audio interviews with exact source URLs.
+            </p>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="px-2.5 py-1 rounded-full bg-accent-light text-accent font-medium">✓ YouTube Interviews</span>
+              <span className="px-2.5 py-1 rounded-full bg-accent-light text-accent font-medium">✓ Personal Blogs</span>
+              <span className="px-2.5 py-1 rounded-full bg-accent-light text-accent font-medium">✓ Podcast Transcripts</span>
+              <span className="px-2.5 py-1 rounded-full bg-accent-light text-accent font-medium">✓ News Articles</span>
+            </div>
           </div>
         </div>
       </section>
@@ -380,3 +528,4 @@ export default async function HomePage() {
     </>
   );
 }
+
