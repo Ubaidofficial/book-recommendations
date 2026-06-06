@@ -9,7 +9,7 @@ import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
 import { BookCard, SearchBar, SortSelect, Breadcrumbs, EmptyState } from "@/components";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const sp = await searchParams;

@@ -135,6 +135,10 @@ function normalizeBookRows<T extends Partial<Book>>(rows: T[] | null | undefined
   return rows;
 }
 
+// Card-only column projection for listing pages. Drops description, editorial,
+// meta, and AI fields that BookCard never renders — reduces per-row payload ~80%.
+const BOOK_CARD_COLUMNS = "id,slug,title,author_name,cover_image_url,rating,recommendation_count";
+
 // Numeric-artifact title detector. Production has rows like `1916.0`, `24.0`,
 // `2001.0` — year+`.0` leakage from the scraper that produced bad titles. These
 // are never useful in a recommendation context.
@@ -176,7 +180,7 @@ export async function getBooksPaginated(
     const runQuery = () => {
       let q = getSupabase()
         .from("books")
-        .select("*", { count: "exact" })
+        .select(BOOK_CARD_COLUMNS, { count: "estimated" })
         .order(col, { ascending: asc, nullsFirst: false });
       if (scope === "curated") {
         q = q
@@ -261,7 +265,7 @@ export async function getBooksPaginated(
         console.warn("getBooksPaginated all retries empty; trying count-less fallback");
         let fb = getSupabase()
           .from("books")
-          .select("*")
+          .select(BOOK_CARD_COLUMNS)
           .order(col, { ascending: asc, nullsFirst: false });
         if (scope === "curated") {
           fb = fb
@@ -1733,7 +1737,7 @@ export async function searchBooksPaginated(
 
     const { data, count, error } = await getSupabase()
       .from("books")
-      .select("*", { count: "estimated" })
+      .select(BOOK_CARD_COLUMNS, { count: "estimated" })
       .or(`title.ilike.${pattern},author_name.ilike.${pattern}`)
       .order(col, { ascending: asc, nullsFirst: false })
       .range(from, to);
