@@ -290,28 +290,6 @@ export async function getFeaturedBooks(count = 6): Promise<Book[]> {
   }
 }
 
-export async function getHomepageCoverRichBooks(limit = 12): Promise<Book[]> {
-  try {
-    const { data, error } = await getSupabase()
-      .from("books")
-      .select("id, slug, title, author_name, cover_image_url, rating, recommendation_count")
-      .not("cover_image_url", "is", null)
-      .neq("cover_image_url", "")
-      .not("slug", "is", null)
-      .neq("slug", "")
-      .not("title", "is", null)
-      .neq("title", "")
-      .order("recommendation_count", { ascending: false, nullsFirst: false })
-      .limit(limit);
-
-    if (error) { logQueryError("getHomepageCoverRichBooks", error); return []; }
-    return normalizeBookRows((data || []) as Book[]);
-  } catch (e) {
-    logQueryError("getHomepageCoverRichBooks", e);
-    return [];
-  }
-}
-
 export async function getBookBySlug(slug: string): Promise<Book | null> {
   try {
     const { data, error } = await getSupabase()
@@ -509,30 +487,6 @@ export async function getFeaturedPeople(count = 4): Promise<Person[]> {
     return data || [];
   } catch (e) {
     logQueryError("getFeaturedPeople", e);
-    return [];
-  }
-}
-
-export async function getHomepageAvatarRichPeople(limit = 12): Promise<Person[]> {
-  try {
-    const { data, error } = await getSupabase()
-      .from("people")
-      .select("id, slug, name, role, avatar_url, quality_score")
-      .not("avatar_url", "is", null)
-      .neq("avatar_url", "")
-      .not("slug", "is", null)
-      .neq("slug", "")
-      .not("name", "is", null)
-      .neq("name", "")
-      .not("role", "is", null)
-      .neq("role", "")
-      .order("quality_score", { ascending: false })
-      .limit(limit);
-
-    if (error) { logQueryError("getHomepageAvatarRichPeople", error); return []; }
-    return (data || []) as Person[];
-  } catch (e) {
-    logQueryError("getHomepageAvatarRichPeople", e);
     return [];
   }
 }
