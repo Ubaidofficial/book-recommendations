@@ -108,46 +108,6 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
             A curated collection of books related to {displayName}, ranked by recommendation signals.
           </p>
         )}
-        {/* Compact trust & curation panel explaining data signals honestly without overclaiming */}
-        <div className="mt-4 p-4 rounded-xl border border-border/50 bg-subtle/25 max-w-2xl text-xs md:text-sm">
-          <div className="flex gap-2.5 items-start">
-            <svg className="w-4 h-4 text-accent mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
-            </svg>
-            <div className="space-y-2 text-muted">
-              <p className="leading-relaxed">
-                Built from recommendation data, category signals, and source-backed book records. Use this list as a starting point; open any book to see proof, context, and Amazon options where available.
-              </p>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-medium text-muted/65">
-                <span className="flex items-center gap-1">
-                  <span className="w-1 h-1 rounded-full bg-accent" />
-                  Recommendation data
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-1 h-1 rounded-full bg-accent" />
-                  Category signals
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-1 h-1 rounded-full bg-accent" />
-                  Source-backed book records
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-1 h-1 rounded-full bg-accent" />
-                  Open book pages for proof/context
-                </span>
-              </div>
-              <div className="flex gap-3 pt-0.5 text-[11px] font-semibold text-accent">
-                <Link href="/books" className="hover:underline">
-                  Browse all books
-                </Link>
-                <span className="text-muted/30 font-normal">|</span>
-                <Link href="/people" className="hover:underline">
-                  Explore recommenders
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
         {list.curator && (
           <p className="text-sm text-accent font-medium mt-2">Curated by {list.curator}</p>
         )}
@@ -281,13 +241,13 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                     ) : null}
                   </div>
 
-                  {/* Actions (compliant CTAs preferring internal details link) */}
-                  <div className="flex items-center justify-between border-t border-border/40 pt-4 mt-6">
+                  {/* Actions (compliant CTAs preferring Amazon purchase/view button) */}
+                  <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-border/40 pt-4 mt-6">
                     <Link
                       href={`/books/${book.slug}`}
-                      className="text-xs font-bold text-accent hover:underline flex items-center gap-1"
+                      className="text-xs text-muted hover:text-accent hover:underline flex items-center justify-center sm:justify-start gap-1 font-medium transition-colors"
                     >
-                      View full recommendation details →
+                      View full details →
                     </Link>
                     {(() => {
                       // normalizeAmazonUrl repairs the dominant 22-char malformed
@@ -307,7 +267,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                           data-track-slug={book.slug}
                           data-track-section="list-book"
                           data-track-label="View on Amazon"
-                          className="text-xs text-muted hover:text-accent hover:underline inline-flex items-center gap-1 font-semibold"
+                          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs md:text-sm font-semibold shadow-sm transition-all w-full sm:w-auto text-center shrink-0"
                         >
                           <span>View on Amazon</span>
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -327,6 +287,47 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
           <EmptyState message="Books for this list are still being organized." />
         </section>
       )}
+
+      {/* Compact trust & curation panel explaining data signals honestly without overclaiming */}
+      <div className="mb-14 p-4 rounded-xl border border-border/50 bg-subtle/25 text-xs md:text-sm">
+        <div className="flex gap-2.5 items-start">
+          <svg className="w-4 h-4 text-accent mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
+          </svg>
+          <div className="space-y-2 text-muted">
+            <p className="leading-relaxed">
+              Built from recommendation data, category signals, and source-backed book records. Use this list as a starting point; open any book to see proof, context, and Amazon options where available.
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-medium text-muted/65">
+              <span className="flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-accent" />
+                Recommendation data
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-accent" />
+                Category signals
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-accent" />
+                Source-backed book records
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-accent" />
+                Open book pages for proof/context
+              </span>
+            </div>
+            <div className="flex gap-3 pt-0.5 text-[11px] font-semibold text-accent">
+              <Link href="/books" className="hover:underline">
+                Browse all books
+              </Link>
+              <span className="text-muted/30 font-normal">|</span>
+              <Link href="/people" className="hover:underline">
+                Explore recommenders
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Related Lists */}
       {hasRelated && (
