@@ -285,6 +285,122 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Explore Trusted Reading Lists */}
+      <section className="py-16 px-4 bg-surface border-t border-border">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-10 text-center md:text-left">
+            <h2 className="text-2xl font-bold text-ink mb-2 tracking-tight">Explore trusted reading lists</h2>
+            <p className="text-sm text-muted">
+              Start with curated books recommended by founders, investors, CEOs, writers, billionaires, and Bill Gates.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Link
+              href="/lists/books-recommended-by-founders"
+              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Founders</h3>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
+                  75 books
+                </span>
+              </div>
+              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
+                Startup and company-building books recommended by founders and tech builders.
+              </p>
+              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
+                Explore list →
+              </span>
+            </Link>
+            <Link
+              href="/lists/books-recommended-by-investors"
+              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Investors</h3>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
+                  75 books
+                </span>
+              </div>
+              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
+                Capital allocation, decision-making, and business books recommended by investors.
+              </p>
+              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
+                Explore list →
+              </span>
+            </Link>
+            <Link
+              href="/lists/books-recommended-by-ceos"
+              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">CEOs</h3>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
+                  75 books
+                </span>
+              </div>
+              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
+                Leadership, strategy, and operator books recommended by executives.
+              </p>
+              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
+                Explore list →
+              </span>
+            </Link>
+            <Link
+              href="/lists/books-recommended-by-bill-gates"
+              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Bill Gates</h3>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
+                  75 books
+                </span>
+              </div>
+              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
+                Science, business, global health, and biography picks from Bill Gates.
+              </p>
+              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
+                Explore list →
+              </span>
+            </Link>
+            <Link
+              href="/lists/books-recommended-by-billionaires"
+              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Billionaires</h3>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
+                  75 books
+                </span>
+              </div>
+              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
+                Books recommended by self-made business leaders and investors.
+              </p>
+              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
+                Explore list →
+              </span>
+            </Link>
+            <Link
+              href="/lists/books-recommended-by-writers"
+              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Writers</h3>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
+                  75 books
+                </span>
+              </div>
+              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
+                Books recommended by bestselling authors, essayists, and creators.
+              </p>
+              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
+                Explore list →
+              </span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Popular Books */}
       <section className="py-14 px-4">
         <div className="max-w-7xl mx-auto">
