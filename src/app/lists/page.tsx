@@ -219,18 +219,29 @@ export default async function ListsPage({ searchParams }: Props) {
     "books-recommended-by-bill-gates",
   ];
 
+  const secondRecommenderSlugs = [
+    "books-recommended-by-elon-musk",
+    "books-recommended-by-naval-ravikant",
+    "books-recommended-by-paul-graham",
+    "books-recommended-by-ryan-holiday",
+    "books-recommended-by-tim-ferriss",
+    "books-recommended-by-warren-buffett",
+  ];
+
   // ── Default: sectioned discovery hub ──────────────────────────
   // Overfetch fiction/nonfiction so we can dedupe IDs already shown in "Popular".
-  const [broad, popular, fictionAll, nonfictionAll, meta, ...recommendersRaw] = await Promise.all([
+  const [broad, popular, fictionAll, nonfictionAll, meta, ...allRecommendersRaw] = await Promise.all([
     getBroadCategoryLists(12),
     getTopicLists({ limit: 12, sort: "book_count" }),
     getTopicLists({ limit: 24, filter: "fiction" }),
     getTopicLists({ limit: 24, filter: "nonfiction" }),
     getListBySlug("most-recommended-books"),
     ...recommenderSlugs.map((slug) => getListBySlug(slug)),
+    ...secondRecommenderSlugs.map((slug) => getListBySlug(slug)),
   ]);
 
-  const recommenderLists = recommendersRaw.filter((l): l is BookList => l !== null);
+  const recommenderLists = allRecommendersRaw.slice(0, recommenderSlugs.length).filter((l): l is BookList => l !== null);
+  const secondRecommenderLists = allRecommendersRaw.slice(recommenderSlugs.length).filter((l): l is BookList => l !== null);
 
   const popularIds = new Set(popular.data.map((l) => l.id));
   const fiction = fictionAll.data.filter((l) => !popularIds.has(l.id)).slice(0, 8);
@@ -239,6 +250,7 @@ export default async function ListsPage({ searchParams }: Props) {
   const allCollectionLists = [
     ...(meta ? [meta] : []),
     ...recommenderLists,
+    ...secondRecommenderLists,
     ...broad,
     ...popular.data,
   ];
@@ -333,6 +345,13 @@ export default async function ListsPage({ searchParams }: Props) {
         title="Recommended by Founders, Investors & CEOs"
         subtitle="Curated reading lists from builders, VCs, executives, bestselling writers, self-made billionaires, and Bill Gates."
         lists={recommenderLists}
+        kindForAll="meta"
+      />
+
+      <Section
+        title="More expert reading lists"
+        subtitle="Explore books recommended by investors, founders, writers, creators, and public thinkers with proven reading taste."
+        lists={secondRecommenderLists}
         kindForAll="meta"
       />
 

@@ -397,6 +397,57 @@ export default async function HomePage() {
                 Explore list →
               </span>
             </Link>
+            <Link
+              href="/lists/books-recommended-by-naval-ravikant"
+              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Naval Ravikant</h3>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
+                  75 books
+                </span>
+              </div>
+              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
+                Startups, wealth, philosophy, and decision-making books recommended by Naval Ravikant.
+              </p>
+              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
+                Explore list →
+              </span>
+            </Link>
+            <Link
+              href="/lists/books-recommended-by-warren-buffett"
+              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Warren Buffett</h3>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
+                  70 books
+                </span>
+              </div>
+              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
+                Investing, business, and long-term thinking books recommended by Warren Buffett.
+              </p>
+              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
+                Explore list →
+              </span>
+            </Link>
+            <Link
+              href="/lists/books-recommended-by-elon-musk"
+              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
+            >
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Elon Musk</h3>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
+                  75 books
+                </span>
+              </div>
+              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
+                Science fiction, engineering, physics, and startup books recommended by Elon Musk.
+              </p>
+              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
+                Explore list →
+              </span>
+            </Link>
           </div>
         </div>
       </section>
