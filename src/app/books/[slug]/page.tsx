@@ -299,6 +299,7 @@ export default async function BookDetailPage({ params }: Props) {
   const hasThemes = themesRaw.length > 0;
   const hasAudienceFit = bestForItems.length > 0 || notForItems.length > 0;
   const showBeforeYouBuy = ((hasReadingSpecs ? 1 : 0) + (hasThemes ? 1 : 0) + (hasAudienceFit ? 1 : 0)) >= 2;
+  const hasInlineEditorialCtas = (bestForItems.length > 0 || notForItems.length > 0) || showBeforeYouBuy;
 
   const jsonld = bookJsonLd(book);
 
@@ -468,7 +469,7 @@ export default async function BookDetailPage({ params }: Props) {
   })();
 
   return (
-    <div className="relative w-full py-8 pb-28 md:pb-8">
+    <div className="relative w-full py-8 pb-28 lg:pb-8">
       {/* Full-width blurred cover-art band behind hero */}
       {hasCover && (
         <div className="absolute inset-x-0 top-0 h-[280px] lg:h-[420px] -z-10 pointer-events-none select-none overflow-hidden" aria-hidden="true">
@@ -505,7 +506,7 @@ export default async function BookDetailPage({ params }: Props) {
               )}
             </div>
             {normalizedAmazonUrl && (
-              <div className="w-[300px] mx-auto text-center">
+              <div className="w-[300px] mx-auto text-center p-4.5 rounded-2xl border border-amber-200/60 bg-amber-50/15 shadow-[0_8px_30px_rgba(245,158,11,0.04)]">
                 <a
                   href={normalizedAmazonUrl}
                   target="_blank"
@@ -521,11 +522,11 @@ export default async function BookDetailPage({ params }: Props) {
                   Check price on Amazon
                 </a>
                 {book.recommendation_count > 0 && (
-                  <p className="mt-2 text-xs font-bold text-accent" data-track-context="above-fold-trust-badge">
+                  <p className="mt-3 text-xs font-bold text-accent" data-track-context="above-fold-trust-badge">
                     Recommended by {book.recommendation_count.toLocaleString()} sources
                   </p>
                 )}
-                <p className="mt-1 text-[11px] text-muted font-medium leading-normal">
+                <p className="mt-1.5 text-[11px] text-muted font-medium leading-normal">
                   Proof-backed recommendation
                 </p>
                 <p className="mt-0.5 text-[11px] text-muted font-medium leading-normal">
@@ -855,6 +856,34 @@ export default async function BookDetailPage({ params }: Props) {
           {showDescription && (
             <div className="prose prose-base text-muted max-w-none leading-relaxed">
               <p>{descriptionText}</p>
+            </div>
+          )}
+
+          {/* Mid-page fallback CTA for books with missing editorial inline sections */}
+          {!hasInlineEditorialCtas && normalizedAmazonUrl && (
+            <div className="my-8 p-6 rounded-2xl border border-amber-200/60 bg-amber-50/15 shadow-[0_8px_30px_rgba(245,158,11,0.02)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-ink">
+                  Looking for Kindle, hardcover, paperback, or audiobook editions?
+                </h4>
+                <p className="text-xs text-muted">
+                  Check formats, pricing, and current availability directly.
+                </p>
+              </div>
+              <a
+                href={normalizedAmazonUrl}
+                target="_blank"
+                rel="noopener noreferrer nofollow sponsored"
+                data-track-slug={book.slug}
+                data-track-section="book-fallback"
+                data-track-label="Check availability on Amazon"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-semibold transition-all shrink-0 hover:shadow-sm"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+                Check availability on Amazon
+              </a>
             </div>
           )}
 
@@ -1520,16 +1549,16 @@ export default async function BookDetailPage({ params }: Props) {
         }}
       />
 
-      {/* Sticky mobile Amazon CTA — fixed bottom bar on viewports < md only.
+      {/* Sticky mobile Amazon CTA — fixed bottom bar on viewports < lg only.
           Renders only when book.amazon_url is a valid http(s) URL. The
-          desktop right-rail CTA at line ~427 stays in place; this bar is
-          purely additive for mobile, where the primary CTA otherwise lives
+          desktop right-rail CTA stays in place; this bar is purely additive
+          for mobile and tablet, where the primary CTA otherwise lives
           below the fold for most book detail pages. Same rel / target /
           tracking attributes as the existing CTAs. Page-wrapper has
-          `pb-28 md:pb-8` so the last section is not covered. */}
+          `pb-28 lg:pb-8` so the last section is not covered. */}
       {normalizedAmazonUrl && (
         <div
-          className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-surface border-t border-border shadow-[0_-4px_12px_rgba(0,0,0,0.06)] px-3 pt-2.5 flex items-center gap-3"
+          className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface border-t border-border shadow-[0_-4px_12px_rgba(0,0,0,0.06)] px-3 pt-2.5 flex items-center gap-3"
           style={{ paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom))" }}
           role="region"
           aria-label="Buy this book"
@@ -1554,7 +1583,7 @@ export default async function BookDetailPage({ params }: Props) {
             data-track-slug={book.slug}
             data-track-section="sticky-mobile"
             data-track-label="View on Amazon"
-            className="px-3.5 py-2 rounded-lg bg-accent text-white text-xs font-bold whitespace-nowrap hover:opacity-90 transition-opacity shrink-0"
+            className="px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold whitespace-nowrap transition-colors shrink-0"
           >
             View on Amazon →
           </a>
