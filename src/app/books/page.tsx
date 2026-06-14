@@ -190,7 +190,7 @@ export default async function BooksPage({ searchParams }: Props) {
     !hasParams;
   const collectionJsonLd = !hasParams
     ? collectionPageJsonLd({
-        name: "Browse Books | BookRecs",
+        name: "Browse Books | BookMentions",
         description: "Explore recommended books ranked by recommendation signals, lists, series, ratings, and source-backed mentions.",
         url: canonicalUrl("/books"),
         items: books.map((b) => ({

@@ -3,7 +3,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
   title: "Privacy Policy",
-  description: "Learn how BookRecs handles basic analytics, cookies, privacy, and user data for this book discovery website.",
+  description: "Learn how BookMentions handles basic analytics, cookies, privacy, and user data for this book discovery website.",
   path: "/privacy",
 });
 
@@ -13,7 +13,7 @@ export default function PrivacyPage() {
       <h1 className="text-3xl font-bold text-ink mb-4 tracking-tight">Privacy Policy</h1>
       <div className="prose prose-base text-muted max-w-none space-y-5 leading-relaxed">
         <p>
-          BookRecs is a book discovery platform powered by publicly available recommendation data.
+          BookMentions is a book discovery platform powered by publicly available recommendation data.
           We take a straightforward approach to privacy.
         </p>
 

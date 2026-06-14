@@ -255,7 +255,7 @@ export default async function ListsPage({ searchParams }: Props) {
     ...popular.data,
   ];
   const collectionJsonLd = collectionPageJsonLd({
-    name: "Book Lists | BookRecs",
+    name: "Book Lists | BookMentions",
     description: "Browse curated book lists — broad categories, fine-grained topic lists, fiction, nonfiction, and the most recommended books.",
     url: canonicalUrl("/lists"),
     items: allCollectionLists.map((l) => ({

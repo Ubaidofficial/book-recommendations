@@ -2,15 +2,15 @@ import { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
-  title: "About BookRecs",
-  description: "Learn how BookRecs helps readers discover books through source-backed recommendations from notable people and curated lists.",
+  title: "About BookMentions",
+  description: "Learn how BookMentions helps readers discover books through source-backed recommendations from notable people and curated lists.",
   path: "/about",
 });
 
 export default function AboutPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-12">
-      <h1 className="text-3xl font-bold text-ink mb-4 tracking-tight">About BookRecs</h1>
+      <h1 className="text-3xl font-bold text-ink mb-4 tracking-tight">About BookMentions</h1>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
         {[
@@ -28,7 +28,7 @@ export default function AboutPage() {
 
       <div className="prose prose-base text-muted max-w-none space-y-5 leading-relaxed">
         <p>
-          BookRecs aggregates book recommendations from the world&apos;s most respected people — authors,
+          BookMentions aggregates book recommendations from the world&apos;s most respected people — authors,
           thinkers, scientists, entrepreneurs, and leaders. We collect publicly available recommendations
           from interviews, articles, social media, podcasts, and curated reading lists.
         </p>

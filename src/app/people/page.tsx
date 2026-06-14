@@ -127,7 +127,7 @@ export default async function PeoplePage({ searchParams }: Props) {
 
   const collectionJsonLd = !isSearching
     ? collectionPageJsonLd({
-        name: "Featured People | BookRecs",
+        name: "Featured People | BookMentions",
         description: "Discover books recommended by authors, founders, leaders, creators, and public figures with source-backed recommendation proof.",
         url: canonicalUrl("/people"),
         items: shown.map((p) => ({

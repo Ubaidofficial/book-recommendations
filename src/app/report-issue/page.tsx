@@ -3,7 +3,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
   title: "Report an Issue",
-  description: "Report incorrect book details, recommendation sources, broken links, or other data quality issues on BookRecs.",
+  description: "Report incorrect book details, recommendation sources, broken links, or other data quality issues on BookMentions.",
   path: "/report-issue",
 });
 
@@ -33,10 +33,10 @@ export default function ReportIssuePage() {
         </p>
         <p>
           <a
-            href="mailto:hello@bookrecommendations.com"
+            href="mailto:hello@bookmentions.net"
             className="inline-flex items-center gap-1.5 text-accent font-medium hover:underline"
           >
-            hello@bookrecommendations.com
+            hello@bookmentions.net
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
@@ -45,7 +45,7 @@ export default function ReportIssuePage() {
 
         <p className="text-sm text-muted mt-6">
           We review every report and aim to correct verified issues quickly. Thank you for helping
-          keep BookRecs accurate.
+          keep BookMentions accurate.
         </p>
       </div>
     </div>

@@ -3,7 +3,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
   title: "Terms of Use",
-  description: "Review the terms for using BookRecs, including accuracy limits, external links, acceptable use, and content policies.",
+  description: "Review the terms for using BookMentions, including accuracy limits, external links, acceptable use, and content policies.",
   path: "/terms",
 });
 
@@ -13,7 +13,7 @@ export default function TermsPage() {
       <h1 className="text-3xl font-bold text-ink mb-4 tracking-tight">Terms of Use</h1>
       <div className="prose prose-base text-muted max-w-none space-y-5 leading-relaxed">
         <p>
-          By using BookRecs, you agree to these terms. This is an informational website — we
+          By using BookMentions, you agree to these terms. This is an informational website — we
           present publicly available book recommendation data for discovery purposes.
         </p>
 
@@ -33,7 +33,7 @@ export default function TermsPage() {
 
         <h2 className="text-xl font-bold text-ink mt-8">Acceptable Use</h2>
         <p>
-          You may browse and share content from BookRecs. Do not scrape, republish, or redistribute
+          You may browse and share content from BookMentions. Do not scrape, republish, or redistribute
           our content at scale without permission. Automated access that degrades service for other
           users is not permitted.
         </p>

@@ -38,7 +38,7 @@ export default async function SeriesPage({ searchParams }: Props) {
   const isSearching = q && q.length >= 2;
   const collectionJsonLd = !isSearching
     ? collectionPageJsonLd({
-        name: "Book Series in Order | BookRecs",
+        name: "Book Series in Order | BookMentions",
         description: "Explore book series and reading-order guides organized from available series data and recommendation signals.",
         url: canonicalUrl("/series"),
         items: seriesList.map((s) => ({

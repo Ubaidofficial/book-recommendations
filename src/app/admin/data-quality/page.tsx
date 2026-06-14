@@ -12,7 +12,7 @@ import { isValidHttpUrl } from "@/lib/dataQuality";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Data Quality Audit | BookRecs",
+  title: "Data Quality Audit | BookMentions",
   robots: "noindex",
 };
 

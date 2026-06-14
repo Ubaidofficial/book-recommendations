@@ -3,7 +3,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
   title: "Methodology",
-  description: "See how BookRecs collects, verifies, ranks, and quality-checks book recommendations from public sources.",
+  description: "See how BookMentions collects, verifies, ranks, and quality-checks book recommendations from public sources.",
   path: "/methodology",
 });
 
@@ -15,7 +15,7 @@ export default function MethodologyPage() {
       <div className="prose prose-base text-muted max-w-none space-y-5 leading-relaxed">
         <h2 className="text-xl font-bold text-ink mt-8">Platform Scale</h2>
         <p>
-          BookRecs currently tracks over <strong>98,000 books</strong>, more than <strong>2,000 notable people</strong>,
+          BookMentions currently tracks over <strong>98,000 books</strong>, more than <strong>2,000 notable people</strong>,
           over <strong>350 curated lists</strong>, and <strong>3,500+ book series</strong>. Every entry is linked to
           verified sources where available.
         </p>

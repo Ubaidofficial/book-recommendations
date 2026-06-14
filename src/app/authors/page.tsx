@@ -6,8 +6,8 @@ import { Breadcrumbs } from "@/components";
 export const dynamic = "force-dynamic"; // Force dynamic server rendering
 
 export const metadata: Metadata = {
-  title: "Authors — BookRecs Catalog",
-  description: "Browse authors with recommended books in the BookRecs catalog.",
+  title: "Authors — BookMentions Catalog",
+  description: "Browse authors with recommended books in the BookMentions catalog.",
   robots: "noindex, follow", // noindex, follow as requested
 };
 
@@ -28,7 +28,7 @@ export default async function AuthorsIndexPage() {
           Authors
         </h1>
         <p className="text-base text-muted max-w-2xl leading-relaxed">
-          Browse authors with recommended books in the BookRecs catalog.
+          Browse authors with recommended books in the BookMentions catalog.
         </p>
       </div>
 
