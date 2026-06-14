@@ -36,7 +36,7 @@ export function Footer() {
           </div>
         </div>
         <div className="mt-10 pt-6 border-t border-border text-xs text-muted">
-          BookRecs is an independent book discovery platform. Recommendations are sourced from publicly available data.
+          BookMentions is an independent book discovery platform. Recommendations are sourced from publicly available data.
         </div>
       </div>
     </footer>

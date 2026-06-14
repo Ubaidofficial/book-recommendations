@@ -10,8 +10,13 @@ export function Header() {
   return (
     <header className="border-b border-border bg-surface sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center gap-4">
-        <Link href="/" className="text-lg font-bold tracking-tight text-ink shrink-0">
-          BookRecs
+        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-ink shrink-0">
+          <img
+            src="/bookmentions-logo.png"
+            alt="BookMentions"
+            className="h-8 w-8 rounded-full object-cover"
+          />
+          <span>BookMentions</span>
         </Link>
 
         <div className="hidden md:flex flex-1 max-w-lg">
