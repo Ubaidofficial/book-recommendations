@@ -64,7 +64,7 @@ export function itemListJsonLd(
 }
 
 export function websiteJsonLd(): Record<string, unknown> {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://bookrecommendations.com";
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmentions.net";
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -82,7 +82,7 @@ export function websiteJsonLd(): Record<string, unknown> {
 }
 
 export function organizationJsonLd(): Record<string, unknown> {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://bookrecommendations.com";
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmentions.net";
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -126,7 +126,7 @@ export function collectionPageJsonLd({
 }
 
 export function breadcrumbListJsonLd(items: { name: string; path: string }[]): Record<string, unknown> {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://bookrecommendations.com";
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmentions.net";
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",

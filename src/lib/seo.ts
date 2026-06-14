@@ -1,4 +1,4 @@
-export const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookrecommendations.com";
+export const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmentions.net";
 
 export function canonicalUrl(path: string): string {
   return `${BASE_URL}${path}`;
