@@ -152,10 +152,8 @@ function isNumericTitleArtifact(t: string | null | undefined): boolean {
 /**
  * Paginated all-books browse.
  *
- * `scope='curated'` (default) — filter to books with `cover_image_url` populated
- *   AND `recommendation_count > 0`. Roughly ~9,148 / 98,845 today. This is the
- *   default for /books because this is a recommendation site: anything without
- *   a cover or without at least one source-backed recommendation is a poor
+ * `scope='curated'` (default) — filter to books with `recommendation_count > 0`. Roughly ~9,148 / 98,845 today. This is the
+ *   default for /books because this is a recommendation site: anything without at least one source-backed recommendation is a poor
  *   starting page. Numeric-only title artifacts (`1916.0`, `24.0` etc.) are
  *   filtered out client-side after fetch.
  * `scope='all'` — full 98,845-row catalogue, no quality filter. Opt-in via
@@ -184,8 +182,6 @@ export async function getBooksPaginated(
         .order(col, { ascending: asc, nullsFirst: false });
       if (scope === "curated") {
         q = q
-          .not("cover_image_url", "is", null)
-          .neq("cover_image_url", "")
           .gt("recommendation_count", 0);
       }
       return q.range(from, to);
@@ -244,8 +240,6 @@ export async function getBooksPaginated(
         .order(col, { ascending: asc, nullsFirst: false });
       if (scope === "curated") {
         fb = fb
-          .not("cover_image_url", "is", null)
-          .neq("cover_image_url", "")
           .gt("recommendation_count", 0);
       }
       const fbRes = await fb.range(from, to);
@@ -279,8 +273,6 @@ export async function getFeaturedBooks(count = 6): Promise<Book[]> {
     const { data, error } = await getSupabase()
       .from("books")
       .select(BOOK_CARD_COLUMNS)
-      .not("cover_image_url", "is", null)
-      .neq("cover_image_url", "")
       .gt("recommendation_count", 0)
       .order("recommendation_count", { ascending: false, nullsFirst: false })
       .limit(count * 3);
