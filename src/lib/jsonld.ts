@@ -88,7 +88,7 @@ export function organizationJsonLd(): Record<string, unknown> {
     "@type": "Organization",
     "name": "BookMentions",
     "url": baseUrl,
-    "logo": `${baseUrl}/bookmentions-bookmentions-logo.png`
+    "logo": `${baseUrl}/bookmentions-logo.png`
   };
 }
 
