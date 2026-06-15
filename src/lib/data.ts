@@ -152,9 +152,8 @@ function isNumericTitleArtifact(t: string | null | undefined): boolean {
 /**
  * Paginated all-books browse.
  *
- * `scope='curated'` (default) — filter to books with `recommendation_count > 0`. Roughly ~9,148 / 98,845 today. This is the
- *   default for /books because this is a recommendation site: anything without at least one source-backed recommendation is a poor
- *   starting page. Numeric-only title artifacts (`1916.0`, `24.0` etc.) are
+ * `scope='curated'` (default) — filter out numeric-title artifacts; recommendation_count is not reliable enough yet for production gating. Roughly ~9,148 / 98,845 today. This is the
+ *   default for /books because this is a recommendation site: numeric-title artifacts are a poor starting page; recommendation_count backfill is handled separately. Numeric-only title artifacts (`1916.0`, `24.0` etc.) are
  *   filtered out client-side after fetch.
  * `scope='all'` — full 98,845-row catalogue, no quality filter. Opt-in via
  *   /books?scope=all when someone wants to see everything (e.g. data-quality
@@ -181,8 +180,7 @@ export async function getBooksPaginated(
         .select(BOOK_CARD_COLUMNS, { count: "estimated" })
         .order(col, { ascending: asc, nullsFirst: false });
       if (scope === "curated") {
-        q = q
-          .gt("recommendation_count", 0);
+        q = q;
       }
       return q.range(from, to);
     };
@@ -239,8 +237,7 @@ export async function getBooksPaginated(
         .select(BOOK_CARD_COLUMNS)
         .order(col, { ascending: asc, nullsFirst: false });
       if (scope === "curated") {
-        fb = fb
-          .gt("recommendation_count", 0);
+        fb = fb;
       }
       const fbRes = await fb.range(from, to);
       if (!fbRes.error && fbRes.data && fbRes.data.length > 0) {
@@ -273,7 +270,6 @@ export async function getFeaturedBooks(count = 6): Promise<Book[]> {
     const { data, error } = await getSupabase()
       .from("books")
       .select(BOOK_CARD_COLUMNS)
-      .gt("recommendation_count", 0)
       .order("recommendation_count", { ascending: false, nullsFirst: false })
       .limit(count * 3);
 
@@ -1641,7 +1637,6 @@ export async function getHighRecBooksWithQualityIssues(limit = 20): Promise<Book
     const { data, error } = await getSupabase()
       .from("books")
       .select("*")
-      .gt("recommendation_count", 0)
       .order("recommendation_count", { ascending: false })
       .limit(200);
 
