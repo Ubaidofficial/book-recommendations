@@ -9,10 +9,12 @@ import {
 } from "@/lib/data";
 import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual } from "@/components";
 import { websiteJsonLd, organizationJsonLd } from "@/lib/jsonld";
+import { unstable_noStore as noStore } from "next/cache";
 
 export const revalidate = 60;
 
 export default async function HomePage() {
+  noStore();
   const CARD_COUNT = 4;
   const websiteSchema = websiteJsonLd();
   const orgSchema = organizationJsonLd();
