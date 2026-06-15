@@ -1,8 +1,10 @@
 import { Metadata } from "next";
-export const fetchCache = "force-no-store";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+export const fetchCache = "force-no-store";
+
+
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import {
@@ -14,7 +16,6 @@ import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
 import { BookCard, SearchBar, SortSelect, Breadcrumbs, EmptyState } from "@/components";
 
-export const revalidate = 60;
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const sp = await searchParams;
