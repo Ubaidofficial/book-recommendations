@@ -278,12 +278,21 @@ export async function getFeaturedBooks(count = 6): Promise<Book[]> {
   try {
     const { data, error } = await getSupabase()
       .from("books")
-      .select("*")
-      .order("recommendation_count", { ascending: false })
-      .limit(count);
+      .select(BOOK_CARD_COLUMNS)
+      .not("cover_image_url", "is", null)
+      .neq("cover_image_url", "")
+      .gt("recommendation_count", 0)
+      .order("recommendation_count", { ascending: false, nullsFirst: false })
+      .limit(count * 3);
 
-    if (error) { logQueryError("getFeaturedBooks", error); return []; }
-    return normalizeBookRows((data || []) as Book[]);
+    if (error) {
+      logQueryError("getFeaturedBooks", error);
+      return [];
+    }
+
+    return normalizeBookRows((data || []) as Book[])
+      .filter((b) => !isNumericTitleArtifact(b.title))
+      .slice(0, count);
   } catch (e) {
     logQueryError("getFeaturedBooks", e);
     return [];
