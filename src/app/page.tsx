@@ -7,12 +7,6 @@ import {
   getPersonRecommendedCount,
   getPersonWrittenCount,
 } from "@/lib/data";
-import {
-  getFallbackBooks,
-  getFallbackPeople,
-  getFallbackLists,
-  getFallbackSeries,
-} from "@/lib/fallback";
 import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual } from "@/components";
 import { websiteJsonLd, organizationJsonLd } from "@/lib/jsonld";
 
@@ -37,36 +31,36 @@ export default async function HomePage() {
         getFeaturedSeries(CARD_COUNT),
       ]);
   } catch (e) {
-    console.error("[homepage] QUERY_ERROR: Supabase fetch threw exception, using fallback data:", e);
+    console.error("[homepage] QUERY_ERROR: Supabase fetch threw exception:", e);
   }
 
   const books = (() => {
     if (featuredBooks.length > 0) {
       return featuredBooks;
     }
-    console.warn("[homepage] FALLBACK_BOOKS: zero rows returned from Supabase books query");
-    return getFallbackBooks(CARD_COUNT);
+    console.warn("[homepage] EMPTY_BOOKS: zero rows returned from Supabase books query");
+    return [];
   })();
   const people = (() => {
     if (featuredPeople.length > 0) {
       return featuredPeople;
     }
-    console.warn("[homepage] FALLBACK_PEOPLE: zero rows returned from Supabase people query");
-    return getFallbackPeople(CARD_COUNT);
+    console.warn("[homepage] EMPTY_PEOPLE: zero rows returned from Supabase people query");
+    return [];
   })();
   const lists = (() => {
     if (featuredLists.length > 0) {
       return featuredLists;
     }
-    console.warn("[homepage] FALLBACK_LISTS: zero rows returned from Supabase lists query");
-    return getFallbackLists(CARD_COUNT);
+    console.warn("[homepage] EMPTY_LISTS: zero rows returned from Supabase lists query");
+    return [];
   })();
   const series = (() => {
     if (featuredSeries.length > 0) {
       return featuredSeries;
     }
-    console.warn("[homepage] FALLBACK_SERIES: zero rows returned from Supabase series query");
-    return getFallbackSeries(CARD_COUNT);
+    console.warn("[homepage] EMPTY_SERIES: zero rows returned from Supabase series query");
+    return [];
   })();
 
   // Remove N+1 query overhead by setting badge counts to 0 on the homepage.
