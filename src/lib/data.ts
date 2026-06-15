@@ -267,20 +267,8 @@ export async function getBooksPaginated(
 
 export async function getFeaturedBooks(count = 6): Promise<Book[]> {
   try {
-    const { data, error } = await getSupabase()
-      .from("books")
-      .select(BOOK_CARD_COLUMNS)
-      .order("recommendation_count", { ascending: false, nullsFirst: false })
-      .limit(count * 3);
-
-    if (error) {
-      logQueryError("getFeaturedBooks", error);
-      return [];
-    }
-
-    return normalizeBookRows((data || []) as Book[])
-      .filter((b) => !isNumericTitleArtifact(b.title))
-      .slice(0, count);
+    const result = await getBooksPaginated(1, count, "recommendation_count", "curated");
+    return result.data.slice(0, count);
   } catch (e) {
     logQueryError("getFeaturedBooks", e);
     return [];
