@@ -68,7 +68,7 @@ export function websiteJsonLd(): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "name": "BookRecs",
+    "name": "BookMentions",
     "url": baseUrl,
     "potentialAction": {
       "@type": "SearchAction",
@@ -86,9 +86,9 @@ export function organizationJsonLd(): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
-    "name": "BookRecs",
+    "name": "BookMentions",
     "url": baseUrl,
-    "logo": `${baseUrl}/logo.png`
+    "logo": `${baseUrl}/bookmentions-bookmentions-logo.png`
   };
 }
 

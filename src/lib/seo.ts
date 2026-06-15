@@ -29,21 +29,21 @@ export function pageMetadata({
   robots?: string;
 }) {
   return {
-    title: `${title} | BookRecs`,
+    title: `${title} | BookMentions`,
     description,
     alternates: { canonical: canonicalUrl(path) },
     robots: robots || "index, follow",
     openGraph: {
-      title: `${title} | BookRecs`,
+      title: `${title} | BookMentions`,
       description,
       url: canonicalUrl(path),
-      siteName: "BookRecs",
+      siteName: "BookMentions",
       images: image ? [{ url: image }] : [],
       type,
     },
     twitter: {
       card: "summary_large_image" as const,
-      title: `${title} | BookRecs`,
+      title: `${title} | BookMentions`,
       description,
       images: image ? [image] : [],
     },
