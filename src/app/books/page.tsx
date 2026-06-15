@@ -1,4 +1,7 @@
 import { Metadata } from "next";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import {
