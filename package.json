@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "qa:amazon": "node scripts/qa/amazon_monetization_crawl.js"
   },
   "keywords": [],
   "author": "",
