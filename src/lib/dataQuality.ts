@@ -48,6 +48,30 @@ export function outboundLinkRel(url: string | null | undefined): string {
     : "noopener noreferrer nofollow";
 }
 
+function getAmazonAssociateTag(): string {
+  return (process.env.AMAZON_ASSOCIATE_TAG || process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || "").trim();
+}
+
+function withAmazonAssociateTag(u: URL): string {
+  const tag = getAmazonAssociateTag();
+
+  // Do not modify Amazon image/CDN hosts or short links. Only monetize normal
+  // Amazon product/search URLs where adding ?tag= is safe and expected.
+  const host = u.hostname.toLowerCase();
+  if (host === "images-na.ssl-images-amazon.com" || host.endsWith(".ssl-images-amazon.com")) {
+    return u.toString();
+  }
+  if (host === "amzn.to" || host === "amzn.com") {
+    return u.toString();
+  }
+
+  if (!tag) return u.toString();
+  if (!u.searchParams.get("tag")) {
+    u.searchParams.set("tag", tag);
+  }
+  return u.toString();
+}
+
 /**
  * Normalize a raw `books.amazon_url` for safe CTA rendering. Repairs the
  * dominant data-quality bug in `books.amazon_url` (≈23% of rows) where a
@@ -79,7 +103,9 @@ export function outboundLinkRel(url: string | null | undefined): string {
  * `/Some-Book-Title/dp/<ASIN>/ref=…` SEO form is preserved).
  *
  * Does NOT:
- *   - add or modify any affiliate tag (no `?tag=…` appended)
+ *   - require an affiliate tag to be present. If AMAZON_ASSOCIATE_TAG is set,
+ *     appends it to normal Amazon product/search URLs that do not already
+ *     have a tag. If no tag is set, returns the clean normalized URL.
  *   - rewrite hosts
  *   - convert non-Amazon URLs into Amazon URLs
  *   - touch any tracking parameters
@@ -111,13 +137,14 @@ export function normalizeAmazonUrl(url: string | null | undefined): string | nul
   // capture stops at `/`, `?`, or `#`.
   const m = u.pathname.match(/^(.*\/dp\/)([^\/?#]+)(.*)$/);
   if (!m) {
-    // Not a `/dp/` URL (e.g. `/s?k=…` search). Leave alone.
-    return trimmed;
+    // Not a `/dp/` URL (e.g. `/s?k=…` search). Leave path alone, but add
+    // the Associate tag when configured.
+    return withAmazonAssociateTag(u);
   }
   const [, prefix, candidate, suffix] = m;
 
-  // Already valid — return byte-identical.
-  if (VALID_ASIN.test(candidate)) return trimmed;
+  // Already valid — preserve the repaired path and add the Associate tag when configured.
+  if (VALID_ASIN.test(candidate)) return withAmazonAssociateTag(u);
 
   // Repair the dominant 22-char concat pattern: 10-char ASIN + 12-char hex.
   if (candidate.length === 22) {
