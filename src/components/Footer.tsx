@@ -39,6 +39,9 @@ export function Footer() {
           BookMentions is an independent book discovery platform. Recommendations are sourced from publicly available data.
         </div>
       </div>
-    </footer>
+      <p className="mt-2 text-xs text-muted">
+    As an Amazon Associate I earn from qualifying purchases.
+  </p>
+</footer>
   );
 }
