@@ -32,6 +32,7 @@ import {
   outboundLinkRel,
   normalizeAmazonUrl,
   normalizeOutboundUrl,
+  getProofDisplaySafety,
 } from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -140,30 +141,52 @@ export default async function BookDetailPage({ params }: Props) {
     return `Recommended by ${validNames.length} notable people, including ${validNames[0]} and ${validNames[1]}`;
   })();
 
-  // Deduplicate quotes
-  const dedupedProof = uniqueByNormalizedText(safeProof, "quote");
+  // Apply safety to proof items first
+  const proofWithSafety = safeProof.map((p) => {
+    const safety = getProofDisplaySafety(p, p.person);
+    return { p, safety };
+  });
+
+  // Deduplicate by the actual displayable quote (which is null if not safe).
+  // Only deduplicate if displayQuote is non-null.
+  const dedupedProofWithSafety: typeof proofWithSafety = [];
+  const seenQuotes = new Set<string>();
+  for (const item of proofWithSafety) {
+    const dq = item.safety.displayQuote;
+    if (dq) {
+      const normalized = dq.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (seenQuotes.has(normalized)) {
+        continue;
+      }
+      seenQuotes.add(normalized);
+    }
+    dedupedProofWithSafety.push(item);
+  }
 
   // Re-rank: prefer quote-backed + source-backed cards. Then cap weak (no-quote, no-source)
   // entries so the section doesn't look like 6 equally weighty signals when only generic ones exist.
-  const proofScored = dedupedProof.map((p) => {
-    const hasQuote = !!(p.quote && p.quote.trim().length >= 50);
-    const hasSource = parseSourceUrls(p.source_url).length > 0;
+  const proofScored = dedupedProofWithSafety.map((item) => {
+    const { p, safety } = item;
+    const hasQuote = safety.showQuote;
+    const hasSource = safety.showSource;
     const conf = typeof p.confidence_score === "number" ? p.confidence_score : 0;
     const strength = (hasQuote ? 3 : 0) + (hasSource ? 2 : 0);
-    return { p, strength, hasQuote, hasSource, conf };
+    return { p, safety, strength, hasQuote, hasSource, conf };
   }).sort((a, b) => {
     if (a.strength !== b.strength) return b.strength - a.strength;
     return (b.conf || 0) - (a.conf || 0);
   });
+
   const strongCount = proofScored.filter((x) => x.strength > 0).length;
   // Display cap: when 3+ strong signals exist, show up to 6. When 1–2 strong, allow
   // a few weak as filler (max 4 total). When zero strong, show at most 3 weak.
   const proofCap = strongCount >= 3 ? 6 : strongCount > 0 ? 4 : 3;
-  const proof = proofScored.slice(0, proofCap).map((x) => x.p);
+  const proofItems = proofScored.slice(0, proofCap);
+  const proof = proofItems.map((x) => x.p);
 
   // Determine proof quality
   const hasProof = proof.length > 0;
-  const proofWithSource = proof.filter((p) => parseSourceUrls(p.source_url).length > 0);
+  const proofWithSource = proofItems.filter((item) => item.safety.showSource);
   const showVerifiedBadge = proofWithSource.length >= 2;
   // Conservative labels until DB source quality is audited
   const proofHeading = "Recommendation Signals";
@@ -408,7 +431,8 @@ export default async function BookDetailPage({ params }: Props) {
                     {validRecs.slice(2).map((r, idx) => {
                       const initials = (r.person_name || "?").charAt(0);
                       const hasAvatar = isValidHttpUrl(r.avatar_url);
-                      const firstSource = r.source_url ? parseSourceUrls(r.source_url)[0] : null;
+                      // Do not use aggregate URLs or metadata links in popover
+                      const firstSource = r.source_url && !r.source_url.includes("|") ? parseSourceUrls(r.source_url)[0] : null;
                       return (
                         <div key={idx} className="flex gap-2.5 items-start">
                           <div className="w-7 h-7 rounded-full bg-subtle shrink-0 border border-border overflow-hidden flex items-center justify-center">
@@ -432,7 +456,7 @@ export default async function BookDetailPage({ params }: Props) {
                               )}
                             </div>
                             {r.role && <p className="text-[10px] text-muted truncate mt-0.5">{r.role}</p>}
-                            {r.quote && (
+                            {r.quote && !r.quote.includes("|") && (
                               <p className="text-[11px] text-muted/80 leading-relaxed italic border-l border-accent/20 pl-2 mt-1 line-clamp-2">
                                 &ldquo;{r.quote}&rdquo;
                               </p>
@@ -527,9 +551,15 @@ export default async function BookDetailPage({ params }: Props) {
                     Recommended by {book.recommendation_count.toLocaleString()} sources
                   </p>
                 )}
-                <p className="mt-1.5 text-[11px] text-muted font-medium leading-normal">
-                  Proof-backed recommendation
-                </p>
+                {proofWithSource.length > 0 ? (
+                  <p className="mt-1.5 text-[11px] text-muted font-medium leading-normal">
+                    Proof-backed recommendation
+                  </p>
+                ) : book.recommendation_count > 0 ? (
+                  <p className="mt-1.5 text-[11px] text-muted font-medium leading-normal">
+                    Recommended by public sources
+                  </p>
+                ) : null}
                 <p className="mt-0.5 text-[11px] text-muted font-medium leading-normal">
                   Amazon availability
                 </p>
@@ -717,9 +747,15 @@ export default async function BookDetailPage({ params }: Props) {
                   </svg>
                   Check price on Amazon
                 </a>
-                <p className="mt-2 text-[11px] text-muted font-medium leading-normal">
-                  Proof-backed recommendation
-                </p>
+                {proofWithSource.length > 0 ? (
+                  <p className="mt-2 text-[11px] text-muted font-medium leading-normal">
+                    Proof-backed recommendation
+                  </p>
+                ) : book.recommendation_count > 0 ? (
+                  <p className="mt-2 text-[11px] text-muted font-medium leading-normal">
+                    Recommended by public sources
+                  </p>
+                ) : null}
                 <p className="mt-0.5 text-[11px] text-muted font-medium leading-normal">
                   Amazon availability
                 </p>
@@ -1078,7 +1114,7 @@ export default async function BookDetailPage({ params }: Props) {
                   // Signals" section below the face grid already surfaces all
                   // parsed URLs via its <details> dropdown, so the compact
                   // face card only needs the first URL.
-                  const first = parseSourceUrls(r.source_url)[0];
+                  const first = r.source_url && !r.source_url.includes("|") ? parseSourceUrls(r.source_url)[0] : null;
                   if (!first) return null;
                   return (
                     <a
@@ -1110,10 +1146,11 @@ export default async function BookDetailPage({ params }: Props) {
         </p>
         {hasProof ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {proof.map((p, i) => {
+            {proofItems.map((item, i) => {
+              const { p, safety } = item;
               const sourceUrls = parseSourceUrls(p.source_url);
-              const hasSource = sourceUrls.length > 0;
-              const hasQuote = p.quote && p.quote.trim().length >= 50;
+              const hasSource = safety.showSource;
+              const hasQuote = safety.showQuote;
               const conf = formatConfidence(p.confidence_score);
 
               return (
@@ -1156,7 +1193,7 @@ export default async function BookDetailPage({ params }: Props) {
 
                   {hasQuote ? (
                     <blockquote className="text-sm text-muted italic border-l-2 border-accent/20 pl-3 mb-2 line-clamp-3">
-                      &ldquo;{p.quote}&rdquo;
+                      &ldquo;{safety.displayQuote}&rdquo;
                     </blockquote>
                   ) : (
                     <p className="text-xs text-muted/50">Recommended this book</p>

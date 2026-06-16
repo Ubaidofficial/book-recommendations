@@ -381,6 +381,26 @@ export function uniqueByNormalizedText<T>(items: T[], key: keyof T): T[] {
  *
  * Returns deduped, validated http(s) URLs (may be empty).
  */
+export function hasPipeAggregate(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return value.includes("|");
+}
+
+export function isMetadataOrPurchaseSourceUrl(url: string | null | undefined): boolean {
+  if (!url) return true;
+  const uLower = url.toLowerCase().trim();
+  return [
+    "books.google.",
+    "google.com/books",
+    "amazon.",
+    "goodreads.",
+    "openlibrary.",
+    "covers.openlibrary.",
+    "books.googleusercontent.",
+  ].some((bad) => uLower.includes(bad)) ||
+  /\.(png|jpe?g|gif|webp|svg|tiff|bmp)$/i.test(uLower);
+}
+
 export function parseSourceUrls(raw: string | null | undefined): string[] {
   if (!raw || typeof raw !== "string") return [];
   const s = raw.trim();
@@ -425,6 +445,9 @@ export function parseSourceUrls(raw: string | null | undefined): string[] {
     } catch {
       continue;
     }
+
+    if (isMetadataOrPurchaseSourceUrl(u)) continue;
+
     if (!seen.has(u)) {
       seen.add(u);
       final.push(u);
@@ -741,13 +764,19 @@ export function getProofDisplaySafety(
     }
   }
 
-  const hasPipe = quote.includes("|");
-  const quoteEmpty = quote.length === 0;
-  const sourceEmpty = !isValidHttpUrl(sourceUrl);
+  const hasPipeQuote = quote.includes("|");
+  const hasPipeSource = sourceUrl.includes("|");
+  const isMetadata = isMetadataOrPurchaseSourceUrl(sourceUrl);
+  const sourceUrls = parseSourceUrls(sourceUrl);
+
+  // Stricter Trust/Provenance rules:
+  // A source is trustworthy only if it has exactly one parsed URL, has no pipes, and is not a metadata link
+  const showSource = sourceUrls.length === 1 && !hasPipeSource && !isMetadata;
+  const showQuote = showSource && quote.length >= 50 && !hasPipeQuote && !isLowConf;
 
   // Mismatch Check
   let likelyMismatch = false;
-  if (person && person.name) {
+  if (showQuote && person && person.name) {
     const pNameLower = person.name.toLowerCase();
     const pParts = pNameLower.split(" ");
     const lastName = pParts[pParts.length - 1];
@@ -768,27 +797,26 @@ export function getProofDisplaySafety(
     }
   }
 
-  const showQuote = !sourceEmpty && !quoteEmpty && !hasPipe && !isLowConf && !likelyMismatch;
-  const showSource = !sourceEmpty;
+  const finalShowQuote = showQuote && !likelyMismatch;
 
   let cardCue: "proof" | "link" | "none" = "none";
-  if (showQuote && showSource) {
+  if (finalShowQuote && showSource) {
     cardCue = "proof";
   } else if (showSource) {
     cardCue = "link";
   }
 
-  const warningText = !showQuote && showSource
+  const warningText = !finalShowQuote && showSource
     ? "We found a public source for this recommendation, but quote text is hidden because attribution could not be safely verified."
     : null;
 
   return {
-    isSafe: showQuote,
-    showQuote,
+    isSafe: finalShowQuote,
+    showQuote: finalShowQuote,
     showSource,
     cardCue,
     warningText,
-    displayQuote: showQuote ? quote : null
+    displayQuote: finalShowQuote ? quote : null
   };
 }
 
