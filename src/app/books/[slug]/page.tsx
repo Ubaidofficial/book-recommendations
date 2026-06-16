@@ -31,6 +31,7 @@ import {
   sanitizeEditorialText,
   outboundLinkRel,
   normalizeAmazonUrl,
+  normalizeOutboundUrl,
 } from "@/lib/dataQuality";
 import { BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -1165,9 +1166,9 @@ export default async function BookDetailPage({ params }: Props) {
                     sourceUrls.length === 1 ? (
                       <div className="flex items-center justify-between gap-2 text-xs mt-2">
                         <a
-                          href={sourceUrls[0]}
+                          href={normalizeOutboundUrl(sourceUrls[0]) ?? sourceUrls[0]}
                           target="_blank"
-                          rel="noopener noreferrer"
+                          rel={outboundLinkRel(sourceUrls[0])}
                           className="text-accent hover:underline font-medium"
                         >
                           View source →
@@ -1189,11 +1190,11 @@ export default async function BookDetailPage({ params }: Props) {
                             return (
                               <a
                                 key={j}
-                                href={u}
+                                href={normalizeOutboundUrl(u) ?? u}
                                 target="_blank"
-                                rel="noopener noreferrer"
+                                rel={outboundLinkRel(u)}
                                 className="block text-xs text-accent hover:underline truncate"
-                                title={u}
+                                title={normalizeOutboundUrl(u) ?? u}
                               >
                                 {j + 1}. {host}
                               </a>

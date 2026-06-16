@@ -124,39 +124,43 @@ export function normalizeAmazonUrl(url: string | null | undefined): string | nul
   } catch {
     return null;
   }
-  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
 
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
   if (!isAmazonUrl(trimmed)) return null;
 
-  // Canonical ASIN: exactly 10 alphanumeric chars. ISBN-10 allows `X` as the
-  // check digit (uppercase per spec). Accept any case on input; emit upper.
+  const host = u.hostname.toLowerCase();
+  const associateTag = (
+    process.env.AMAZON_ASSOCIATE_TAG ||
+    process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG ||
+    ""
+  ).trim();
+
+  // Never add Associate tags to Amazon image/CDN URLs or short links.
+  const shouldSkipTag =
+    host === "amzn.to" ||
+    host === "amzn.com" ||
+    host.includes("ssl-images-amazon.com") ||
+    host.includes("images-amazon.com");
+
   const VALID_ASIN = /^[A-Z0-9]{10}$/i;
-
-  // Match the `/dp/<candidate>` segment anywhere in the path so the canonical
-  // SEO form `/Some-Title/dp/<ASIN>/ref=…` is also covered. The candidate
-  // capture stops at `/`, `?`, or `#`.
   const m = u.pathname.match(/^(.*\/dp\/)([^\/?#]+)(.*)$/);
-  if (!m) {
-    // Not a `/dp/` URL (e.g. `/s?k=…` search). Leave path alone, but add
-    // the Associate tag when configured.
-    return withAmazonAssociateTag(u);
-  }
-  const [, prefix, candidate, suffix] = m;
 
-  // Already valid — preserve the repaired path and add the Associate tag when configured.
-  if (VALID_ASIN.test(candidate)) return withAmazonAssociateTag(u);
+  if (m) {
+    const [, prefix, candidate, suffix] = m;
 
-  // Repair the dominant 22-char concat pattern: 10-char ASIN + 12-char hex.
-  if (candidate.length === 22) {
-    const first10 = candidate.slice(0, 10).toUpperCase();
-    if (VALID_ASIN.test(first10)) {
-      u.pathname = prefix + first10 + suffix;
-      return u.toString();
+    if (!VALID_ASIN.test(candidate)) {
+      const repaired = candidate.slice(0, 10);
+      if (candidate.length === 22 && VALID_ASIN.test(repaired)) {
+        u.pathname = `${prefix}${repaired.toUpperCase()}${suffix}`;
+      }
     }
   }
 
-  // Other malformations (length 5, 6, 11, …) — too uncertain to repair.
-  return trimmed;
+  if (associateTag && !shouldSkipTag && !u.searchParams.get("tag")) {
+    u.searchParams.set("tag", associateTag);
+  }
+
+  return u.toString();
 }
 
 export function isValidRating(value: unknown): boolean {
@@ -788,3 +792,15 @@ export function getProofDisplaySafety(
   };
 }
 
+
+
+export function normalizeOutboundUrl(url: string | null | undefined): string | null {
+  if (!url || typeof url !== "string") return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  if (!isValidHttpUrl(trimmed)) return null;
+  if (isAmazonUrl(trimmed)) return normalizeAmazonUrl(trimmed);
+
+  return trimmed;
+}
