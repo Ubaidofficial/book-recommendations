@@ -1,8 +1,6 @@
-"use client";
-
 import Link from "next/link";
 import { SafeImage } from "./SafeImage";
-import { isValidHttpUrl, isValidRating, formatRating } from "@/lib/dataQuality";
+import { isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl } from "@/lib/dataQuality";
 
 // Cleaner missing-cover placeholder: subtle book-stack icon, readable title,
 // no oversized purple text, "No cover" affordance so the absence reads intentional.
@@ -31,6 +29,7 @@ interface BookCardProps {
   coverUrl: string;
   rating: number;
   recommendationCount: number;
+  amazonUrl?: string | null;
 }
 
 export function BookCard({
@@ -41,16 +40,17 @@ export function BookCard({
   coverUrl,
   rating,
   recommendationCount,
+  amazonUrl,
 }: BookCardProps) {
   const showCover = isValidHttpUrl(coverUrl);
   const showRating = isValidRating(rating);
+  const ctaUrl = normalizeAmazonUrl(amazonUrl);
 
   return (
-    <Link
-      href={`/books/${slug}`}
-      className="group block rounded-2xl border border-border bg-surface overflow-hidden hover:shadow-lg hover:border-accent/20 transition-all duration-200"
+    <div
+      className="group flex flex-col h-full rounded-2xl border border-border bg-surface overflow-hidden hover:shadow-lg hover:border-accent/20 transition-all duration-200"
     >
-      <div className="aspect-[2/3] bg-subtle overflow-hidden">
+      <Link href={`/books/${slug}`} className="block aspect-[2/3] bg-subtle overflow-hidden">
         {showCover ? (
           <SafeImage
             src={coverUrl}
@@ -61,25 +61,63 @@ export function BookCard({
         ) : (
           <NoCoverFallback title={title} />
         )}
-      </div>
-      <div className="p-4">
-        <h3 className="font-semibold text-sm text-ink leading-snug mb-1 group-hover:text-accent transition-colors line-clamp-2">
-          {title}
-        </h3>
-        <span className="text-xs text-muted block">
-          {author}
-        </span>
-        <div className="flex items-center gap-2 mt-2.5 text-xs">
-          {showRating && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-light text-accent font-medium">
-              ★ {formatRating(rating)}
-            </span>
-          )}
-          {recommendationCount > 0 && (
-            <span className="text-muted">{recommendationCount.toLocaleString()} recs</span>
-          )}
+      </Link>
+      <div className="p-4 flex flex-col flex-1 justify-between">
+        <div className="mb-3">
+          <Link href={`/books/${slug}`} className="block">
+            <h3 className="font-semibold text-sm text-ink leading-snug mb-1 group-hover:text-accent transition-colors line-clamp-2">
+              {title}
+            </h3>
+          </Link>
+          <span className="text-xs text-muted block">
+            {author}
+          </span>
+          <div className="flex items-center gap-2 mt-2.5 text-xs">
+            {showRating && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-light text-accent font-medium">
+                ★ {formatRating(rating)}
+              </span>
+            )}
+            {recommendationCount > 0 && (
+              <span className="text-muted">{recommendationCount.toLocaleString()} recs</span>
+            )}
+          </div>
         </div>
+
+        {ctaUrl ? (
+          <div className="flex flex-col gap-2 pt-2 border-t border-border/40 mt-auto">
+            <a
+              href={ctaUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow sponsored"
+              data-track-slug={slug}
+              data-track-section="book-card"
+              data-track-label="View on Amazon"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-sm transition-colors text-center cursor-pointer"
+            >
+              <span>View on Amazon</span>
+              <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+            <Link
+              href={`/books/${slug}`}
+              className="text-[11px] text-muted hover:text-accent hover:underline text-center font-medium transition-colors"
+            >
+              View recommendations →
+            </Link>
+          </div>
+        ) : (
+          <div className="pt-2 border-t border-border/40 mt-auto">
+            <Link
+              href={`/books/${slug}`}
+              className="w-full inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-subtle hover:bg-border/30 text-ink text-xs font-semibold transition-colors text-center"
+            >
+              View details
+            </Link>
+          </div>
+        )}
       </div>
-    </Link>
+    </div>
   );
 }

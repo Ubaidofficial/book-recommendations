@@ -137,7 +137,7 @@ function normalizeBookRows<T extends Partial<Book>>(rows: T[] | null | undefined
 
 // Card-only column projection for listing pages. Drops description, editorial,
 // meta, and AI fields that BookCard never renders — reduces per-row payload ~80%.
-const BOOK_CARD_COLUMNS = "id,slug,title,author_name,cover_image_url,rating,recommendation_count";
+const BOOK_CARD_COLUMNS = "id,slug,title,author_name,cover_image_url,rating,recommendation_count,amazon_url";
 
 // Numeric-artifact title detector. Production has rows like `1916.0`, `24.0`,
 // `2001.0` — year+`.0` leakage from the scraper that produced bad titles. These

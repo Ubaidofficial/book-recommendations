@@ -183,7 +183,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
 
                 {/* Content details */}
                 <div className="flex-1 flex flex-col justify-between">
-                  <div>
+                  <div className="order-1">
                     <div className="mb-1">
                       <Link
                         href={`/books/${book.slug}`}
@@ -215,34 +215,34 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                         </span>
                       )}
                     </div>
-
-                    {/* Source context or fallback editorial summary why it appears */}
-                    {book.recommendation_context && book.recommendation_context.trim().length > 0 ? (
-                      <div className="mt-2.5 bg-subtle/20 rounded-xl p-3 border border-border/40">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted block mb-1">Recommendation Context</span>
-                        <blockquote className="text-xs md:text-sm text-muted italic border-l-2 border-accent/20 pl-2 leading-relaxed">
-                          &ldquo;{book.recommendation_context}&rdquo;
-                        </blockquote>
-                      </div>
-                    ) : book.editorial_summary && book.editorial_summary.trim().length > 0 ? (
-                      <div className="mt-2.5 bg-subtle/20 rounded-xl p-3 border border-border/40">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted block mb-1">Book Summary</span>
-                        <p className="text-xs md:text-sm text-muted leading-relaxed line-clamp-3">
-                          {book.editorial_summary}
-                        </p>
-                      </div>
-                    ) : book.description && book.description.trim().length > 0 ? (
-                      <div className="mt-2.5 bg-subtle/20 rounded-xl p-3 border border-border/40">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted block mb-1">Description</span>
-                        <p className="text-xs md:text-sm text-muted leading-relaxed line-clamp-3">
-                          {book.description}
-                        </p>
-                      </div>
-                    ) : null}
                   </div>
 
+                  {/* Source context or fallback editorial summary why it appears */}
+                  {book.recommendation_context && book.recommendation_context.trim().length > 0 ? (
+                    <div className="order-3 sm:order-2 mt-4 sm:mt-0 bg-subtle/20 rounded-xl p-3 border border-border/40">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted block mb-1">Recommendation Context</span>
+                      <blockquote className="text-xs md:text-sm text-muted italic border-l-2 border-accent/20 pl-2 leading-relaxed">
+                        &ldquo;{book.recommendation_context}&rdquo;
+                      </blockquote>
+                    </div>
+                  ) : book.editorial_summary && book.editorial_summary.trim().length > 0 ? (
+                    <div className="order-3 sm:order-2 mt-4 sm:mt-0 bg-subtle/20 rounded-xl p-3 border border-border/40">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted block mb-1">Book Summary</span>
+                      <p className="text-xs md:text-sm text-muted leading-relaxed line-clamp-3">
+                        {book.editorial_summary}
+                      </p>
+                    </div>
+                  ) : book.description && book.description.trim().length > 0 ? (
+                    <div className="order-3 sm:order-2 mt-4 sm:mt-0 bg-subtle/20 rounded-xl p-3 border border-border/40">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted block mb-1">Description</span>
+                      <p className="text-xs md:text-sm text-muted leading-relaxed line-clamp-3">
+                        {book.description}
+                      </p>
+                    </div>
+                  ) : null}
+
                   {/* Actions (compliant CTAs preferring Amazon purchase/view button) */}
-                  <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-border/40 pt-4 mt-6">
+                  <div className="order-2 sm:order-3 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-border/40 pt-4 mt-4 sm:mt-6">
                     <Link
                       href={`/books/${book.slug}`}
                       className="text-xs text-muted hover:text-accent hover:underline flex items-center justify-center sm:justify-start gap-1 font-medium transition-colors"

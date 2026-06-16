@@ -1229,6 +1229,34 @@ export default async function BookDetailPage({ params }: Props) {
         )}
       </section>
 
+      {/* Concluding Amazon CTA below proof section */}
+      {normalizedAmazonUrl && (
+        <div className="my-8 p-6 rounded-2xl border border-amber-200/60 bg-amber-50/15 shadow-[0_8px_30px_rgba(245,158,11,0.02)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-1 flex-1">
+            <h4 className="text-sm font-bold text-ink">
+              Ready to read {displayBookTitle(book.title)}?
+            </h4>
+            <p className="text-xs text-muted">
+              Check formats, pricing, and availability options directly on Amazon.
+            </p>
+          </div>
+          <a
+            href={normalizedAmazonUrl}
+            target="_blank"
+            rel="noopener noreferrer nofollow sponsored"
+            data-track-slug={book.slug}
+            data-track-section="proof-conclusion"
+            data-track-label="View on Amazon"
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-semibold transition-all shrink-0 hover:shadow-sm"
+          >
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            </svg>
+            View on Amazon
+          </a>
+        </div>
+      )}
+
       {/* Appears in Lists — single-pass dedupe across ALL kinds by normalized display label,
           keeping the higher-priority entry (topic > meta > other > category); same priority
           ties broken by lower pre-rank index, then smaller book_count. Broad parents
@@ -1379,7 +1407,7 @@ export default async function BookDetailPage({ params }: Props) {
             <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">More from {displayTitle(book.series!)}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
               {bottomSeriesBooks.map((b) => (
-                <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} />
+                <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} amazonUrl={b.amazon_url} />
               ))}
             </div>
           </section>
@@ -1392,7 +1420,7 @@ export default async function BookDetailPage({ params }: Props) {
           <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Also by {book.author}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {safeAuthorBooks.filter((b) => b.id !== book.id).map((b) => (
-              <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} />
+              <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} amazonUrl={b.amazon_url} />
             ))}
           </div>
         </section>
@@ -1471,7 +1499,7 @@ export default async function BookDetailPage({ params }: Props) {
           <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Similar books</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {similarBooks.map((b) => (
-              <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} />
+              <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} amazonUrl={b.amazon_url} />
             ))}
           </div>
         </section>
@@ -1560,7 +1588,7 @@ export default async function BookDetailPage({ params }: Props) {
       {normalizedAmazonUrl && (
         <div
           className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface border-t border-border shadow-[0_-4px_12px_rgba(0,0,0,0.06)] px-3 pt-2.5 flex items-center gap-3"
-          style={{ paddingBottom: "calc(0.625rem + env(safe-area-inset-bottom))" }}
+          style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))", paddingTop: "0.75rem" }}
           role="region"
           aria-label="Buy this book"
         >
@@ -1584,7 +1612,7 @@ export default async function BookDetailPage({ params }: Props) {
             data-track-slug={book.slug}
             data-track-section="sticky-mobile"
             data-track-label="View on Amazon"
-            className="px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold whitespace-nowrap transition-colors shrink-0"
+            className="px-4 py-3 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold whitespace-nowrap transition-colors shrink-0"
           >
             View on Amazon →
           </a>

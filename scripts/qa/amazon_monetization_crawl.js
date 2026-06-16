@@ -1,7 +1,8 @@
 const https = require("https");
+const http = require("http");
 const { URL } = require("url");
 
-const BASE = "https://bookmentions.net";
+const BASE = process.env.QA_BASE_URL || "https://bookmentions.net";
 const EXPECTED_TAG = "bookmention09-20";
 
 const baseSeedPaths = [
@@ -17,7 +18,8 @@ const baseSeedPaths = [
 
 function fetchPath(path) {
   return new Promise((resolve, reject) => {
-    https.get(BASE + path, { headers: { "Cache-Control": "no-cache" } }, (res) => {
+    const client = BASE.startsWith("https") ? https : http;
+    client.get(BASE + path, { headers: { "Cache-Control": "no-cache" } }, (res) => {
       let body = "";
       res.on("data", (chunk) => body += chunk);
       res.on("end", () => resolve({ path, status: res.statusCode, body }));

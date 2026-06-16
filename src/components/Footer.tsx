@@ -36,12 +36,14 @@ export function Footer() {
           </div>
         </div>
         <div className="mt-10 pt-6 border-t border-border text-xs text-muted">
-          BookMentions is an independent book discovery platform. Recommendations are sourced from publicly available data.
+          <p className="mb-2">
+            BookMentions is an independent book discovery platform. Recommendations are sourced from publicly available data.
+          </p>
+          <p>
+            As an Amazon Associate I earn from qualifying purchases.
+          </p>
         </div>
       </div>
-      <p className="mt-2 text-xs text-muted">
-    As an Amazon Associate I earn from qualifying purchases.
-  </p>
-</footer>
+    </footer>
   );
 }

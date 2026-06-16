@@ -82,6 +82,7 @@ export default async function SeriesDetailPage({ params }: Props) {
                   coverUrl={book.cover_image_url}
                   rating={book.rating}
                   recommendationCount={book.recommendation_count}
+                  amazonUrl={book.amazon_url}
                 />
               </div>
             ))}

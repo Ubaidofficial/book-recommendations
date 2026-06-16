@@ -280,7 +280,7 @@ export default async function PersonDetailPage({ params }: Props) {
                         // Stronger amber background and border, darker text,
                         // larger touch target (px-3 py-2), text-xs (12px)
                         // instead of [11px]. Same shape, more clickable.
-                        className="mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-100 hover:bg-amber-200 border border-amber-300/70 text-amber-950 text-xs font-bold transition-colors"
+                        className="mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold transition-colors shadow-sm"
                       >
                         View on Amazon →
                       </a>
@@ -320,6 +320,7 @@ export default async function PersonDetailPage({ params }: Props) {
                 coverUrl={book.cover_image_url}
                 rating={book.rating}
                 recommendationCount={book.recommendation_count}
+                amazonUrl={book.amazon_url}
               />
             ))}
           </div>

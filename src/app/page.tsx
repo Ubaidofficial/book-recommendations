@@ -454,7 +454,7 @@ export default async function HomePage() {
           <SectionHeading title="Popular Books" href="/books" />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
             {books.map((book) => (
-              <BookCard key={book.id} {...book} coverUrl={book.cover_image_url} authorSlug={book.author_slug} recommendationCount={book.recommendation_count} />
+              <BookCard key={book.id} {...book} coverUrl={book.cover_image_url} authorSlug={book.author_slug} recommendationCount={book.recommendation_count} amazonUrl={book.amazon_url} />
             ))}
           </div>
         </div>
