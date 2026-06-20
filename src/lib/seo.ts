@@ -4,13 +4,14 @@ export function canonicalUrl(path: string): string {
   return `${BASE_URL}${path}`;
 }
 
+const INDEXABLE_STATUSES = new Set(["published", "approved", "indexed"]);
+
 export function isIndexable(row: { index_status?: string } | null | undefined): boolean {
-  // Detail pages are unconditionally gated from indexation for initial launch
-  return false;
+  return INDEXABLE_STATUSES.has((row?.index_status || "").toLowerCase());
 }
 
 export function robotsDirective(row: { index_status?: string } | null | undefined): string {
-  return "noindex, follow";
+  return isIndexable(row) ? "index, follow" : "noindex, follow";
 }
 
 export function pageMetadata({
