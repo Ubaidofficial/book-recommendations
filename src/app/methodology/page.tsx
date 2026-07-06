@@ -5,6 +5,7 @@ export const metadata: Metadata = pageMetadata({
   title: "Methodology",
   description: "See how BookMentions collects, verifies, ranks, and quality-checks book recommendations from public sources.",
   path: "/methodology",
+  robots: "noindex, follow",
 });
 
 export default function MethodologyPage() {

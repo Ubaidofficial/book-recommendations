@@ -16,6 +16,7 @@ export default function robots(): MetadataRoute.Robots {
         "/admin/",
         "/api/",
         "/report-issue",
+        "/methodology",
         "/*?*", // Block all query/filter URLs
       ],
     },
