@@ -5,20 +5,7 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
-      allow: [
-        "/",
-        "/books",
-        "/lists",
-        "/people",
-        "/series",
-      ],
-      disallow: [
-        "/admin/",
-        "/api/",
-        "/report-issue",
-        "/methodology",
-        "/*?*", // Block all query/filter URLs
-      ],
+      disallow: "/",
     },
     sitemap: `${BASE_URL}/sitemap.xml`,
   };
