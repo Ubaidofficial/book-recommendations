@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import "./globals.css";
+
 
 export const metadata: Metadata = {
   title: "BookMentions | Source-Backed Book Recommendations",
@@ -42,6 +44,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="flex-1">{children}</main>
         <Footer />
       </body>
+      <Script
+        src="https://track.bookmentions.net/tracker.min.js"
+        data-site-key="79638a99-3500-4357-9e61-7c356cba1957"
+        strategy="afterInteractive"
+      />
     </html>
   );
 }
