@@ -4,7 +4,7 @@ export function canonicalUrl(path: string): string {
   return `${BASE_URL}${path}`;
 }
 
-const INDEXABLE_STATUSES = new Set(["published", "approved", "indexed"]);
+const INDEXABLE_STATUSES = new Set(["published", "approved", "indexed", "index"]);
 
 export function isIndexable(row: { index_status?: string } | null | undefined): boolean {
   return INDEXABLE_STATUSES.has((row?.index_status || "").toLowerCase());
