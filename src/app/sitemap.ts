@@ -24,7 +24,7 @@ async function getPublishedSlugs(
       const { data, error } = await q;
       if (error || !data || data.length === 0) break;
       for (const row of data) {
-        const slug = (row as Record<string, string>)[column];
+        const slug = (row as unknown as Record<string, string>)[column];
         if (slug) slugs.push(slug);
       }
       if (data.length < PAGE) break;
@@ -46,7 +46,7 @@ async function getIndexableListSlugs(): Promise<string[]> {
       const { data, error } = await sb
         .from("lists")
         .select("slug")
-        .neq("index_status", "draft")
+        .eq("index_status", "published")
         .not("slug", "is", null)
         .neq("slug", "")
         .range(offset, offset + PAGE - 1);
@@ -60,6 +60,7 @@ async function getIndexableListSlugs(): Promise<string[]> {
     return [];
   }
 }
+
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
