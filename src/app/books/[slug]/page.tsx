@@ -72,15 +72,33 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     : isUsefulDescription(book.description)
       ? book.description
       : undefined;
+
+  // The books DB schema constrains index_status to 'noindex'|'draft' only,
+  // so robotsDirective(book) always returns "noindex, follow" for books.
+  // Instead, derive indexability from quality signals directly:
+  //   - recommendation_count >= 3  (at least 3 notable people recommended it)
+  //   - has a real title (not a numeric artifact)
+  //   - has an author
+  const NUMERIC_TITLE = /^\s*\d{1,5}(\.\d+)?\s*$/;
+  const isBookIndexable =
+    typeof book.recommendation_count === "number" &&
+    book.recommendation_count >= 3 &&
+    typeof book.title === "string" &&
+    book.title.trim().length > 1 &&
+    !NUMERIC_TITLE.test(book.title) &&
+    typeof book.author === "string" &&
+    book.author.trim().length > 0;
+
   return pageMetadata({
     title: book.meta_title || (book.author ? `${displayBookTitle(book.title)} by ${book.author}` : displayBookTitle(book.title)),
     description: desc || "",
     path: `/books/${book.slug}`,
     image: isValidHttpUrl(book.cover_image_url) ? book.cover_image_url : undefined,
     type: "book",
-    robots: robotsDirective(book),
+    robots: isBookIndexable ? "index, follow" : "noindex, follow",
   });
 }
+
 
 export default async function BookDetailPage({ params }: Props) {
   const { slug } = await params;
