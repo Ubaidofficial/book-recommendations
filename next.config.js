@@ -3,28 +3,31 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Block indexing ONLY on the Railway staging subdomain.
-        // bookmentions.net (canonical production) is NOT matched and
-        // will serve without this header.
+        // Block indexing on the Railway staging subdomain.
         source: "/(.*)",
-        has: [
-          {
-            type: "host",
-            value: "book-recommendations-production-1657.up.railway.app",
-          },
-        ],
-        headers: [
-          {
-            key: "X-Robots-Tag",
-            value: "noindex, nofollow",
-          },
-        ],
+        has: [{ type: "host", value: "book-recommendations-production-1657.up.railway.app" }],
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+      {
+        // Also block www subdomain — canonical is non-www bookmentions.net.
+        // www is redirected (see redirects below) but belt-and-suspenders.
+        source: "/(.*)",
+        has: [{ type: "host", value: "www.bookmentions.net" }],
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
       },
     ];
   },
 
   async redirects() {
     return [
+      {
+        // Redirect www → non-www to consolidate canonical domain.
+        // Prevents duplicate indexing of www.bookmentions.net vs bookmentions.net.
+        source: "/:path*",
+        has: [{ type: "host", value: "www.bookmentions.net" }],
+        destination: "https://bookmentions.net/:path*",
+        permanent: true,
+      },
       {
         source: "/people/gates",
         destination: "/people/bill-gates",
