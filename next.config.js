@@ -3,10 +3,16 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Apply X-Robots-Tag to every route on this deployment.
-        // Googlebot and all compliant crawlers respect HTTP headers,
-        // so this blocks indexing regardless of per-page meta tags.
+        // Block indexing ONLY on the Railway staging subdomain.
+        // bookmentions.net (canonical production) is NOT matched and
+        // will serve without this header.
         source: "/(.*)",
+        has: [
+          {
+            type: "host",
+            value: "book-recommendations-production-1657.up.railway.app",
+          },
+        ],
         headers: [
           {
             key: "X-Robots-Tag",

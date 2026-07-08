@@ -1,23 +1,38 @@
 import { Book, Person, BookList } from "@/lib/data";
 import { isValidHttpUrl, isValidRating, isUsefulDescription } from "@/lib/dataQuality";
 
-export function bookJsonLd(book: Book | null): Record<string, unknown> | null {
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmentions.net";
+
+
+export function bookJsonLd(book: Book | null, slug?: string): Record<string, unknown> | null {
   if (!book || !book.title) return null;
   const result: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Book",
     name: book.title,
+    inLanguage: "en",
   };
+  if (slug) {
+    result.url = `${BASE_URL}/books/${slug}`;
+  }
   if (book.author) {
     result.author = { "@type": "Person", name: book.author };
+  }
+  if (isValidHttpUrl(book.cover_image_url)) {
+    result.image = book.cover_image_url;
+  }
+  if (book.page_count && book.page_count > 0) {
+    result.numberOfPages = book.page_count;
   }
   if (isUsefulDescription(book.description)) {
     result.description = book.description.trim();
   }
-  if (isValidRating(book.rating)) {
+  if (isValidRating(book.rating) && book.recommendation_count && book.recommendation_count > 0) {
     result.aggregateRating = {
       "@type": "AggregateRating",
       ratingValue: book.rating,
+      bestRating: 5,
+      worstRating: 1,
       reviewCount: book.recommendation_count,
     };
   }
@@ -30,7 +45,11 @@ export function personJsonLd(person: Person | null): Record<string, unknown> | n
     "@context": "https://schema.org",
     "@type": "Person",
     name: person.name,
+    url: `${BASE_URL}/people/${person.slug}`,
   };
+  if (person.role && person.role.trim()) {
+    result.jobTitle = person.role.trim();
+  }
   if (person.bio && isUsefulDescription(person.bio)) {
     result.description = person.bio.trim();
   }

@@ -325,7 +325,7 @@ export default async function BookDetailPage({ params }: Props) {
   const showBeforeYouBuy = ((hasReadingSpecs ? 1 : 0) + (hasThemes ? 1 : 0) + (hasAudienceFit ? 1 : 0)) >= 2;
   const hasInlineEditorialCtas = (bestForItems.length > 0 || notForItems.length > 0) || showBeforeYouBuy;
 
-  const jsonld = bookJsonLd(book);
+  const jsonld = bookJsonLd(book, book.slug);
 
   // Social Proof Summary Row
   const socialProofRow = (() => {
@@ -539,7 +539,7 @@ export default async function BookDetailPage({ params }: Props) {
                   data-track-slug={book.slug}
                   data-track-section="above-fold"
                   data-track-label="Check price on Amazon"
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-all duration-150 hover:shadow-md shadow-sm"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold shadow-sm motion-btn-cta"
                 >
                   <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -740,7 +740,7 @@ export default async function BookDetailPage({ params }: Props) {
                   data-track-slug={book.slug}
                   data-track-section="above-fold"
                   data-track-label="Check price on Amazon"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-all duration-150 hover:shadow-md shadow-sm"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold shadow-sm motion-btn-cta"
                 >
                   <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -878,7 +878,7 @@ export default async function BookDetailPage({ params }: Props) {
                     // across this copy-only refresh. Visible button text
                     // below is the new intent-driven copy.
                     data-track-label="Check formats on Amazon"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition-all duration-150 hover:shadow-sm"
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold motion-btn-cta"
                   >
                     <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -914,7 +914,7 @@ export default async function BookDetailPage({ params }: Props) {
                 data-track-slug={book.slug}
                 data-track-section="book-fallback"
                 data-track-label="Check availability on Amazon"
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-semibold transition-all shrink-0 hover:shadow-sm"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-semibold shrink-0 motion-btn-cta"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -1019,7 +1019,7 @@ export default async function BookDetailPage({ params }: Props) {
                 // above-fold CTA (which still says "Check price on
                 // Amazon") so the two don't look like duplicates.
                 data-track-label="Check price on Amazon"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold transition-all duration-150 hover:shadow-md shadow-sm"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold shadow-sm motion-btn-cta"
               >
                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -1284,7 +1284,7 @@ export default async function BookDetailPage({ params }: Props) {
             data-track-slug={book.slug}
             data-track-section="proof-conclusion"
             data-track-label="View on Amazon"
-            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-semibold transition-all shrink-0 hover:shadow-sm"
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-semibold shrink-0 motion-btn-cta"
           >
             <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -1519,7 +1519,7 @@ export default async function BookDetailPage({ params }: Props) {
                       data-track-slug={alternativeCandidate.slug}
                       data-track-section="try-this-instead"
                       data-track-label="Check price on Amazon"
-                      className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-sm"
+                      className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-sm motion-btn-cta"
                     >
                       Check price on Amazon
                     </a>
@@ -1624,7 +1624,7 @@ export default async function BookDetailPage({ params }: Props) {
           `pb-28 lg:pb-8` so the last section is not covered. */}
       {normalizedAmazonUrl && (
         <div
-          className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface border-t border-border shadow-[0_-4px_12px_rgba(0,0,0,0.06)] px-3 pt-2.5 flex items-center gap-3"
+          className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-surface border-t border-border shadow-[0_-4px_12px_rgba(0,0,0,0.06)] px-3 pt-2.5 flex items-center gap-3 motion-slide-up"
           style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))", paddingTop: "0.75rem" }}
           role="region"
           aria-label="Buy this book"
@@ -1649,7 +1649,7 @@ export default async function BookDetailPage({ params }: Props) {
             data-track-slug={book.slug}
             data-track-section="sticky-mobile"
             data-track-label="View on Amazon"
-            className="px-4 py-3 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold whitespace-nowrap transition-colors shrink-0"
+            className="px-4 py-3 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold whitespace-nowrap shrink-0 motion-btn-cta"
           >
             View on Amazon →
           </a>
