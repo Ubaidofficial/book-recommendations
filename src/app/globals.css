@@ -13,3 +13,109 @@
   --color-warm: #e07b39;
   --color-skeleton: #e9e8ed;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Premium 2026 Motion System
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Global prefers-reduced-motion safety reset */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: initial !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+    transition-delay: -1ms !important;
+  }
+
+  .motion-card-hover,
+  .motion-card-hover:hover,
+  .motion-cover-img,
+  .group:hover .motion-cover-img,
+  .motion-btn-cta,
+  .motion-btn-cta:hover,
+  .motion-btn-cta:active,
+  .motion-slide-up,
+  .motion-fade-up {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+/* Card Hover Lift & Soft Shadow */
+.motion-card-hover {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (hover: hover) {
+  .motion-card-hover:hover {
+    transform: translateY(-2.5px);
+    box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.06), 0 4px 12px -5px rgba(0, 0, 0, 0.02);
+  }
+}
+
+/* Cover Image Subtle Scale */
+.motion-cover-img {
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (hover: hover) {
+  .group:hover .motion-cover-img {
+    transform: scale(1.025);
+  }
+}
+
+/* Amazon CTA Micro-interactions */
+.motion-btn-cta {
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.15s ease;
+}
+@media (hover: hover) {
+  .motion-btn-cta:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(217, 119, 6, 0.22);
+  }
+}
+.motion-btn-cta:active {
+  transform: translateY(0) scale(0.98);
+}
+.motion-btn-cta:focus-visible {
+  outline: 2px solid #f59e0b;
+  outline-offset: 2px;
+}
+
+/* Slide Up + Fade In entrance */
+@keyframes slideUpFade {
+  from {
+    transform: translateY(100%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.motion-slide-up {
+  animation: slideUpFade 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Fade Up + Fade In entrance */
+@keyframes fadeUp {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.motion-fade-up {
+  animation: fadeUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+

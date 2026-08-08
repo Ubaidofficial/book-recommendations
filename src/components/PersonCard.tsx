@@ -20,7 +20,7 @@ export function PersonCard({
   return (
     <Link
       href={`/people/${slug}`}
-      className="group flex items-center gap-4 rounded-2xl border border-border bg-surface p-4 hover:shadow-lg hover:border-accent/20 transition-all duration-200"
+      className="group flex items-center gap-4 rounded-2xl border border-border bg-surface p-4 hover:border-accent/20 motion-card-hover"
     >
       <div className="w-14 h-14 rounded-full bg-subtle overflow-hidden shrink-0 ring-2 ring-border group-hover:ring-accent/30 transition-all flex items-center justify-center">
         {avatarUrl && /^https?:\/\//i.test(avatarUrl) ? (

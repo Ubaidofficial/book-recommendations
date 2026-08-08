@@ -48,14 +48,14 @@ export function BookCard({
 
   return (
     <div
-      className="group flex flex-col h-full rounded-2xl border border-border bg-surface overflow-hidden hover:shadow-lg hover:border-accent/20 transition-all duration-200"
+      className="group flex flex-col h-full rounded-2xl border border-border bg-surface overflow-hidden motion-card-hover hover:border-accent/20"
     >
       <Link href={`/books/${slug}`} className="block aspect-[2/3] bg-subtle overflow-hidden">
         {showCover ? (
           <SafeImage
             src={coverUrl}
             alt={title}
-            className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+            className="w-full h-full object-cover motion-cover-img"
             fallback={<NoCoverFallback title={title} />}
           />
         ) : (
@@ -93,7 +93,7 @@ export function BookCard({
               data-track-slug={slug}
               data-track-section="book-card"
               data-track-label="View on Amazon"
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-sm transition-colors text-center cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-sm text-center cursor-pointer motion-btn-cta"
             >
               <span>View on Amazon</span>
               <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

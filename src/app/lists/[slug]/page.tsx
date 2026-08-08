@@ -152,7 +152,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
             return (
               <div
                 key={book.id}
-                className="flex flex-col sm:flex-row gap-6 p-5 md:p-6 rounded-2xl border border-border bg-surface hover:shadow-md transition-all relative group"
+                className="flex flex-col sm:flex-row gap-6 p-5 md:p-6 rounded-2xl border border-border bg-surface relative group motion-card-hover"
               >
                 {/* Rank Badge */}
                 <span className="absolute -top-2.5 -left-2.5 z-10 w-8 h-8 rounded-full bg-accent text-white text-sm flex items-center justify-center font-bold shadow-md">
@@ -165,7 +165,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                     <SafeImage
                       src={book.cover_image_url!}
                       alt={book.title}
-                      className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                      className="w-full h-full object-cover motion-cover-img"
                       fallback={
                         <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-subtle to-subtle/40 p-2 text-center">
                           <span className="text-[9px] uppercase tracking-wider text-muted/60">No cover</span>
@@ -267,7 +267,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                           data-track-slug={book.slug}
                           data-track-section="list-book"
                           data-track-label="View on Amazon"
-                          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs md:text-sm font-semibold shadow-sm transition-all w-full sm:w-auto text-center shrink-0"
+                          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs md:text-sm font-semibold shadow-sm w-full sm:w-auto text-center shrink-0 motion-btn-cta"
                         >
                           <span>View on Amazon</span>
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -338,7 +338,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
               <Link
                 key={rl.id}
                 href={`/lists/${rl.slug}`}
-                className="p-3.5 rounded-xl border border-border bg-surface hover:shadow-md hover:border-accent/20 transition-all"
+                className="p-3.5 rounded-xl border border-border bg-surface hover:border-accent/20 motion-card-hover"
               >
                 <div className="flex items-start justify-between gap-2 mb-1">
                   <p className="text-sm font-semibold text-ink">{displayListTitle(rl.title, rl.slug)}</p>

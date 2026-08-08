@@ -8,30 +8,30 @@ export function Footer() {
           <div>
             <h4 className="font-semibold text-ink mb-4 text-sm tracking-tight">Discover</h4>
             <nav className="flex flex-col gap-2.5 text-sm text-muted">
-              <Link href="/books" className="hover:text-ink transition-colors">Books</Link>
-              <Link href="/people" className="hover:text-ink transition-colors">People</Link>
-              <Link href="/lists" className="hover:text-ink transition-colors">Lists</Link>
-              <Link href="/series" className="hover:text-ink transition-colors">Series</Link>
+              <Link href="/books" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1 w-fit">Books</Link>
+              <Link href="/people" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1 w-fit">People</Link>
+              <Link href="/lists" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1 w-fit">Lists</Link>
+              <Link href="/series" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1 w-fit">Series</Link>
             </nav>
           </div>
           <div>
             <h4 className="font-semibold text-ink mb-4 text-sm tracking-tight">Info</h4>
             <nav className="flex flex-col gap-2.5 text-sm text-muted">
-              <Link href="/about" className="hover:text-ink transition-colors">About</Link>
-              <Link href="/methodology" className="hover:text-ink transition-colors">Methodology</Link>
+              <Link href="/about" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1 w-fit">About</Link>
+              <Link href="/methodology" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1 w-fit">Methodology</Link>
             </nav>
           </div>
           <div>
             <h4 className="font-semibold text-ink mb-4 text-sm tracking-tight">Legal</h4>
             <nav className="flex flex-col gap-2.5 text-sm text-muted">
-              <Link href="/privacy" className="hover:text-ink transition-colors">Privacy</Link>
-              <Link href="/terms" className="hover:text-ink transition-colors">Terms</Link>
+              <Link href="/privacy" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1 w-fit">Privacy</Link>
+              <Link href="/terms" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1 w-fit">Terms</Link>
             </nav>
           </div>
           <div>
             <h4 className="font-semibold text-ink mb-4 text-sm tracking-tight">Help</h4>
             <nav className="flex flex-col gap-2.5 text-sm text-muted">
-              <Link href="/report-issue" className="hover:text-ink transition-colors">Report an issue</Link>
+              <Link href="/report-issue" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1 w-fit">Report an issue</Link>
             </nav>
           </div>
         </div>

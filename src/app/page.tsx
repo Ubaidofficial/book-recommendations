@@ -80,7 +80,7 @@ export default async function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
       />
       <section className="py-20 md:py-24 px-4">
-        <div className="max-w-3xl mx-auto text-center">
+        <div className="max-w-3xl mx-auto text-center motion-fade-up">
           <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-ink leading-tight mb-5 tracking-tight">
             Find books recommended by <span className="text-accent">people you trust</span>.
           </h1>

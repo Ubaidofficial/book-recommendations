@@ -280,7 +280,7 @@ export default async function PersonDetailPage({ params }: Props) {
                         // Stronger amber background and border, darker text,
                         // larger touch target (px-3 py-2), text-xs (12px)
                         // instead of [11px]. Same shape, more clickable.
-                        className="mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold transition-colors shadow-sm"
+                        className="mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold shadow-sm motion-btn-cta"
                       >
                         View on Amazon →
                       </a>

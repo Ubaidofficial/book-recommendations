@@ -108,9 +108,25 @@ async function findCandidates() {
   }
 
   // 2. People (EEAT Guardrail: recs >= 10, multi-token name, not single-surname alias)
-  const { data: peopleRecs } = await sb.from('book_recommendations').select('person_id');
   const pCounts = {};
-  for (const r of peopleRecs || []) pCounts[r.person_id] = (pCounts[r.person_id] || 0) + 1;
+  let page = 0;
+  const pageSize = 1000;
+  while (true) {
+    const { data: peopleRecs, error: recErr } = await sb
+      .from('book_recommendations')
+      .select('person_id')
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+    if (recErr) {
+      console.error('Error fetching book_recommendations:', recErr.message);
+      break;
+    }
+    if (!peopleRecs || peopleRecs.length === 0) break;
+    for (const r of peopleRecs) {
+      pCounts[r.person_id] = (pCounts[r.person_id] || 0) + 1;
+    }
+    if (peopleRecs.length < pageSize) break;
+    page++;
+  }
 
   const { data: people, error: pErr } = await sb
     .from('people')

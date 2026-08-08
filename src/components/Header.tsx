@@ -27,15 +27,15 @@ export function Header() {
         </div>
 
         <nav className="hidden md:flex items-center gap-5 text-sm font-medium text-muted ml-auto">
-          <Link href="/books" className="hover:text-ink transition-colors">Books</Link>
-          <Link href="/people" className="hover:text-ink transition-colors">People</Link>
-          <Link href="/lists" className="hover:text-ink transition-colors">Lists</Link>
-          <Link href="/series" className="hover:text-ink transition-colors">Series</Link>
-          <Link href="/about" className="hover:text-ink transition-colors">About</Link>
+          <Link href="/books" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1">Books</Link>
+          <Link href="/people" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1">People</Link>
+          <Link href="/lists" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1">Lists</Link>
+          <Link href="/series" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1">Series</Link>
+          <Link href="/about" className="hover:text-ink transition-colors focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1 -mx-1">About</Link>
         </nav>
 
         <button
-          className="md:hidden ml-auto p-2 rounded-md hover:bg-subtle transition-colors"
+          className="md:hidden ml-auto p-2 rounded-md hover:bg-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
           onClick={() => setMenuOpen(!menuOpen)}
           aria-label="Toggle menu"
         >
@@ -57,11 +57,11 @@ export function Header() {
             className="mb-3"
           />
           <nav className="flex flex-col gap-2 text-sm font-medium text-muted">
-            <Link href="/books" className="hover:text-ink transition-colors py-1" onClick={() => setMenuOpen(false)}>Books</Link>
-            <Link href="/people" className="hover:text-ink transition-colors py-1" onClick={() => setMenuOpen(false)}>People</Link>
-            <Link href="/lists" className="hover:text-ink transition-colors py-1" onClick={() => setMenuOpen(false)}>Lists</Link>
-            <Link href="/series" className="hover:text-ink transition-colors py-1" onClick={() => setMenuOpen(false)}>Series</Link>
-            <Link href="/about" className="hover:text-ink transition-colors py-1" onClick={() => setMenuOpen(false)}>About</Link>
+            <Link href="/books" className="hover:text-ink transition-colors py-1 focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1" onClick={() => setMenuOpen(false)}>Books</Link>
+            <Link href="/people" className="hover:text-ink transition-colors py-1 focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1" onClick={() => setMenuOpen(false)}>People</Link>
+            <Link href="/lists" className="hover:text-ink transition-colors py-1 focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1" onClick={() => setMenuOpen(false)}>Lists</Link>
+            <Link href="/series" className="hover:text-ink transition-colors py-1 focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1" onClick={() => setMenuOpen(false)}>Series</Link>
+            <Link href="/about" className="hover:text-ink transition-colors py-1 focus-visible:outline-none focus-visible:text-ink focus-visible:ring-2 focus-visible:ring-accent/40 rounded px-1" onClick={() => setMenuOpen(false)}>About</Link>
           </nav>
         </div>
       )}

@@ -30,7 +30,7 @@ export function ListCard({ title, slug, description, bookCount, curator, kind, h
   return (
     <Link
       href={`/lists/${slug}`}
-      className="group block rounded-2xl border border-border bg-surface p-5 hover:shadow-lg hover:border-accent/20 transition-all duration-200"
+      className="group block rounded-2xl border border-border bg-surface p-5 hover:border-accent/20 motion-card-hover"
     >
       <div className="flex items-start justify-between gap-3 mb-2">
         <h3 className="font-semibold text-base text-ink group-hover:text-accent transition-colors leading-snug">
