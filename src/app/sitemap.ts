@@ -2,6 +2,9 @@ import type { MetadataRoute } from "next";
 import { BASE_URL } from "@/lib/seo";
 import { createClient } from "@supabase/supabase-js";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const SUPABASE_URL      = "https://ghpdpvatfmvsahzsqgpp.supabase.co";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
                           "sb_publishable_bFeYm0jy_3SbxUkgl9_hjw_UH_MVF9Z";
