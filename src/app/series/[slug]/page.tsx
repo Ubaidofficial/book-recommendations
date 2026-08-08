@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getSeriesBySlug, getBooksBySeries, getRelatedSeries } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { displayTitle } from "@/lib/display";
+import { seriesJsonLd } from "@/lib/jsonld";
 import { BookCard, Breadcrumbs, EmptyState } from "@/components";
 
 interface Props {
@@ -37,8 +38,11 @@ export default async function SeriesDetailPage({ params }: Props) {
   const hasDescription = series.description && series.description.length > 0;
   const hasRelated = related.length > 0;
 
+  const jsonld = seriesJsonLd(series, books);
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
+      {jsonld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Series", href: "/series" }, { label: displayName }]} />
 
       <div className="mb-10">

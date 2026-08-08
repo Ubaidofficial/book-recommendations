@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { websiteJsonLd, organizationJsonLd } from "@/lib/jsonld";
 import "./globals.css";
-
 
 export const metadata: Metadata = {
   title: "BookMentions | Source-Backed Book Recommendations",
@@ -37,8 +37,21 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const websiteSchema = websiteJsonLd();
+  const orgSchema = organizationJsonLd();
+
   return (
     <html lang="en">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
+        />
+      </head>
       <body className="bg-bg text-ink antialiased min-h-screen flex flex-col">
         <Header />
         <main className="flex-1">{children}</main>

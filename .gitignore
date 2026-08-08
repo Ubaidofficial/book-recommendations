@@ -3,6 +3,7 @@ node_modules
 .env
 .env.local
 .DS_Store
+scratch/
 
 # Generated reports / data artifacts
 editorial_*.csv

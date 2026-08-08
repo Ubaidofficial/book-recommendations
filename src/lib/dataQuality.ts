@@ -49,7 +49,7 @@ export function outboundLinkRel(url: string | null | undefined): string {
 }
 
 function getAmazonAssociateTag(): string {
-  return (process.env.AMAZON_ASSOCIATE_TAG || process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || "").trim();
+  return (process.env.AMAZON_ASSOCIATE_TAG || process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || "bookmentions-20").trim();
 }
 
 function withAmazonAssociateTag(u: URL): string {
