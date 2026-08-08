@@ -6,37 +6,9 @@ const SUPABASE_URL      = "https://ghpdpvatfmvsahzsqgpp.supabase.co";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
                           "sb_publishable_bFeYm0jy_3SbxUkgl9_hjw_UH_MVF9Z";
 
-async function getPublishedSlugs(
-  table: string,
-  column: string,
-  filter: Record<string, string>
-): Promise<string[]> {
-  try {
-    const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const slugs: string[] = [];
-    let offset = 0;
-    const PAGE = 1000;
-    while (true) {
-      let q = sb.from(table).select(column).range(offset, offset + PAGE - 1);
-      for (const [key, val] of Object.entries(filter)) {
-        q = q.eq(key, val);
-      }
-      const { data, error } = await q;
-      if (error || !data || data.length === 0) break;
-      for (const row of data) {
-        const slug = (row as unknown as Record<string, string>)[column];
-        if (slug) slugs.push(slug);
-      }
-      if (data.length < PAGE) break;
-      offset += PAGE;
-    }
-    return slugs;
-  } catch {
-    return [];
-  }
-}
+const INDEXABLE_STATUSES = ["published", "approved", "indexed", "index"];
 
-async function getIndexableListSlugs(): Promise<string[]> {
+async function getIndexableSlugs(table: string): Promise<string[]> {
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const slugs: string[] = [];
@@ -44,14 +16,17 @@ async function getIndexableListSlugs(): Promise<string[]> {
     const PAGE = 1000;
     while (true) {
       const { data, error } = await sb
-        .from("lists")
+        .from(table)
         .select("slug")
-        .eq("index_status", "published")
+        .in("index_status", INDEXABLE_STATUSES)
         .not("slug", "is", null)
         .neq("slug", "")
         .range(offset, offset + PAGE - 1);
+
       if (error || !data || data.length === 0) break;
-      for (const row of data) if (row.slug) slugs.push(row.slug);
+      for (const row of data) {
+        if (row.slug) slugs.push(row.slug);
+      }
       if (data.length < PAGE) break;
       offset += PAGE;
     }
@@ -60,7 +35,6 @@ async function getIndexableListSlugs(): Promise<string[]> {
     return [];
   }
 }
-
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
@@ -78,17 +52,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // NOTE: /methodology is noindex — intentionally excluded from sitemap
   ];
 
-  // Dynamic: published book pages
-  const bookSlugs = await getPublishedSlugs("books", "slug", { index_status: "published" });
-  const bookPages: MetadataRoute.Sitemap = bookSlugs.map((slug) => ({
-    url: `${BASE_URL}/books/${slug}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.8,
-  }));
-
-  // Dynamic: published person pages
-  const peopleSlugs = await getPublishedSlugs("people", "slug", { index_status: "published" });
+  // Dynamic: indexable people pages
+  const peopleSlugs = await getIndexableSlugs("people");
   const peoplePages: MetadataRoute.Sitemap = peopleSlugs.map((slug) => ({
     url: `${BASE_URL}/people/${slug}`,
     lastModified: now,
@@ -97,13 +62,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // Dynamic: indexable list pages
-  const listSlugs = await getIndexableListSlugs();
+  const listSlugs = await getIndexableSlugs("lists");
   const listPages: MetadataRoute.Sitemap = listSlugs.map((slug) => ({
     url: `${BASE_URL}/lists/${slug}`,
+    lastModified: now,
+    changeFrequency: "weekly" as const,
+    priority: 0.8,
+  }));
+
+  // Dynamic: indexable book pages
+  const bookSlugs = await getIndexableSlugs("books");
+  const bookPages: MetadataRoute.Sitemap = bookSlugs.map((slug) => ({
+    url: `${BASE_URL}/books/${slug}`,
+    lastModified: now,
+    changeFrequency: "weekly" as const,
+    priority: 0.8,
+  }));
+
+  // Dynamic: indexable series pages
+  const seriesSlugs = await getIndexableSlugs("series");
+  const seriesPages: MetadataRoute.Sitemap = seriesSlugs.map((slug) => ({
+    url: `${BASE_URL}/series/${slug}`,
     lastModified: now,
     changeFrequency: "weekly" as const,
     priority: 0.75,
   }));
 
-  return [...staticPages, ...peoplePages, ...bookPages, ...listPages];
+  return [...staticPages, ...peoplePages, ...listPages, ...bookPages, ...seriesPages];
 }
