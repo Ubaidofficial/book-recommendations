@@ -53,7 +53,16 @@ function joinTitles(titles) {
   return `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
 }
 
-function buildTitle(name) {
+/**
+ * Leads with the count for two reasons: numeric titles read well in a SERP,
+ * and the bare "Books Recommended by {Name}" form collides exactly with the
+ * seven published list pages that mirror a person (/lists/books-recommended-
+ * by-tim-ferriss and friends). The person page is the richer of the two, so
+ * it takes the distinct title rather than competing with its own mirror.
+ */
+function buildTitle(name, rec) {
+  const withCount = `${rec} Books Recommended by ${name}`;
+  if (rec > 0 && withCount.length <= TITLE_MAX) return withCount;
   const base = `Books Recommended by ${name}`;
   if (base.length <= TITLE_MAX) return base;
   const alt = `${name} Book Recommendations`;
@@ -122,7 +131,7 @@ function buildDescription(name, rec, titles) {
       rec: rec || 0,
       old_title: p.meta_title,
       old_desc: p.meta_description,
-      meta_title: buildTitle(name),
+      meta_title: buildTitle(name, rec || 0),
       meta_description: buildDescription(name, rec || 0, titles),
       titles_used: titles.slice(0, 3),
     });
