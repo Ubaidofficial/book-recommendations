@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same branch makes the in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Typecheck & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned to the version railpack gives the Railway service (22.x), so a
+      # green run here means the same toolchain production builds on.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # `next build` typechecks too, but running tsc first fails in seconds
+      # instead of after a full compile.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # No secrets needed: every data-backed route is server-rendered on
+      # demand, so nothing queries Supabase during the build. If a route is
+      # ever switched to static generation, this step starts needing
+      # NEXT_PUBLIC_SUPABASE_* and will fail loudly rather than silently
+      # baking in stale data.
+      - name: Build
+        run: npm run build

@@ -11,16 +11,32 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
 
 const INDEXABLE_STATUSES = ["published", "approved", "indexed", "index"];
 
-async function getIndexableSlugs(table: string): Promise<string[]> {
+type IndexableEntry = { slug: string; lastModified?: Date };
+
+/**
+ * `<lastmod>` is only worth emitting if it tracks real content changes —
+ * a timestamp that moves on every crawl is noise Google learns to discount.
+ * All four tables carry `updated_at`, populated on every indexable row, so
+ * that is the signal. `created_at` is the fallback for rows predating the
+ * column; a row with neither omits `lastmod` rather than carrying a
+ * fabricated date.
+ */
+function parseTimestamp(value: unknown): Date | null {
+  if (typeof value !== "string" || value === "") return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+async function getIndexableEntries(table: string): Promise<IndexableEntry[]> {
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const slugs: string[] = [];
+    const entries: IndexableEntry[] = [];
     let offset = 0;
     const PAGE = 1000;
     while (true) {
       const { data, error } = await sb
         .from(table)
-        .select("slug")
+        .select("slug, updated_at, created_at")
         .in("index_status", INDEXABLE_STATUSES)
         .not("slug", "is", null)
         .neq("slug", "")
@@ -28,68 +44,76 @@ async function getIndexableSlugs(table: string): Promise<string[]> {
 
       if (error || !data || data.length === 0) break;
       for (const row of data) {
-        if (row.slug) slugs.push(row.slug);
+        if (!row.slug) continue;
+        // A missing timestamp drops `lastmod` for that URL only — the URL
+        // itself still belongs in the sitemap.
+        const lastModified =
+          parseTimestamp(row.updated_at) ?? parseTimestamp(row.created_at) ?? undefined;
+        entries.push({ slug: row.slug, lastModified });
       }
       if (data.length < PAGE) break;
       offset += PAGE;
     }
-    return slugs;
+    return entries;
   } catch {
     return [];
   }
 }
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const now = new Date();
+/** Newest row in a collection — the honest `lastmod` for its hub page. */
+function newestOf(entries: IndexableEntry[]): Date | undefined {
+  let newest: Date | undefined;
+  for (const { lastModified } of entries) {
+    if (!lastModified) continue;
+    if (!newest || lastModified > newest) newest = lastModified;
+  }
+  return newest;
+}
 
-  // Static pages (canonical, always indexable)
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // One round-trip per table instead of four in series — this route is
+  // force-dynamic, so every crawler hit pays the full cost.
+  const [people, lists, books, series] = await Promise.all([
+    getIndexableEntries("people"),
+    getIndexableEntries("lists"),
+    getIndexableEntries("books"),
+    getIndexableEntries("series"),
+  ]);
+
+  const entriesFor = (
+    prefix: string,
+    entries: IndexableEntry[],
+    priority: number,
+  ): MetadataRoute.Sitemap =>
+    entries.map((e) => ({
+      url: `${BASE_URL}/${prefix}/${e.slug}`,
+      lastModified: e.lastModified,
+      changeFrequency: "weekly" as const,
+      priority,
+    }));
+
+  // Hub pages change when their collection does, so they inherit the newest
+  // row. /about, /privacy and /terms are hand-edited static copy with no
+  // timestamp to draw on — they omit `lastmod` instead of claiming one.
+  const newestOverall = newestOf([...people, ...lists, ...books, ...series]);
+
   const staticPages: MetadataRoute.Sitemap = [
-    { url: BASE_URL,              lastModified: now, changeFrequency: "daily",   priority: 1.0 },
-    { url: `${BASE_URL}/books`,   lastModified: now, changeFrequency: "daily",   priority: 0.9 },
-    { url: `${BASE_URL}/people`,  lastModified: now, changeFrequency: "daily",   priority: 0.9 },
-    { url: `${BASE_URL}/lists`,   lastModified: now, changeFrequency: "daily",   priority: 0.8 },
-    { url: `${BASE_URL}/series`,  lastModified: now, changeFrequency: "weekly",  priority: 0.7 },
-    { url: `${BASE_URL}/about`,   lastModified: now, changeFrequency: "monthly", priority: 0.5 },
-    { url: `${BASE_URL}/privacy`, lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
-    { url: `${BASE_URL}/terms`,   lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
+    { url: BASE_URL,              lastModified: newestOverall,     changeFrequency: "daily",   priority: 1.0 },
+    { url: `${BASE_URL}/books`,   lastModified: newestOf(books),   changeFrequency: "daily",   priority: 0.9 },
+    { url: `${BASE_URL}/people`,  lastModified: newestOf(people),  changeFrequency: "daily",   priority: 0.9 },
+    { url: `${BASE_URL}/lists`,   lastModified: newestOf(lists),   changeFrequency: "daily",   priority: 0.8 },
+    { url: `${BASE_URL}/series`,  lastModified: newestOf(series),  changeFrequency: "weekly",  priority: 0.7 },
+    { url: `${BASE_URL}/about`,                                    changeFrequency: "monthly", priority: 0.5 },
+    { url: `${BASE_URL}/privacy`,                                  changeFrequency: "yearly",  priority: 0.3 },
+    { url: `${BASE_URL}/terms`,                                    changeFrequency: "yearly",  priority: 0.3 },
     // NOTE: /methodology is noindex — intentionally excluded from sitemap
   ];
 
-  // Dynamic: indexable people pages
-  const peopleSlugs = await getIndexableSlugs("people");
-  const peoplePages: MetadataRoute.Sitemap = peopleSlugs.map((slug) => ({
-    url: `${BASE_URL}/people/${slug}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.85,
-  }));
-
-  // Dynamic: indexable list pages
-  const listSlugs = await getIndexableSlugs("lists");
-  const listPages: MetadataRoute.Sitemap = listSlugs.map((slug) => ({
-    url: `${BASE_URL}/lists/${slug}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.8,
-  }));
-
-  // Dynamic: indexable book pages
-  const bookSlugs = await getIndexableSlugs("books");
-  const bookPages: MetadataRoute.Sitemap = bookSlugs.map((slug) => ({
-    url: `${BASE_URL}/books/${slug}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.8,
-  }));
-
-  // Dynamic: indexable series pages
-  const seriesSlugs = await getIndexableSlugs("series");
-  const seriesPages: MetadataRoute.Sitemap = seriesSlugs.map((slug) => ({
-    url: `${BASE_URL}/series/${slug}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.75,
-  }));
-
-  return [...staticPages, ...peoplePages, ...listPages, ...bookPages, ...seriesPages];
+  return [
+    ...staticPages,
+    ...entriesFor("people", people, 0.85),
+    ...entriesFor("lists", lists, 0.8),
+    ...entriesFor("books", books, 0.8),
+    ...entriesFor("series", series, 0.75),
+  ];
 }
