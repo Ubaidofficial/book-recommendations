@@ -17,13 +17,28 @@ export default function robots(): MetadataRoute.Robots {
           "/people/",
           "/lists/",
           "/series/",
+          // Carve-out from the blanket `/*?*` disallow below. The /lists
+          // browse-all view (`/lists?page=N&sort=...`) is the ONLY internal
+          // link path to the published lists that don't fit on the /lists
+          // hub — 37 of them had no crawlable inbound link at all while this
+          // was blocked. getListsPaginated is filtered by LIST_PUBLIC_OR, so
+          // this opens ~5 pages total, not the whole table.
+          //
+          // Deliberately NOT generalised to `/*?page=`: getBooksPaginated
+          // applies no filter for the default "curated" scope, so /books
+          // paginates all ~98,845 books (~2,060 URLs pointing at noindex
+          // book pages). That stays blocked.
+          //
+          // Google resolves allow/disallow conflicts by longest matching
+          // rule, so `/lists?page=` (12) beats `/*?*` (4).
+          "/lists?page=",
         ],
         disallow: [
           "/admin/",
           "/api/",
           "/report-issue",
           "/methodology",
-          "/*?*",   // block all query-string URLs (pagination, filters)
+          "/*?*",   // block all other query-string URLs (search, filters, sort)
         ],
       },
     ],

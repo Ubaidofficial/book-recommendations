@@ -14,19 +14,48 @@ import { ListCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
 
 export const dynamic = "force-dynamic";
 
+const LISTS_HUB_DESCRIPTION =
+  "Browse curated book lists — broad categories, fine-grained topic lists, fiction, nonfiction, and the most recommended books.";
+
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const sp = await searchParams;
-  const hasParams = !!(
-    (sp.q && sp.q.trim()) ||
-    (sp.page && sp.page.trim()) ||
-    (sp.sort && sp.sort.trim())
-  );
+  const q = (sp.q || "").trim();
+  const pageParam = parseInt(sp.page || "0", 10);
+
+  // Search results: never indexable, and canonicalised back to the hub.
+  if (q.length > 0) {
+    return pageMetadata({
+      title: "Book Lists",
+      description: LISTS_HUB_DESCRIPTION,
+      path: "/lists",
+      robots: "noindex, follow",
+    });
+  }
+
+  // Browse-all pagination (?page=N). These pages previously carried
+  // `noindex` AND a canonical pointing back at /lists, which told Google
+  // they were duplicates of the hub — so even once robots.txt allows them
+  // through, their outbound links to the deeper published lists would carry
+  // little weight. They are a legitimate paginated series (~5 pages over the
+  // LIST_PUBLIC_OR-filtered set), so each one self-canonicalises and is
+  // indexable, per Google's pagination guidance.
+  //
+  // `?sort=title` is the same set in a different order, so it canonicalises
+  // to the book_count variant that every internal link already points at.
+  if (Number.isFinite(pageParam) && pageParam > 0) {
+    return pageMetadata({
+      title: `Browse All Book Lists — Page ${pageParam}`,
+      description: `Page ${pageParam} of every curated book list on BookMentions, ordered by how many books each list contains.`,
+      path: `/lists?page=${pageParam}&sort=book_count`,
+      robots: "index, follow",
+    });
+  }
 
   return pageMetadata({
     title: "Book Lists",
-    description: "Browse curated book lists — broad categories, fine-grained topic lists, fiction, nonfiction, and the most recommended books.",
+    description: LISTS_HUB_DESCRIPTION,
     path: "/lists",
-    robots: hasParams ? "noindex, follow" : "index, follow",
+    robots: "index, follow",
   });
 }
 
