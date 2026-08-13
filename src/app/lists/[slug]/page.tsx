@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getListBySlug, getBooksForList, getBooksForListByRecommendations, getRelatedLists } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
-import { displayListTitle, listKindFromSlug, listKindLabel } from "@/lib/display";
+import { displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel } from "@/lib/display";
 import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl,
   coverAltText,
 } from "@/lib/dataQuality";
@@ -20,9 +20,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const list = await getListBySlug(slug);
   if (!list) return { robots: "noindex, follow" };
   const displayName = displayListTitle(list.title, list.slug);
+  // The title tag carries the phrase people actually search ("Best Philosophy
+  // Books"), not the bare subject; displayName stays short for prose.
+  const seoName = displayListTitleFull(list.title, list.slug);
   return pageMetadata({
-    title: displayName,
-    description: list.description || `A curated collection of books in ${displayName}.`,
+    title: seoName,
+    description:
+      list.description ||
+      `The ${seoName.toLowerCase()} recommended most often, with the source behind every pick.`,
     path: `/lists/${list.slug}`,
     robots: robotsDirective(list),
   });
@@ -88,7 +93,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
 
       <div className="mb-10 pb-6 border-b border-border/60">
         <div className="flex items-start gap-3 flex-wrap mb-3">
-          <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">{displayName}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">{displayListTitleFull(list.title, list.slug)}</h1>
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-subtle text-muted text-[11px] font-medium shrink-0 mt-2">
             {listKindLabel(kind)}
           </span>

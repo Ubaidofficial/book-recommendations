@@ -266,7 +266,12 @@ export function displayListTitleFull(
   slug?: string | null,
 ): string {
   const kind = listKindFromSlug(slug);
-  if (kind !== "topic") return displayListTitle(rawTitle, slug);
+  // Category lists get the same treatment as topic lists. Their stored title
+  // is the bare subject ("Philosophy", "Fiction"), which targets a term the
+  // page does not compete for — the demand sits on "best philosophy books"
+  // and "best fiction books", not on the subject alone. Meta lists keep their
+  // own name.
+  if (kind !== "topic" && kind !== "category") return displayListTitle(rawTitle, slug);
   // Build "Best <Name> Books" using the cleaned short name as the body.
   const core = displayListTitle(rawTitle, slug);
   if (!core) return "Best Books";
