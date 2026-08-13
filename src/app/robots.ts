@@ -36,6 +36,10 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           "/admin/",
           "/api/",
+          // Markdown twins of canonical pages. Readable by an agent handed
+          // the URL, but not a second set of documents to index — the HTML
+          // page is canonical and these carry X-Robots-Tag: noindex too.
+          "/md/",
           "/report-issue",
           "/methodology",
           "/*?*",   // block all other query-string URLs (search, filters, sort)
