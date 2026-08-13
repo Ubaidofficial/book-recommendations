@@ -1,36 +1,36 @@
 import Link from "next/link";
 import {
-  getFeaturedBooks,
-  getFeaturedPeople,
-  getFeaturedLists,
-  getFeaturedSeries,
+  getFeaturedBooksCached,
+  getFeaturedPeopleCached,
+  getFeaturedListsCached,
+  getFeaturedSeriesCached,
   getPersonRecommendedCount,
   getPersonWrittenCount,
 } from "@/lib/data";
 import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual } from "@/components";
 import { websiteJsonLd, organizationJsonLd } from "@/lib/jsonld";
-import { unstable_noStore as noStore } from "next/cache";
 
+// noStore() used to sit in the component body and silently defeated this
+// declaration; the featured reads are cached explicitly instead.
 export const revalidate = 60;
 
 export default async function HomePage() {
-  noStore();
   const CARD_COUNT = 4;
   const websiteSchema = websiteJsonLd();
   const orgSchema = organizationJsonLd();
 
-  let featuredBooks: Awaited<ReturnType<typeof getFeaturedBooks>> = [];
-  let featuredPeople: Awaited<ReturnType<typeof getFeaturedPeople>> = [];
-  let featuredLists: Awaited<ReturnType<typeof getFeaturedLists>> = [];
-  let featuredSeries: Awaited<ReturnType<typeof getFeaturedSeries>> = [];
+  let featuredBooks: Awaited<ReturnType<typeof getFeaturedBooksCached>> = [];
+  let featuredPeople: Awaited<ReturnType<typeof getFeaturedPeopleCached>> = [];
+  let featuredLists: Awaited<ReturnType<typeof getFeaturedListsCached>> = [];
+  let featuredSeries: Awaited<ReturnType<typeof getFeaturedSeriesCached>> = [];
 
   try {
     [featuredBooks, featuredPeople, featuredLists, featuredSeries] =
       await Promise.all([
-        getFeaturedBooks(CARD_COUNT),
-        getFeaturedPeople(CARD_COUNT),
-        getFeaturedLists(CARD_COUNT),
-        getFeaturedSeries(CARD_COUNT),
+        getFeaturedBooksCached(CARD_COUNT),
+        getFeaturedPeopleCached(CARD_COUNT),
+        getFeaturedListsCached(CARD_COUNT),
+        getFeaturedSeriesCached(CARD_COUNT),
       ]);
   } catch (e) {
     console.error("[homepage] QUERY_ERROR: Supabase fetch threw exception:", e);

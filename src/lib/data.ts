@@ -161,6 +161,9 @@ function normalizeBookRows<T extends Partial<Book>>(rows: T[] | null | undefined
 
 // Card-only column projection for listing pages. Drops description, editorial,
 // meta, and AI fields that BookCard never renders — reduces per-row payload ~80%.
+/** Statuses that make a book publicly listable. Mirrors the sitemap. */
+const BOOK_INDEXABLE_STATUSES = ["published", "approved", "indexed", "index"];
+
 const BOOK_CARD_COLUMNS = "id,slug,title,author_name,cover_image_url,rating,recommendation_count,amazon_url";
 
 // Numeric-artifact title detector. Production has rows like `1916.0`, `24.0`,
@@ -204,7 +207,18 @@ export async function getBooksPaginated(
         .select(BOOK_CARD_COLUMNS, { count: "estimated" })
         .order(col, { ascending: asc, nullsFirst: false });
       if (scope === "curated") {
-        q = q;
+        // This branch was `q = q` — a no-op, so "curated" filtered nothing and
+        // the query sorted all ~98,845 books by an unindexed
+        // recommendation_count. That reliably exceeded the statement timeout,
+        // the catch returned [], and the homepage rendered an empty "Popular
+        // Books" rail in production while the retry logic below quietly
+        // absorbed it.
+        //
+        // Restricting to indexable rows is both the intent of "curated" and
+        // what makes the sort affordable: ~50 rows instead of ~98,845. It is
+        // also correct on its own terms — a noindex book should not headline
+        // the homepage.
+        q = q.in("index_status", BOOK_INDEXABLE_STATUSES);
       }
       return q.range(from, to);
     };
@@ -2409,3 +2423,38 @@ export const getPersonRecommendationProofCached = (personId: string, limit: numb
     ["person-proof", personId, String(limit)],
     { revalidate: 300, tags: ["recommendations", `person:${personId}`] },
   )();
+
+/**
+ * Homepage featured rails.
+ *
+ * The homepage declared `revalidate = 60` and then called noStore(), which
+ * opts out of caching entirely — so the declaration never took effect and
+ * every visit re-ran four Supabase queries. It measured 8s TTFB in
+ * production, the slowest page on the site and the one most visitors land on.
+ *
+ * A minute of staleness on a "featured" rail is not a correctness concern;
+ * these are editorial selections, not live data.
+ */
+export const getFeaturedBooksCached = (n: number) =>
+  unstable_cache(() => getFeaturedBooks(n), ["featured-books", String(n)], {
+    revalidate: 60,
+    tags: ["books", "featured"],
+  })();
+
+export const getFeaturedPeopleCached = (n: number) =>
+  unstable_cache(() => getFeaturedPeople(n), ["featured-people", String(n)], {
+    revalidate: 60,
+    tags: ["people", "featured"],
+  })();
+
+export const getFeaturedListsCached = (n: number) =>
+  unstable_cache(() => getFeaturedLists(n), ["featured-lists", String(n)], {
+    revalidate: 60,
+    tags: ["lists", "featured"],
+  })();
+
+export const getFeaturedSeriesCached = (n: number) =>
+  unstable_cache(() => getFeaturedSeries(n), ["featured-series", String(n)], {
+    revalidate: 60,
+    tags: ["series", "featured"],
+  })();

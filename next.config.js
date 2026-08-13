@@ -3,6 +3,26 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // Baseline security headers. Absent entirely before this — an audit
+        // flagged no HSTS, no nosniff, no referrer policy, no framing rule.
+        // None of these change rendering; they are the defaults a reviewer
+        // (or a security scanner feeding a quality score) expects to see.
+        source: "/(.*)",
+        headers: [
+          // Two years, preload-eligible. The site is HTTPS-only already and
+          // www 301s to the apex, so subdomains inherit safely.
+          { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+          // Stop content-type sniffing turning a text response into script.
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Send the origin cross-site, the full path same-origin — keeps
+          // referral analytics working without leaking full URLs outward.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // No reason for any page here to be framed.
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "X-DNS-Prefetch-Control", value: "on" },
+        ],
+      },
+      {
         // Block indexing on the Railway staging subdomain.
         source: "/(.*)",
         has: [{ type: "host", value: "book-recommendations-production-1657.up.railway.app" }],
