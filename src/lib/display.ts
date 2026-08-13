@@ -261,31 +261,6 @@ export function listKindLabel(kind: ListKind): string {
  * topic list "best-fashion-books"). Topic lists render as **"Best X Books"** so
  * the two are visually distinct. Non-topic lists fall through to displayListTitle.
  */
-/**
- * Bare-topic lists that already have a "best-<topic>-books" twin published.
- *
- * Both pages exist and both are indexable. Wrapping the bare one as
- * "Best Philosophy Books" would make it identical to /best-philosophy-books
- * in title and H1 — two pages of the same site competing for one query, which
- * is worse than either targeting it alone.
- *
- * These keep their short subject title so the pair stays distinguishable.
- * The real fix is consolidating each pair into one page with a redirect;
- * until that decision is made, this stops them cannibalising each other.
- */
-const HAS_BEST_TWIN = new Set([
-  "architecture",
-  "art",
-  "design",
-  "leadership",
-  "philosophy",
-  "photography",
-  "physics",
-  "poetry",
-  "psychology",
-  "science-fiction",
-]);
-
 export function displayListTitleFull(
   rawTitle: string | null | undefined,
   slug?: string | null,
@@ -297,7 +272,6 @@ export function displayListTitleFull(
   // and "best fiction books", not on the subject alone. Meta lists keep their
   // own name.
   if (kind !== "topic" && kind !== "category") return displayListTitle(rawTitle, slug);
-  if (HAS_BEST_TWIN.has((slug || "").toLowerCase())) return displayListTitle(rawTitle, slug);
   // Build "Best <Name> Books" using the cleaned short name as the body.
   const core = displayListTitle(rawTitle, slug);
   if (!core) return "Best Books";

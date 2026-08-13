@@ -157,6 +157,63 @@ const nextConfig = {
         destination: "/lists/childrens-fiction",
         permanent: true,
       },
+      // Ten topics were published twice — a bare category list and a
+      // "best-<topic>-books" twin — so after list titles were unified both
+      // rendered the same H1 and competed for one query. The bare list is the
+      // superset in every pair (psychology 961 books vs 58), so it survives
+      // and absorbs the twin's exclusive titles; the twin redirects here.
+      // The surviving page still reads "Best Psychology Books", because the
+      // title comes from displayListTitleFull rather than from the slug.
+      {
+        source: "/lists/best-science-fiction-books",
+        destination: "/lists/science-fiction",
+        permanent: true,
+      },
+      {
+        source: "/lists/best-art-books",
+        destination: "/lists/art",
+        permanent: true,
+      },
+      {
+        source: "/lists/best-architecture-books",
+        destination: "/lists/architecture",
+        permanent: true,
+      },
+      {
+        source: "/lists/best-poetry-books",
+        destination: "/lists/poetry",
+        permanent: true,
+      },
+      {
+        source: "/lists/best-design-books",
+        destination: "/lists/design",
+        permanent: true,
+      },
+      {
+        source: "/lists/best-photography-books",
+        destination: "/lists/photography",
+        permanent: true,
+      },
+      {
+        source: "/lists/best-physics-books",
+        destination: "/lists/physics",
+        permanent: true,
+      },
+      {
+        source: "/lists/best-philosophy-books",
+        destination: "/lists/philosophy",
+        permanent: true,
+      },
+      {
+        source: "/lists/best-psychology-books",
+        destination: "/lists/psychology",
+        permanent: true,
+      },
+      {
+        source: "/lists/best-leadership-books",
+        destination: "/lists/leadership",
+        permanent: true,
+      },
     ];
   },
 
