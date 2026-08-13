@@ -56,7 +56,12 @@ export default async function SeriesDetailPage({ params }: Props) {
           <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">{displayName}</h1>
           {series.book_count > 0 && (
             <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium shrink-0 mt-1">
-              {series.book_count} books
+              {/* Same honesty rule as list pages: when the page cannot show
+                  the whole series, say how many of how many. A reading order
+                  silently cut at 100 of 868 answers the question wrongly. */}
+              {series.book_count > books.length
+                ? `${books.length} of ${series.book_count.toLocaleString()} books`
+                : `${series.book_count} books`}
             </span>
           )}
         </div>
