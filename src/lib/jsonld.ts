@@ -1,7 +1,34 @@
 import { Book, Person, BookList, Series } from "@/lib/data";
 import { isValidHttpUrl, isValidRating, isUsefulDescription } from "@/lib/dataQuality";
+import { sameAsFor, personSlugForAuthor } from "@/lib/entityLinks";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmentions.net";
+
+/**
+ * A Book node for use inside an ItemList.
+ *
+ * Carries the same `@id` the book's own page emits, so a title appearing on
+ * ten list pages resolves to one entity rather than ten anonymous nodes that
+ * happen to share a name — and the author resolves to their profile node when
+ * they have one here.
+ */
+function bookListItem(book: Book): Record<string, unknown> {
+  const bookUrl = `${BASE_URL}/books/${book.slug}`;
+  const item: Record<string, unknown> = {
+    "@type": "Book",
+    "@id": `${bookUrl}#book`,
+    name: book.title,
+    url: bookUrl,
+  };
+  if (book.author) {
+    const author: Record<string, unknown> = { "@type": "Person", name: book.author };
+    const authorSlug = book.author_slug || personSlugForAuthor(book.author);
+    if (authorSlug) author["@id"] = `${BASE_URL}/people/${authorSlug}#person`;
+    item.author = author;
+  }
+  if (isValidHttpUrl(book.cover_image_url)) item.image = book.cover_image_url;
+  return item;
+}
 
 export function bookJsonLd(book: Book | null, slug?: string): Record<string, unknown>[] {
   if (!book || !book.title) return [];
@@ -11,13 +38,31 @@ export function bookJsonLd(book: Book | null, slug?: string): Record<string, unk
   const mainEntity: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Book",
+    "@id": `${bookUrl}#book`,
     name: book.title,
     url: bookUrl,
     inLanguage: "en",
+    mainEntityOfPage: bookUrl,
   };
 
   if (book.author) {
-    mainEntity.author = { "@type": "Person", name: book.author };
+    // When the author has a page here, give the node that @id so the book and
+    // the author profile resolve to one entity rather than two loose names.
+    const author: Record<string, unknown> = { "@type": "Person", name: book.author };
+    // author_slug is absent from the production schema, so fall back to
+    // resolving the display name against published profiles.
+    const authorSlug = book.author_slug || personSlugForAuthor(book.author);
+    if (authorSlug) {
+      const authorUrl = `${BASE_URL}/people/${authorSlug}`;
+      author["@id"] = `${authorUrl}#person`;
+      author.url = authorUrl;
+      const authorSameAs = sameAsFor(authorSlug);
+      if (authorSameAs.length > 0) author.sameAs = authorSameAs;
+    }
+    mainEntity.author = author;
+  }
+  if (book.isbn_13 || book.isbn_10) {
+    mainEntity.isbn = book.isbn_13 || book.isbn_10;
   }
   if (isValidHttpUrl(book.cover_image_url)) {
     mainEntity.image = book.cover_image_url;
@@ -58,9 +103,21 @@ export function personJsonLd(person: Person | null): Record<string, unknown>[] {
   const mainEntity: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Person",
+    // A stable @id lets every other page that mentions this person point at
+    // one node instead of minting an anonymous duplicate each time.
+    "@id": `${personUrl}#person`,
     name: person.name,
     url: personUrl,
+    mainEntityOfPage: personUrl,
   };
+
+  // sameAs is the entity signal that reconciles this page with the person as
+  // search engines already know them. Only verified links are present; see
+  // entityLinks.ts for why an unverified one is worse than none.
+  const sameAs = sameAsFor(person.slug);
+  if (sameAs.length > 0) {
+    mainEntity.sameAs = sameAs;
+  }
   if (person.role && person.role.trim()) {
     mainEntity.jobTitle = person.role.trim();
   }
@@ -101,12 +158,7 @@ export function itemListJsonLd(
     itemListElement: books.map((book, i) => ({
       "@type": "ListItem",
       position: i + 1,
-      item: {
-        "@type": "Book",
-        name: book.title,
-        url: `${BASE_URL}/books/${book.slug}`,
-        author: book.author ? { "@type": "Person", name: book.author } : undefined,
-      },
+      item: bookListItem(book),
     })),
   };
 
@@ -140,12 +192,7 @@ export function seriesJsonLd(
     itemListElement: (books || []).map((book, i) => ({
       "@type": "ListItem",
       position: i + 1,
-      item: {
-        "@type": "Book",
-        name: book.title,
-        url: `${BASE_URL}/books/${book.slug}`,
-        author: book.author ? { "@type": "Person", name: book.author } : undefined,
-      },
+      item: bookListItem(book),
     })),
   };
 

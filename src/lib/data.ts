@@ -43,6 +43,11 @@ export interface Book {
   cover_image_url: string;
   amazon_url?: string | null;
   page_count?: number | null;
+  // Present in the production schema; `select("*")` already returns them.
+  // Declared so jsonld can emit schema.org `isbn`, which is the strongest
+  // identifier for reconciling a book against an external catalogue.
+  isbn_13?: string | null;
+  isbn_10?: string | null;
   description: string;
   rating: number;
   recommendation_count: number;
