@@ -7,6 +7,7 @@ import {
   getPersonRecommendationProof,
   getPersonRecommendedCount,
   getPersonWrittenCount,
+  getQualityPeople,
 } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { personJsonLd } from "@/lib/jsonld";
@@ -21,7 +22,7 @@ import {
   normalizeAmazonUrl,
   getProofDisplaySafety,
 } from "@/lib/dataQuality";
-import { BookCard, Breadcrumbs, SafeImage } from "@/components";
+import { Avatar, BookCard, Breadcrumbs, SafeImage } from "@/components";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -54,6 +55,7 @@ export default async function PersonDetailPage({ params }: Props) {
   let rawProof: Awaited<ReturnType<typeof getPersonRecommendationProof>> = [];
   let recommendedCount = 0;
   let writtenCount = 0;
+  let otherPeople: Awaited<ReturnType<typeof getQualityPeople>> = [];
 
   try {
     [writtenBooks, rawProof, recommendedCount, writtenCount] = await Promise.all([
@@ -62,6 +64,13 @@ export default async function PersonDetailPage({ params }: Props) {
       getPersonRecommendedCount(person.id),
       getPersonWrittenCount(person.id),
     ]);
+    // Person pages linked to books and to nothing else — zero person->person
+    // links across the whole site. That strands every profile as a dead end
+    // for a crawler walking the graph, and leaves the deeper profiles with no
+    // internal path to them at all.
+    otherPeople = (await getQualityPeople(40))
+      .filter((p) => p && p.slug && p.slug !== person.slug && p.name)
+      .slice(0, 8);
   } catch (e) {
     console.error("[person-detail] Relation queries failed:", e);
   }
@@ -163,7 +172,22 @@ export default async function PersonDetailPage({ params }: Props) {
           })()}
         </div>
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-ink mb-1 tracking-tight">{person.name}</h1>
+          {/*
+            The H1 is the page's strongest on-page signal and a bare name
+            spends it on a term this page does not compete for — nobody
+            searches "Bill Gates" hoping for a reading list. The searched
+            phrase is "<name> recommended books", so the heading states what
+            the page actually is. The name stays first for readability.
+
+            Rendered as a two-part heading so the visual hierarchy still leads
+            with the person while the heading text reads as one phrase.
+          */}
+          <h1 className="text-2xl md:text-3xl font-bold text-ink mb-1 tracking-tight">
+            {person.name}
+            <span className="block text-base md:text-lg font-semibold text-muted mt-0.5">
+              Recommended Books
+            </span>
+          </h1>
           {person.role && person.role.trim().length > 0 && (
             <p className="text-sm text-accent font-semibold mb-3">{person.role}</p>
           )}
@@ -452,6 +476,53 @@ export default async function PersonDetailPage({ params }: Props) {
           This profile tracks book recommendations and authored books for {person.name}. We compile recommendations from verifiable public sources, including interviews, articles, social posts, and official reading lists. Profiles are only published when they meet our thresholds for completeness, verified details, and supporting evidence.
         </p>
       </section>
+
+      {/*
+        Other recommenders.
+
+        Before this, a profile linked out to books and to nothing else — there
+        were zero person-to-person links anywhere on the site, so each profile
+        was a leaf a crawler could enter but never traverse sideways, and the
+        deeper profiles had no internal path pointing at them at all. This is
+        also the cheapest fix for that: eight sibling links per profile turns
+        a set of isolated pages into a connected neighbourhood.
+      */}
+      {otherPeople.length > 0 && (
+        <section className="mt-10 pt-8 border-t border-border">
+          <h2 className="text-lg font-bold text-ink mb-1 tracking-tight">Other recommenders</h2>
+          <p className="text-sm text-muted mb-5">
+            More reading lists from people whose recommendations we track.
+          </p>
+          <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {otherPeople.map((p) => (
+              <li key={p.slug}>
+                <Link
+                  href={`/people/${p.slug}`}
+                  className="group flex items-center gap-3 rounded-xl border border-border bg-surface p-3 hover:border-accent/30 transition-colors"
+                >
+                  <Avatar
+                    name={p.name}
+                    slug={p.slug}
+                    avatarUrl={p.avatar_url}
+                    sizeClass="w-9 h-9"
+                    textClass="text-xs"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-ink truncate group-hover:text-accent transition-colors">
+                      {p.name}
+                    </span>
+                    <span className="block text-xs text-muted truncate">
+                      {/* Anchor text carries the phrase the target page ranks
+                          for, not a bare name. */}
+                      Recommended books
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Navigation Footer Prompt */}
       <div className="flex justify-between items-center mt-8 pt-6 border-t border-border text-sm flex-wrap gap-3">

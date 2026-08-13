@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SafeImage } from "./SafeImage";
-import { isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl } from "@/lib/dataQuality";
+import { isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl, coverAltText } from "@/lib/dataQuality";
 
 // Cleaner missing-cover placeholder: subtle book-stack icon, readable title,
 // no oversized purple text, "No cover" affordance so the absence reads intentional.
@@ -54,7 +54,7 @@ export function BookCard({
         {showCover ? (
           <SafeImage
             src={coverUrl}
-            alt={title}
+            alt={coverAltText(title, author)}
             className="w-full h-full object-cover motion-cover-img"
             fallback={<NoCoverFallback title={title} />}
           />

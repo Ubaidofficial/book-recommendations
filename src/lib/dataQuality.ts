@@ -579,6 +579,24 @@ export function sanitizeEditorialText(text: string | null | undefined): string {
 }
 
 /**
+ * Alt text for a book cover image.
+ *
+ * A bare title ("Army of None") duplicates the visible caption directly
+ * beside it and tells an image crawler nothing the surrounding text does not
+ * already say. Naming the artefact and the author describes what the image
+ * actually shows and carries the author entity into image search.
+ */
+export function coverAltText(
+  title: string | null | undefined,
+  author?: string | null,
+): string {
+  const t = String(title || "").trim();
+  if (!t) return "Book cover";
+  const a = String(author || "").trim();
+  return a ? `Book cover for “${t}” by ${a}` : `Book cover for “${t}”`;
+}
+
+/**
  * Repair Windows-1252 smart punctuation that survived import as `_x00NN_`
  * escapes — "Matt D_x0092_Avella" should read "Matt D’Avella".
  *

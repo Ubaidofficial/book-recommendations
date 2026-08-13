@@ -4,7 +4,9 @@ import Link from "next/link";
 import { getListBySlug, getBooksForList, getBooksForListByRecommendations, getRelatedLists } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { displayListTitle, listKindFromSlug, listKindLabel } from "@/lib/display";
-import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl } from "@/lib/dataQuality";
+import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl,
+  coverAltText,
+} from "@/lib/dataQuality";
 import { itemListJsonLd } from "@/lib/jsonld";
 import { Breadcrumbs, SafeImage, EmptyState } from "@/components";
 
@@ -164,7 +166,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                   {hasCover ? (
                     <SafeImage
                       src={book.cover_image_url!}
-                      alt={book.title}
+                      alt={coverAltText(book.title, book.author)}
                       className="w-full h-full object-cover motion-cover-img"
                       fallback={
                         <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-subtle to-subtle/40 p-2 text-center">

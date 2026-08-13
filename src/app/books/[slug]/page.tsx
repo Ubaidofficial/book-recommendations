@@ -33,6 +33,7 @@ import {
   normalizeAmazonUrl,
   normalizeOutboundUrl,
   getProofDisplaySafety,
+  coverAltText,
 } from "@/lib/dataQuality";
 import { Avatar, BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -1633,7 +1634,7 @@ export default async function BookDetailPage({ params }: Props) {
           {hasCover ? (
             <SafeImage
               src={book.cover_image_url}
-              alt={book.title}
+              alt={coverAltText(book.title, book.author)}
               className="w-10 h-14 object-cover rounded shrink-0"
               fallback={<div className="w-10 h-14 bg-subtle rounded shrink-0" aria-hidden />}
             />
