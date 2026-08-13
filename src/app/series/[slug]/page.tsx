@@ -23,13 +23,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
 }
 
+const SERIES_PAGE_SIZE = 100;
+
 export default async function SeriesDetailPage({ params }: Props) {
   const { slug } = await params;
   const series = await getSeriesBySlug(slug);
   if (!series) notFound();
 
+  // Series pages showed 48 of a series that can run to 868 titles, while the
+  // page's entire promise is "in order". A reading order truncated at 48 with
+  // no indication answers the question wrongly rather than partially. Matches
+  // the depth list pages now use; covers below the fold lazy-load.
   const [books, related] = await Promise.all([
-    getBooksBySeries(series.id, 48),
+    getBooksBySeries(series.id, SERIES_PAGE_SIZE),
     getRelatedSeries(series.id, 6),
   ]);
 
