@@ -1,14 +1,14 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getListBySlug, getBooksForList, getBooksForListByRecommendations, getRelatedLists } from "@/lib/data";
+import { getListBySlug, getBooksForList, getBooksForListByRecommendations, getRelatedLists, getRecommendersForBooks } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel } from "@/lib/display";
 import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl,
   coverAltText,
 } from "@/lib/dataQuality";
 import { itemListJsonLd } from "@/lib/jsonld";
-import { Breadcrumbs, SafeImage, EmptyState } from "@/components";
+import { Avatar, Breadcrumbs, SafeImage, EmptyState } from "@/components";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -33,6 +33,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
 }
 
+/**
+ * Books rendered on a list page. Raised from 48: book_count on these rows
+ * runs into the hundreds or thousands, so the page was showing a small
+ * fraction and labelling it as the whole list.
+ */
+const LIST_PAGE_SIZE = 100;
+
 export default async function ListDetailPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { sort } = await searchParams;
@@ -42,9 +49,16 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
   const kind = listKindFromSlug(list.slug);
   // Meta list: sort by books.recommendation_count and filter junk numeric/date titles.
   // Other lists: keep the imported rank order.
+  // How many books a list page shows.
+  //
+  // This was 48 while book_count on the same rows ran into the thousands, so
+  // a page headed "Best Mystery & Crime Books" showed 48 of 287 and captioned
+  // it "48 books curated" — the visitor had no way to know the rest existed.
+  // 100 matches the depth comparable sites publish and keeps a single render
+  // affordable; covers below the fold are lazy-loaded.
   const booksPromise = kind === "meta"
-    ? getBooksForListByRecommendations(list.id, 60)
-    : getBooksForList(list.id, 48);
+    ? getBooksForListByRecommendations(list.id, LIST_PAGE_SIZE)
+    : getBooksForList(list.id, LIST_PAGE_SIZE);
   const [booksRaw, relatedLists] = await Promise.all([
     booksPromise,
     getRelatedLists(list.id, 6),
@@ -56,9 +70,20 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
   if (booksRaw.length > 0 && filtered.length === 0) {
     console.warn(`[list=${list.slug}] title-hygiene filter removed all ${booksRaw.length} rows — falling back to raw set`);
   }
-  const books = (filtered.length > 0 ? filtered : repaired).slice(0, 48);
+  const books = (filtered.length > 0 ? filtered : repaired).slice(0, LIST_PAGE_SIZE);
 
   // In-memory sort parameters
+  // Who actually recommended the books on this page. Fetched after `books`
+  // because it is scoped to what the page shows, not the whole list.
+  const listRecommenders = await getRecommendersForBooks(books.map((b) => b.id), 12);
+
+  // book_count is the list's true membership size; it is what the caption
+  // compares against so "100 of 287" stays honest.
+  const totalInList =
+    typeof list.book_count === "number" && list.book_count > 0
+      ? list.book_count
+      : books.length;
+
   const activeSort = sort === "title" ? "title" : "recommendation";
   const sortedBooks = [...books];
   if (activeSort === "title") {
@@ -99,7 +124,12 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
           </span>
           {books.length > 0 && (
             <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0 mt-1">
-              {books.length} {books.length === 1 ? "book" : "books"} curated
+              {/* Say "N of M" whenever the list holds more than the page
+                  shows. "48 books curated" on a list of 287 read as the whole
+                  set and quietly understated the collection. */}
+              {totalInList > books.length
+                ? `${books.length} of ${totalInList.toLocaleString()} books`
+                : `${books.length} ${books.length === 1 ? "book" : "books"} curated`}
             </span>
           )}
           {totalRecs > 0 && (
@@ -382,6 +412,52 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
           signals live.
         </p>
       </section>
+
+      {/*
+        Who recommended these books.
+
+        A list is defined by the people behind it, and until now the page
+        never named one — there were zero list-to-person links anywhere on
+        the site. This is both the missing substance and the internal path
+        to profiles that little else points at. Ordered by how much of THIS
+        list each person accounts for.
+      */}
+      {listRecommenders.length > 0 && (
+        <section className="mt-10 pt-8 border-t border-border">
+          <h2 className="text-lg font-bold text-ink mb-1 tracking-tight">
+            Who recommended these books
+          </h2>
+          <p className="text-sm text-muted mb-5">
+            The people whose recommendations shaped this list.
+          </p>
+          <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {listRecommenders.map((r) => (
+              <li key={r.slug}>
+                <Link
+                  href={`/people/${r.slug}`}
+                  className="group flex items-center gap-3 rounded-xl border border-border bg-surface p-3 hover:border-accent/30 transition-colors"
+                >
+                  <Avatar
+                    name={r.name}
+                    slug={r.slug}
+                    avatarUrl={r.avatar_url}
+                    sizeClass="w-9 h-9"
+                    textClass="text-xs"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-ink truncate group-hover:text-accent transition-colors">
+                      {r.name}
+                    </span>
+                    <span className="block text-xs text-muted truncate">
+                      {r.bookCount} {r.bookCount === 1 ? "book" : "books"} here
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Navigation back and discovery footer prompts */}
       <div className="flex justify-between items-center mt-10 pt-6 border-t border-border text-sm flex-wrap gap-3">

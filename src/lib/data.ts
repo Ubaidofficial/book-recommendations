@@ -2185,3 +2185,79 @@ export async function getAuthorCatalogIndex(limit = 100): Promise<AuthorIndexIte
 }
 
 
+
+/**
+ * Recommenders behind a set of books, ranked by how many of them they backed.
+ *
+ * List pages linked to books and to nothing else — zero list-to-person links
+ * anywhere on the site, the mirror of the gap on profiles. A list is
+ * *defined* by who recommended its books, so those people belong on the page
+ * both as substance and as the internal path a crawler needs to reach
+ * profiles that little else points at.
+ *
+ * Ranked by coverage of THIS list rather than global popularity: a person who
+ * recommended nine of these books says more about the list than someone with
+ * a big overall count who happened to touch one.
+ */
+export interface ListRecommender {
+  slug: string;
+  name: string;
+  role: string | null;
+  avatar_url: string | null;
+  bookCount: number;
+}
+
+export async function getRecommendersForBooks(
+  bookIds: string[],
+  limit = 12,
+): Promise<ListRecommender[]> {
+  const ids = (bookIds || []).filter(Boolean);
+  if (ids.length === 0) return [];
+  try {
+    const supa = getSupabase();
+    const byPerson = new Map<string, ListRecommender>();
+    // Chunked to keep the `in` list inside a safe URL length, same as the
+    // other book-id fan-outs in this file.
+    const chunkSize = 100;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const { data, error } = await supa
+        .from("book_recommendations")
+        .select("book_id, people(slug, name, avatar_url, role, bio)")
+        .in("book_id", ids.slice(i, i + chunkSize));
+      if (error) {
+        logQueryError(`getRecommendersForBooks[chunk=${i / chunkSize}]`, error);
+        continue;
+      }
+      // PostgREST types an embedded to-one join as an array; the other
+      // joins in this file cast through unknown for the same reason.
+      type Row = {
+        book_id: string | null;
+        people: { slug: string | null; name: string | null; avatar_url: string | null; role: string | null; bio: string | null } | null;
+      };
+      for (const row of (data || []) as unknown as Row[]) {
+        const p = row.people;
+        if (!p || !p.slug || !p.name) continue;
+        const name = repairEncoding(p.name);
+        // Same launch-safety predicate the face grids use: drop bare-surname
+        // aggregate rows that would outrank the canonical full-name person.
+        if (isProfilelessSurnameAlias({ name, role: p.role, bio: p.bio, avatar_url: p.avatar_url })) continue;
+        const existing = byPerson.get(p.slug);
+        if (existing) existing.bookCount++;
+        else
+          byPerson.set(p.slug, {
+            slug: p.slug,
+            name,
+            role: repairEncoding(p.role) || null,
+            avatar_url: p.avatar_url,
+            bookCount: 1,
+          });
+      }
+    }
+    return [...byPerson.values()]
+      .sort((a, b) => b.bookCount - a.bookCount || a.name.localeCompare(b.name))
+      .slice(0, limit);
+  } catch (e) {
+    logQueryError("getRecommendersForBooks", e);
+    return [];
+  }
+}
