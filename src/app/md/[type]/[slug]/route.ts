@@ -140,7 +140,11 @@ export async function GET(
       "",
       book.description || "",
       "",
-      book.editorial_summary ? `## Summary\n\n${sanitizeEditorialText(book.editorial_summary)}\n` : "",
+      // An agent quoting this needs to know a machine wrote it, same as a
+      // reader does — arguably more, since it may be repeated as fact.
+      book.editorial_summary
+        ? `## Summary\n\n_AI-generated from the book description and its recommendation history; not human-reviewed._\n\n${sanitizeEditorialText(book.editorial_summary)}\n`
+        : "",
       `## Recommended by (${recommenders.length})`,
       "",
     ];

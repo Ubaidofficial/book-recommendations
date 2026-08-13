@@ -314,6 +314,16 @@ export default async function BookDetailPage({ params }: Props) {
     ? parseEditorialList(book.key_themes, { maxItems: 6, minLen: 3 })
     : [];
 
+  // Month + year is enough to date the editorial without implying a precision
+  // the pipeline does not have.
+  const aiGeneratedLabel = (() => {
+    if (!showEditorial || !book.ai_generated_at) return "";
+    const d = new Date(book.ai_generated_at);
+    return Number.isNaN(d.getTime())
+      ? ""
+      : d.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  })();
+
   const summaryHook = editorialSummary || whyRecSentence || "";
 
   // Before You Buy visibility rules based on at least 2 useful signal groups:
@@ -864,6 +874,27 @@ export default async function BookDetailPage({ params }: Props) {
                   </div>
                 )}
               </div>
+
+              {/*
+                Provenance disclosure.
+
+                This editorial is machine-generated and carries
+                ai_quality_status "draft" — accurate, because no human has
+                signed it off. The records read well and check out factually
+                on inspection, but publishing them silently asks the reader to
+                assume an editor stood behind them. Saying so plainly is the
+                honest position and the one Google's guidance asks for: the
+                test is whether content is helpful and its origin is not
+                misrepresented, not whether a machine wrote it.
+
+                Rendered only where that editorial actually appears, so pages
+                without it make no claim either way.
+              */}
+              <p className="text-xs text-muted/70 leading-relaxed">
+                {`This summary and audience guidance are AI-generated from the book's description and its recommendation history${
+                  aiGeneratedLabel ? `, last updated ${aiGeneratedLabel}` : ""
+                }. Recommendations, quotes and sources elsewhere on this page come from published material and are not generated.`}
+              </p>
 
               {normalizedAmazonUrl && (
                 <div className="flex justify-start">
