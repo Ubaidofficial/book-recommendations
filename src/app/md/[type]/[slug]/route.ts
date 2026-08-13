@@ -9,7 +9,7 @@ import {
 } from "@/lib/data";
 import { displayListTitleFull } from "@/lib/display";
 import { genreForBook } from "@/lib/bookGenres";
-import { parseSourceUrls, sanitizeEditorialText, getProofDisplaySafety } from "@/lib/dataQuality";
+import { parseSourceUrls, sanitizeEditorialText, getProofDisplaySafety, cleanQuoteText } from "@/lib/dataQuality";
 
 /**
  * /md/<type>/<slug> — the markdown twin of a page.
@@ -116,7 +116,7 @@ export async function GET(
       out.push(`### ${p.book.title}${p.book.author ? ` — ${p.book.author}` : ""}`);
       out.push(`${BASE_URL}/books/${p.book.slug}`);
       if (safety.showQuote && p.quote) {
-        out.push("", `> ${sanitizeEditorialText(p.quote).replace(/\s+/g, " ").trim()}`);
+        out.push("", `> ${cleanQuoteText(sanitizeEditorialText(p.quote))}`);
       }
       if (safety.showSource) {
         const sources = parseSourceUrls(p.source_url);
@@ -153,7 +153,7 @@ export async function GET(
       out.push(`### ${r.person_name}${r.role ? ` — ${r.role}` : ""}`);
       out.push(`${BASE_URL}/people/${r.person_slug}`);
       if (safety.showQuote && r.quote) {
-        out.push("", `> ${sanitizeEditorialText(r.quote).replace(/\s+/g, " ").trim()}`);
+        out.push("", `> ${cleanQuoteText(sanitizeEditorialText(r.quote))}`);
       }
       if (safety.showSource) {
         const sources = parseSourceUrls(r.source_url);

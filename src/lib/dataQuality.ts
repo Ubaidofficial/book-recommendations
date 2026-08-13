@@ -563,6 +563,34 @@ export function isProbablyValidBookTitle(title: string | null | undefined): bool
  * Does NOT mutate stored data. Apply at render time only. Conservative: meaning is
  * preserved, no aggressive rewriting beyond the specific jargon term.
  */
+/**
+ * Presentational cleanup for a pulled quote.
+ *
+ * These are largely tweets, so 87 of the 600 quotes that currently display
+ * open with the handles the author was replying to — "@ribas_artur
+ * @LauraHuangLA I know of no other collections of interviews with founders".
+ * As a pull-quote on the page that is the whole point of this site, that reads
+ * as broken data even though the words are genuine.
+ *
+ * Stripped at DISPLAY time, not in the database: the mentions are part of the
+ * original post, and removing them from storage would lose fidelity we cannot
+ * recover. The stored row stays exactly as captured.
+ *
+ * Only leading mentions go. A handle inside the sentence is usually load-
+ * bearing ("as @pmarca put it"), so it stays.
+ */
+export function cleanQuoteText(value: string | null | undefined): string {
+  let t = String(value || "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  // Reply chains can carry several handles before the first real word.
+  t = t.replace(/^(?:RT\s+)?(?:@[A-Za-z0-9_]{1,30}[\s,:]+)+/u, "").trim();
+  // A stripped trailing link often leaves a dangling connector.
+  t = t.replace(/[\s,:;\-–—]+$/u, "").trim();
+  // Re-capitalise only when the sentence now starts mid-flow in lowercase.
+  if (t && /^[a-z]/.test(t)) t = t.charAt(0).toUpperCase() + t.slice(1);
+  return t;
+}
+
 export function sanitizeEditorialText(text: string | null | undefined): string {
   if (!text) return "";
   let s = String(text);
@@ -855,7 +883,8 @@ export function getProofDisplaySafety(
     showSource,
     cardCue,
     warningText,
-    displayQuote: finalShowQuote ? quote : null
+    // Cleaned only for display; the stored row keeps the original post text.
+    displayQuote: finalShowQuote ? cleanQuoteText(quote) : null
   };
 }
 

@@ -34,6 +34,7 @@ import {
   normalizeOutboundUrl,
   getProofDisplaySafety,
   coverAltText,
+  cleanQuoteText,
 } from "@/lib/dataQuality";
 import { Avatar, BookCard, Breadcrumbs, SafeImage } from "@/components";
 
@@ -483,7 +484,7 @@ export default async function BookDetailPage({ params }: Props) {
                             {r.role && <p className="text-[10px] text-muted truncate mt-0.5">{r.role}</p>}
                             {r.quote && !r.quote.includes("|") && (
                               <p className="text-[11px] text-muted/80 leading-relaxed italic border-l border-accent/20 pl-2 mt-1 line-clamp-2">
-                                &ldquo;{r.quote}&rdquo;
+                                &ldquo;{cleanQuoteText(r.quote)}&rdquo;
                               </p>
                             )}
                             {firstSource && (

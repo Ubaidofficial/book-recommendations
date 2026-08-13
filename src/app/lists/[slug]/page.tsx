@@ -23,12 +23,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // The title tag carries the phrase people actually search ("Best Philosophy
   // Books"), not the bare subject; displayName stays short for prose.
   const seoName = displayListTitleFull(list.title, list.slug);
+  // Lists had no og:image, so every share of a list rendered as a bare text
+  // card while book and person pages showed artwork. The top-ranked book's
+  // cover is the honest representative image for the list.
+  let ogImage: string | undefined;
+  try {
+    const top = await getBooksForListCached(list.id, 1);
+    const cover = top[0]?.cover_image_url;
+    if (isValidHttpUrl(cover)) ogImage = cover;
+  } catch {
+    // A missing share image is not worth failing metadata generation over.
+  }
+
   return pageMetadata({
     title: seoName,
     description:
       list.description ||
       `The ${seoName.toLowerCase()} recommended most often, with the source behind every pick.`,
     path: `/lists/${list.slug}`,
+    image: ogImage,
     robots: robotsDirective(list),
   });
 }
