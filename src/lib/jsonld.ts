@@ -1,6 +1,7 @@
 import { Book, Person, BookList, Series } from "@/lib/data";
 import { isValidHttpUrl, isValidRating, isUsefulDescription } from "@/lib/dataQuality";
 import { sameAsFor, personSlugForAuthor } from "@/lib/entityLinks";
+import { genreForBook } from "@/lib/bookGenres";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmentions.net";
 
@@ -27,6 +28,8 @@ function bookListItem(book: Book): Record<string, unknown> {
     item.author = author;
   }
   if (isValidHttpUrl(book.cover_image_url)) item.image = book.cover_image_url;
+  const genre = genreForBook(book.slug);
+  if (genre) item.genre = genre;
   return item;
 }
 
@@ -64,6 +67,10 @@ export function bookJsonLd(book: Book | null, slug?: string): Record<string, unk
   if (book.isbn_13 || book.isbn_10) {
     mainEntity.isbn = book.isbn_13 || book.isbn_10;
   }
+  // Books carried no genre at all — there is no genre column, so the only
+  // classification was list membership, which schema.org cannot read.
+  const genre = genreForBook(slug || book.slug);
+  if (genre) mainEntity.genre = genre;
   if (isValidHttpUrl(book.cover_image_url)) {
     mainEntity.image = book.cover_image_url;
   }

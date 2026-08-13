@@ -8,6 +8,7 @@ import {
   getRecommendersForBooks,
 } from "@/lib/data";
 import { displayListTitleFull } from "@/lib/display";
+import { genreForBook } from "@/lib/bookGenres";
 import { parseSourceUrls, sanitizeEditorialText, getProofDisplaySafety } from "@/lib/dataQuality";
 
 /**
@@ -135,6 +136,7 @@ export async function GET(
       `# ${book.title}${book.author ? ` — ${book.author}` : ""}`,
       "",
       `Canonical: ${canonical}`,
+      genreForBook(book.slug) ? `Genre: ${genreForBook(book.slug)}` : "",
       "",
       book.description || "",
       "",
