@@ -8,7 +8,8 @@ import { SortSelect } from "./SortSelect";
 import { GlobalSearch } from "./GlobalSearch";
 import { HomepageVisual } from "./HomepageVisual";
 import { SafeImage } from "./SafeImage";
+import { Avatar } from "./Avatar";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { BookCardSkeleton, PersonCardSkeleton, ListCardSkeleton, EmptyState } from "./Skeletons";
 
-export { SectionHeading, BookCard, PersonCard, ListCard, SeriesCard, SearchBar, SortSelect, GlobalSearch, HomepageVisual, SafeImage, Breadcrumbs, BookCardSkeleton, PersonCardSkeleton, ListCardSkeleton, EmptyState };
+export { SectionHeading, BookCard, PersonCard, ListCard, SeriesCard, SearchBar, SortSelect, GlobalSearch, HomepageVisual, SafeImage, Avatar, Breadcrumbs, BookCardSkeleton, PersonCardSkeleton, ListCardSkeleton, EmptyState };

@@ -34,7 +34,7 @@ import {
   normalizeOutboundUrl,
   getProofDisplaySafety,
 } from "@/lib/dataQuality";
-import { BookCard, Breadcrumbs, SafeImage } from "@/components";
+import { Avatar, BookCard, Breadcrumbs, SafeImage } from "@/components";
 
 // Detail-page cover fallback — calmer than the previous oversized-purple version.
 // Subtle neutral gradient, small icon, readable but non-dominant title, "Cover unavailable" caption.
@@ -1086,15 +1086,14 @@ export default async function BookDetailPage({ params }: Props) {
                   href={`/people/${r.person_slug}`}
                   className="group flex items-center gap-3 min-w-0 flex-1"
                 >
-                  <div className="w-10 h-10 rounded-full bg-subtle overflow-hidden shrink-0 ring-1 ring-border flex items-center justify-center">
-                    {isValidHttpUrl(r.avatar_url) ? (
-                      <img src={r.avatar_url!} alt={r.person_name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-sm font-bold text-muted/40">
-                        {(r.person_name || "?").charAt(0)}
-                      </span>
-                    )}
-                  </div>
+                  <Avatar
+                    name={r.person_name}
+                    slug={r.person_slug}
+                    avatarUrl={r.avatar_url}
+                    sizeClass="w-10 h-10"
+                    textClass="text-sm"
+                    className="ring-1 ring-border"
+                  />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-ink truncate group-hover:text-accent transition-colors">
                       {r.person_name}
@@ -1163,13 +1162,14 @@ export default async function BookDetailPage({ params }: Props) {
                       href={`/people/${p.person.slug}`}
                       className="flex items-center gap-3 mb-3 hover:opacity-80 transition-opacity"
                     >
-                      <div className="w-10 h-10 rounded-full bg-subtle overflow-hidden shrink-0 ring-1 ring-border flex items-center justify-center">
-                        {isValidHttpUrl(p.person.avatar_url) ? (
-                          <img src={p.person.avatar_url} alt={p.person.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-sm font-bold text-muted/40">{p.person.name.charAt(0)}</span>
-                        )}
-                      </div>
+                      <Avatar
+                        name={p.person.name}
+                        slug={p.person.slug}
+                        avatarUrl={p.person.avatar_url}
+                        sizeClass="w-10 h-10"
+                        textClass="text-sm"
+                        className="ring-1 ring-border"
+                      />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-ink truncate">{p.person.name}</p>
                         <p className="text-xs text-muted">{p.person.role}</p>
@@ -1177,13 +1177,14 @@ export default async function BookDetailPage({ params }: Props) {
                     </Link>
                   ) : (
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-full bg-subtle overflow-hidden shrink-0 ring-1 ring-border flex items-center justify-center">
-                        {isValidHttpUrl(p.person.avatar_url) ? (
-                          <img src={p.person.avatar_url} alt={p.person.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-sm font-bold text-muted/40">{p.person.name.charAt(0)}</span>
-                        )}
-                      </div>
+                      <Avatar
+                        name={p.person.name}
+                        slug={p.person.slug}
+                        avatarUrl={p.person.avatar_url}
+                        sizeClass="w-10 h-10"
+                        textClass="text-sm"
+                        className="ring-1 ring-border"
+                      />
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-ink truncate">{p.person.name}</p>
                         <p className="text-xs text-muted">{p.person.role}</p>
