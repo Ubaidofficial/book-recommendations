@@ -149,6 +149,14 @@ const nextConfig = {
         destination: "/people/matt-davella",
         permanent: true,
       },
+      // Same apostrophe-loss class as the person slug above: "Children's
+      // Fiction" was stored as "Children'sFiction" and slugged from the
+      // mangled form.
+      {
+        source: "/lists/children-sfiction",
+        destination: "/lists/childrens-fiction",
+        permanent: true,
+      },
     ];
   },
 
