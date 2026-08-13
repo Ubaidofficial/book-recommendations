@@ -114,7 +114,10 @@ export default async function PersonDetailPage({ params }: Props) {
             {hasAvatar ? (
               <SafeImage
                 src={person.avatar_url}
-                alt={person.name}
+                // A bare name repeats the H1 directly above it. Naming what
+                // the image is, and the page it sits on, describes it for
+                // image search instead.
+                alt={`${person.name}${person.role ? `, ${person.role}` : ""} — book recommendations`}
                 className="w-full h-full object-cover"
                 fallback={<span className="text-2xl font-bold text-muted/40">{person.name.charAt(0)}</span>}
               />

@@ -1129,12 +1129,30 @@ export async function getRelatedLists(listId: string, limit = 6): Promise<BookLi
                 const s = (c.slug || "").toLowerCase();
                 if (s === META) return false;            // exclude meta from co-membership fill
                 if (BROAD.has(s)) return false;          // exclude broad parents
-                if (!s.startsWith("best-")) return false; // only other topic lists
+                // Recommender lists share books with almost everything, so on
+                // co-membership alone they outrank real topical siblings —
+                // "Best Philosophy Books" related to "Books Recommended by
+                // CEOs" is a shared-inventory artefact, not a relationship.
+                if (s.startsWith("books-recommended-by-")) return false;
+                // Category lists (buddhism, architecture, mystery-crime) were
+                // excluded here as "not topic lists". They now render as
+                // "Best X Books" and answer the same shape of query, and
+                // excluding them left detail pages showing one related link
+                // where six were requested.
                 return true;
               })
-              .map((c) => ({ c, shared: counts.get(c.id) || 0, bc: c.book_count || 1e9 }))
+              // Raw shared-book count rewards size: a 4,000-book catch-all
+              // shares more with everything than a tight genre list does, so
+              // "adult" and "teen-young" surfaced as related to philosophy.
+              // Dividing by sqrt(book_count) asks how much of the overlap is
+              // distinctive rather than incidental.
+              .map((c) => {
+                const shared = counts.get(c.id) || 0;
+                const bc = c.book_count && c.book_count > 0 ? c.book_count : 1e9;
+                return { c, score: shared / Math.sqrt(bc), shared, bc };
+              })
               .sort((a, b) => {
-                if (a.shared !== b.shared) return b.shared - a.shared;
+                if (a.score !== b.score) return b.score - a.score;
                 return a.bc - b.bc;
               })
               .map((x) => x.c);
@@ -1144,7 +1162,61 @@ export async function getRelatedLists(listId: string, limit = 6): Promise<BookLi
       return [...tokenPick, ...coRanked].slice(0, limit);
     }
 
-    // Non-topic (broad/meta): show top best-* topic lists as discovery
+    // Non-topic lists (categories, broad parents, meta).
+    //
+    // These used to get "the globally largest best-* lists", which meant all
+    // 46 category pages rendered the SAME six related links regardless of
+    // subject — Buddhism and Mystery & Crime pointed at an identical set.
+    // Co-membership gives each page its own neighbourhood; the global list
+    // stays only as a last resort for lists with no book overlap at all.
+    const { data: myLinks } = await supa
+      .from("book_lists")
+      .select("book_id")
+      .eq("list_id", listId)
+      .limit(100);
+    const myBookIds = (myLinks || [])
+      .map((r: { book_id: string | null }) => r.book_id)
+      .filter((x): x is string => !!x);
+
+    if (myBookIds.length > 0) {
+      const { data: coLinks } = await supa
+        .from("book_lists")
+        .select("list_id")
+        .in("book_id", myBookIds)
+        .neq("list_id", listId)
+        .limit(5000);
+      const counts = new Map<string, number>();
+      for (const r of (coLinks || []) as Array<{ list_id: string }>) {
+        if (r.list_id) counts.set(r.list_id, (counts.get(r.list_id) || 0) + 1);
+      }
+      if (counts.size > 0) {
+        const { data: cands } = await supa
+          .from("lists")
+          .select("*")
+          .in("id", Array.from(counts.keys()))
+          .or(LIST_PUBLIC_OR)
+          .not("slug", "is", null)
+          .neq("slug", "");
+        const BROAD2 = new Set(BROAD_CATEGORY_SLUGS);
+        const ranked = ((cands || []) as BookList[])
+          .filter((c) => {
+            const cs = (c.slug || "").toLowerCase();
+            if (cs === "most-recommended-books") return false;
+            if (BROAD2.has(cs)) return false;
+            if (cs.startsWith("books-recommended-by-")) return false;
+            return true;
+          })
+          .map((c) => {
+            const shared = counts.get(c.id) || 0;
+            const bc = c.book_count && c.book_count > 0 ? c.book_count : 1e9;
+            return { c, score: shared / Math.sqrt(bc), bc };
+          })
+          .sort((a, b) => (a.score !== b.score ? b.score - a.score : a.bc - b.bc))
+          .map((x) => x.c);
+        if (ranked.length > 0) return ranked.slice(0, limit);
+      }
+    }
+
     const { data: fallback } = await supa
       .from("lists")
       .select("*")

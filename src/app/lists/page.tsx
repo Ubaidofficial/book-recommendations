@@ -52,7 +52,11 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   }
 
   return pageMetadata({
-    title: "Book Lists",
+    // "Book Lists" spends the title on the page's furniture. The head terms
+    // here are all KD 44-74 ("book lists" 44, "books to read" 74), so this is
+    // not an attempt to win them — it is to describe the content, which is
+    // what the long tail actually matches on.
+    title: "Curated Book Lists by Topic",
     description: LISTS_HUB_DESCRIPTION,
     path: "/lists",
     robots: "index, follow",

@@ -378,7 +378,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                 className="p-3.5 rounded-xl border border-border bg-surface hover:border-accent/20 motion-card-hover"
               >
                 <div className="flex items-start justify-between gap-2 mb-1">
-                  <p className="text-sm font-semibold text-ink">{displayListTitle(rl.title, rl.slug)}</p>
+                  <p className="text-sm font-semibold text-ink">{displayListTitleFull(rl.title, rl.slug)}</p>
                   {rl.book_count > 0 && (
                     <span className="text-xs text-muted shrink-0">{rl.book_count} books</span>
                   )}

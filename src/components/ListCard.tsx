@@ -22,11 +22,12 @@ const KIND_BADGE_STYLE: Record<ListKind, string> = {
 
 export function ListCard({ title, slug, description, bookCount, curator, kind, hideKind }: ListCardProps) {
   const resolvedKind: ListKind = kind || listKindFromSlug(slug);
-  // Disambiguate browse/search rows: topic lists render as "Best X Books",
-  // categories/meta keep their short clean title.
-  const displayName = resolvedKind === "topic"
-    ? displayListTitleFull(title, slug)
-    : displayListTitle(title, slug);
+  // Card titles double as internal anchor text, so they carry the phrase the
+  // target page ranks for. displayListTitleFull already returns the short
+  // clean title for meta and series-style lists, so this branch only served
+  // to suppress the phrase on category lists — which target "Best X Books"
+  // just as topic lists do.
+  const displayName = displayListTitleFull(title, slug);
   return (
     <Link
       href={`/lists/${slug}`}

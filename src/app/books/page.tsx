@@ -29,7 +29,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   );
 
   return pageMetadata({
-    title: "Browse Books",
+    title: "Books Recommended by Notable People",
     description: "Explore recommended books ranked by recommendation signals, lists, series, ratings, and source-backed mentions.",
     path: "/books",
     robots: hasParams ? "noindex, follow" : "index, follow",
