@@ -15,6 +15,10 @@ export function Header() {
             src="/bookmentions-logo.png"
             alt="BookMentions"
             className="h-8 w-8 rounded-full object-cover"
+            // Intrinsic size reserves the box before the file lands, so the
+            // header does not shift the page under it on first paint.
+            width={32}
+            height={32}
           />
           <span>BookMentions</span>
         </Link>

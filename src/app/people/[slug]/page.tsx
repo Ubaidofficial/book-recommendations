@@ -2,9 +2,9 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  getPersonBySlug,
+  getPersonBySlugCached,
   getBooksByAuthor,
-  getPersonRecommendationProof,
+  getPersonRecommendationProofCached,
   getPersonRecommendedCount,
   getPersonWrittenCount,
   getQualityPeople,
@@ -24,13 +24,27 @@ import {
 } from "@/lib/dataQuality";
 import { Avatar, BookCard, Breadcrumbs, SafeImage } from "@/components";
 
+/**
+ * Incremental static regeneration.
+ *
+ * This page had no caching declaration, so every request server-rendered it
+ * against Supabase — production TTFB measured 1-8 seconds, against Google's
+ * 0.8s "good" threshold, on a page whose content changes rarely.
+ *
+ * It reads only `params`, never searchParams/cookies/headers, so it qualifies
+ * for ISR: serve cached HTML instantly, regenerate in the background every
+ * five minutes. Recommendation data is not real-time; five minutes of
+ * staleness costs nothing a visitor would notice.
+ */
+export const revalidate = 300;
+
 interface Props {
   params: Promise<{ slug: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const person = await getPersonBySlug(slug);
+  const person = await getPersonBySlugCached(slug);
   if (!person) return { robots: "noindex, follow" };
   const desc = isUsefulDescription(person.meta_description)
     ? person.meta_description
@@ -48,11 +62,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PersonDetailPage({ params }: Props) {
   const { slug } = await params;
-  const person = await getPersonBySlug(slug);
+  const person = await getPersonBySlugCached(slug);
   if (!person) notFound();
 
   let writtenBooks: Awaited<ReturnType<typeof getBooksByAuthor>> = [];
-  let rawProof: Awaited<ReturnType<typeof getPersonRecommendationProof>> = [];
+  let rawProof: Awaited<ReturnType<typeof getPersonRecommendationProofCached>> = [];
   let recommendedCount = 0;
   let writtenCount = 0;
   let otherPeople: Awaited<ReturnType<typeof getQualityPeople>> = [];
@@ -60,7 +74,7 @@ export default async function PersonDetailPage({ params }: Props) {
   try {
     [writtenBooks, rawProof, recommendedCount, writtenCount] = await Promise.all([
       getBooksByAuthor(person.id, 24),
-      getPersonRecommendationProof(person.id, 24),
+      getPersonRecommendationProofCached(person.id, 24),
       getPersonRecommendedCount(person.id),
       getPersonWrittenCount(person.id),
     ]);

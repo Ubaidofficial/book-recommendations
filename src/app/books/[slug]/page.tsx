@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  getBookBySlug,
+  getBookBySlugCached,
   getBooksByAuthor,
   getBooksBySeries,
   getRecommendationProof,
@@ -60,13 +60,27 @@ function isValidSlug(slug: string | null | undefined): boolean {
   return s !== "" && s !== "undefined" && s !== "null";
 }
 
+/**
+ * Incremental static regeneration.
+ *
+ * This page had no caching declaration, so every request server-rendered it
+ * against Supabase — production TTFB measured 1-8 seconds, against Google's
+ * 0.8s "good" threshold, on a page whose content changes rarely.
+ *
+ * It reads only `params`, never searchParams/cookies/headers, so it qualifies
+ * for ISR: serve cached HTML instantly, regenerate in the background every
+ * five minutes. Recommendation data is not real-time; five minutes of
+ * staleness costs nothing a visitor would notice.
+ */
+export const revalidate = 300;
+
 interface Props {
   params: Promise<{ slug: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const book = await getBookBySlug(slug);
+  const book = await getBookBySlugCached(slug);
   if (!book) return { robots: "noindex, follow" };
   const desc = isUsefulDescription(book.meta_description)
     ? book.meta_description
@@ -85,7 +99,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BookDetailPage({ params }: Props) {
   const { slug } = await params;
-  const book = await getBookBySlug(slug);
+  const book = await getBookBySlugCached(slug);
   if (!book) notFound();
 
   // Repaired Amazon CTA href. `book.amazon_url` is malformed for ~23% of
@@ -533,8 +547,12 @@ export default async function BookDetailPage({ params }: Props) {
               {hasCover ? (
                 <SafeImage
                   src={book.cover_image_url}
-                  alt={displayBookTitle(book.title)}
+                  alt={coverAltText(book.title, book.author)}
                   className="w-full h-full object-cover"
+                  // The book's own cover is this page's largest contentful
+                  // paint. SafeImage is lazy by default for grids; the hero
+                  // is the one image that must not wait.
+                  loading="eager"
                   fallback={<DetailCoverFallback title={displayBookTitle(book.title)} />}
                 />
               ) : (

@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { supabase as getSupabase } from "./supabase";
 import { isProfilelessSurnameAlias, repairEncoding } from "./dataQuality";
 
@@ -297,6 +298,30 @@ export async function getFeaturedBooks(count = 6): Promise<Book[]> {
     return [];
   }
 }
+
+/**
+ * Detail-page reads are wrapped in unstable_cache so the route can be static.
+ *
+ * supabase-js issues its queries through fetch, and since Next 15 an uncached
+ * fetch in the render path forces the entire route to render per request —
+ * which is why book and person pages measured 1-8s TTFB against Google's 0.8s
+ * threshold despite content that barely changes. Caching the read lets ISR
+ * actually take effect.
+ *
+ * Keyed by slug and tagged so a future write path can revalidate precisely
+ * instead of waiting out the window.
+ */
+export const getBookBySlugCached = (slug: string) =>
+  unstable_cache(() => getBookBySlug(slug), ["book-by-slug", slug], {
+    revalidate: 300,
+    tags: ["books", `book:${slug}`],
+  })();
+
+export const getPersonBySlugCached = (slug: string) =>
+  unstable_cache(() => getPersonBySlug(slug), ["person-by-slug", slug], {
+    revalidate: 300,
+    tags: ["people", `person:${slug}`],
+  })();
 
 export async function getBookBySlug(slug: string): Promise<Book | null> {
   try {
@@ -2333,3 +2358,54 @@ export async function getRecommendersForBooks(
     return [];
   }
 }
+
+/**
+ * Cached wrappers for the expensive detail-page reads.
+ *
+ * Wrapping every read would let the routes go fully static, but the win that
+ * matters is already here: the latency is Supabase round-trips, not React
+ * rendering, so caching the queries cuts TTFB whether or not the route stays
+ * dynamic. A list page issues one membership query, one books fetch, a
+ * recommender fan-out and a related-lists ranking — all for content that
+ * changes on a human timescale.
+ *
+ * Five minutes, tagged so a write path can revalidate precisely later.
+ */
+export const getBooksForListCached = (listId: string, limit: number) =>
+  unstable_cache(() => getBooksForList(listId, limit), ["books-for-list", listId, String(limit)], {
+    revalidate: 300,
+    tags: ["lists", `list:${listId}`],
+  })();
+
+export const getBooksForListByRecommendationsCached = (listId: string, limit: number) =>
+  unstable_cache(
+    () => getBooksForListByRecommendations(listId, limit),
+    ["books-for-list-rec", listId, String(limit)],
+    { revalidate: 300, tags: ["lists", `list:${listId}`] },
+  )();
+
+export const getRelatedListsCached = (listId: string, limit: number) =>
+  unstable_cache(() => getRelatedLists(listId, limit), ["related-lists", listId, String(limit)], {
+    revalidate: 900,
+    tags: ["lists"],
+  })();
+
+export const getRecommendersForBooksCached = (bookIds: string[], limit: number) =>
+  unstable_cache(
+    () => getRecommendersForBooks(bookIds, limit),
+    ["recommenders-for-books", bookIds.slice(0, 40).join(",").slice(0, 400), String(limit)],
+    { revalidate: 900, tags: ["recommendations"] },
+  )();
+
+export const getBookRecommendersCached = (bookId: string, limit: number) =>
+  unstable_cache(() => getBookRecommenders(bookId, limit), ["book-recommenders", bookId, String(limit)], {
+    revalidate: 300,
+    tags: ["recommendations", `book:${bookId}`],
+  })();
+
+export const getPersonRecommendationProofCached = (personId: string, limit: number) =>
+  unstable_cache(
+    () => getPersonRecommendationProof(personId, limit),
+    ["person-proof", personId, String(limit)],
+    { revalidate: 300, tags: ["recommendations", `person:${personId}`] },
+  )();

@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getListBySlug, getBooksForList, getBooksForListByRecommendations, getRelatedLists, getRecommendersForBooks } from "@/lib/data";
+import { getListBySlug, getBooksForListCached, getBooksForListByRecommendationsCached, getRelatedListsCached, getRecommendersForBooksCached } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel } from "@/lib/display";
 import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl,
@@ -57,11 +57,11 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
   // 100 matches the depth comparable sites publish and keeps a single render
   // affordable; covers below the fold are lazy-loaded.
   const booksPromise = kind === "meta"
-    ? getBooksForListByRecommendations(list.id, LIST_PAGE_SIZE)
-    : getBooksForList(list.id, LIST_PAGE_SIZE);
+    ? getBooksForListByRecommendationsCached(list.id, LIST_PAGE_SIZE)
+    : getBooksForListCached(list.id, LIST_PAGE_SIZE);
   const [booksRaw, relatedLists] = await Promise.all([
     booksPromise,
-    getRelatedLists(list.id, 6),
+    getRelatedListsCached(list.id, 6),
   ]);
   // Defensive junk-title repair + filter for ALL lists. If the filter would empty
   // the grid (e.g. unexpected data shape), keep the raw set so the page is never empty.
@@ -75,7 +75,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
   // In-memory sort parameters
   // Who actually recommended the books on this page. Fetched after `books`
   // because it is scoped to what the page shows, not the whole list.
-  const listRecommenders = await getRecommendersForBooks(books.map((b) => b.id), 12);
+  const listRecommenders = await getRecommendersForBooksCached(books.map((b) => b.id), 12);
 
   // book_count is the list's true membership size; it is what the caption
   // compares against so "100 of 287" stays honest.
