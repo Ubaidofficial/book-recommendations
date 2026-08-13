@@ -261,6 +261,23 @@ export function listKindLabel(kind: ListKind): string {
  * topic list "best-fashion-books"). Topic lists render as **"Best X Books"** so
  * the two are visually distinct. Non-topic lists fall through to displayListTitle.
  */
+/**
+ * Topics that are already a kind of book, so the "Books" suffix is wrong.
+ *
+ * The wrapper builds "Best <topic> Books", which reads correctly for a subject
+ * ("Best Philosophy Books") and badly for a format: "Best Memoirs Books". The
+ * searched phrases are "best memoirs" and "best biographies" with no suffix.
+ */
+const FORMAT_TOPICS = new Set([
+  "memoirs",
+  "biographies",
+  "essays",
+  "graphic-novels",
+  "short-stories",
+  "textbooks",
+  "cookbooks",
+]);
+
 export function displayListTitleFull(
   rawTitle: string | null | undefined,
   slug?: string | null,
@@ -279,5 +296,6 @@ export function displayListTitleFull(
   const lc = core.toLowerCase();
   const looksWrapped = lc.startsWith("best ") || lc.endsWith(" books");
   if (looksWrapped) return core;
+  if (FORMAT_TOPICS.has((slug || "").toLowerCase())) return `Best ${core}`;
   return `Best ${core} Books`;
 }
