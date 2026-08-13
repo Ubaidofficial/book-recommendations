@@ -579,6 +579,27 @@ export function sanitizeEditorialText(text: string | null | undefined): string {
 }
 
 /**
+ * Repair Windows-1252 smart punctuation that survived import as `_x00NN_`
+ * escapes — "Matt D_x0092_Avella" should read "Matt D’Avella".
+ *
+ * This is a render-time guard, not a substitute for fixing the stored value:
+ * the escapes are scattered through book descriptions as well as names, and a
+ * page should never show one even if a row was missed by a backfill. Mirrors
+ * repairEncoding() in scripts/backfill_people_meta.js — keep the two in step.
+ */
+export function repairEncoding(value: string | null | undefined): string {
+  if (!value) return "";
+  return String(value)
+    .replace(/_x0091_|_x0092_|_x2018_|_x2019_/g, "’")
+    .replace(/_x0093_|_x0094_|_x201C_|_x201D_/g, '"')
+    .replace(/_x0096_|_x0097_|_x2013_|_x2014_/g, "—")
+    .replace(/_x0085_/g, "…")
+    .replace(/_x00A0_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
  * Where reasonable, repair a numeric-looking title like "1984.0" into "1984".
  * Only repairs strings of the form integer + ".0" (the common Excel-as-float export).
  * Returns the original string when no safe repair applies.

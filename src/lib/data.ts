@@ -1,5 +1,23 @@
 import { supabase as getSupabase } from "./supabase";
-import { isProfilelessSurnameAlias } from "./dataQuality";
+import { isProfilelessSurnameAlias, repairEncoding } from "./dataQuality";
+
+/**
+ * People rows reach the UI straight off the table, so a stored `_x00NN_`
+ * escape renders verbatim (it shipped "Matt D_x0092_Avella" to a live,
+ * indexed page). Repair the display strings on the way out; every accessor
+ * that returns a Person passes through here.
+ */
+function normalizePerson<T extends { name?: string | null; role?: string | null; bio?: string | null }>(
+  row: T,
+): T {
+  if (!row) return row;
+  return {
+    ...row,
+    ...(row.name != null ? { name: repairEncoding(row.name) } : {}),
+    ...(row.role != null ? { role: repairEncoding(row.role) } : {}),
+    ...(row.bio != null ? { bio: repairEncoding(row.bio) } : {}),
+  };
+}
 
 // --- Types (matched to actual Supabase schema) ---
 
@@ -453,7 +471,7 @@ export async function getPeoplePaginated(
       .range(from, to);
 
     if (error) { logQueryError("getPeoplePaginated", error); return { data: [], total: 0, page, pageSize }; }
-    return { data: data || [], total: (data || []).length, page, pageSize };
+    return { data: (data || []).map(normalizePerson), total: (data || []).length, page, pageSize };
   } catch (e) {
     logQueryError("getPeoplePaginated", e);
     return { data: [], total: 0, page, pageSize };
@@ -469,7 +487,7 @@ export async function getFeaturedPeople(count = 4): Promise<Person[]> {
       .limit(count);
 
     if (error) { logQueryError("getFeaturedPeople", error); return []; }
-    return data || [];
+    return (data || []).map(normalizePerson);
   } catch (e) {
     logQueryError("getFeaturedPeople", e);
     return [];
@@ -486,7 +504,7 @@ export async function getQualityPeople(batch = 100): Promise<Person[]> {
       .limit(batch);
 
     if (error) { logQueryError("getQualityPeople", error); return []; }
-    return data || [];
+    return (data || []).map(normalizePerson);
   } catch (e) {
     logQueryError("getQualityPeople", e);
     return [];
@@ -559,7 +577,7 @@ export async function getPersonBySlug(slug: string): Promise<Person | null> {
       .single();
 
     if (error) { logQueryError("getPersonBySlug", error); return null; }
-    return data;
+    return data ? normalizePerson(data) : null;
   } catch (e) {
     logQueryError("getPersonBySlug", e);
     return null;
@@ -1270,7 +1288,7 @@ export async function getRecommendationProof(
         confidence_score: number | null;
         people: unknown;
       }) => ({
-        person: r.people as Person,
+        person: normalizePerson(r.people as Person),
         source_url: r.source_url,
         source_name: r.source_name,
         quote: r.quote,
@@ -1366,7 +1384,7 @@ export async function getBookRecommenders(
       if (!p) continue;
       const pid = (p.id || "").trim();
       const slug = (p.slug || "").trim();
-      const name = (p.name || "").trim();
+      const name = repairEncoding(p.name);
       if (!pid) continue;
       if (!slug || slug === "undefined" || slug === "null") continue;
       if (!name) continue;

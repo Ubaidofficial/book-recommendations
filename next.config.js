@@ -141,6 +141,14 @@ const nextConfig = {
         destination: "/people/mark-zuckerberg",
         permanent: true,
       },
+      // The apostrophe in "Matt D'Avella" survived import as the Windows-1252
+      // escape `_x0092_`, which ended up baked into both the stored name and
+      // the slug. Both are repaired; this keeps the indexed URL alive.
+      {
+        source: "/people/matt-d-x0092-avella",
+        destination: "/people/matt-davella",
+        permanent: true,
+      },
     ];
   },
 
