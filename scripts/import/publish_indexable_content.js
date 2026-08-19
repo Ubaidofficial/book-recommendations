@@ -4,6 +4,15 @@
  * Bulk-update index_status to 'published' for books and people that
  * meet quality thresholds, making them eligible for Google indexing.
  *
+ * ⚠️  NOT the daily-cadence tool. This promotes every eligible row in one
+ * shot, with no tiering (pillar/cluster pages are not prioritized over
+ * individual books) and no daily cap — dumping thousands of pages into the
+ * index at once reads as a spam pattern to Google and works against the
+ * paced, pillar-first rollout this site now uses. For routine publishing,
+ * use `publish_batch_pages.js` (tiered: pillar lists > cluster lists/series
+ * > books/people, small daily quota). Reserve this script for one-off bulk
+ * catch-up situations, reviewed with DRY_RUN first as always.
+ *
  * SAFETY:
  *   - DRY RUN by default. Set DRY_RUN=false to actually write.
  *   - Shows exactly what will change before committing.
