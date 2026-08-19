@@ -151,7 +151,7 @@ async function processBooks() {
   while (true) {
     const { data, error } = await sb
       .from('books')
-      .select('id, title, author_name, recommendation_count, index_status')
+      .select('id, title, author_name, cover_image_url, recommendation_count, index_status')
       .eq('index_status', 'noindex')
       .gte('recommendation_count', MIN_BOOK_RECS)
       .range(offset, offset + PAGE - 1);
@@ -160,7 +160,9 @@ async function processBooks() {
     if (!data || data.length === 0) break;
 
     for (const book of data) {
-      if (isUsefulTitle(book.title) && isUsefulText(book.author_name)) {
+      // Hard gate: never publish a book with no valid cover image.
+      const hasCover = book.cover_image_url && /^https?:\/\//i.test(book.cover_image_url);
+      if (isUsefulTitle(book.title) && isUsefulText(book.author_name) && hasCover) {
         eligible.push(book.id);
       }
     }
@@ -199,7 +201,7 @@ async function processPeople() {
   while (true) {
     const { data, error } = await sb
       .from('people')
-      .select('id, name, slug, bio, index_status, recs:book_recommendations(count)')
+      .select('id, name, slug, bio, avatar_url, index_status, recs:book_recommendations(count)')
       .eq('index_status', 'draft')
       .range(offset, offset + PAGE - 1);
 
@@ -208,7 +210,9 @@ async function processPeople() {
 
     for (const person of data) {
       const recCount = (person.recs && person.recs[0]) ? (person.recs[0].count || 0) : 0;
-      if (isUsefulText(person.bio) && recCount >= MIN_PERSON_RECS) {
+      // Hard gate: never publish a person with no valid avatar image.
+      const hasAvatar = person.avatar_url && /^https?:\/\//i.test(person.avatar_url);
+      if (isUsefulText(person.bio) && recCount >= MIN_PERSON_RECS && hasAvatar) {
         eligible.push({ id: person.id, name: person.name, slug: person.slug, recs: recCount });
       }
     }

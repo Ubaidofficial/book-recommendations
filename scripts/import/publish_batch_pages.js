@@ -4,8 +4,14 @@
  *
  * Promotes pages toward `index_status = 'published'` in strict tier order,
  * so pillar and cluster pages always win a promotion slot before individual
- * book/person pages do — and publishes a small, steady daily drip of new
- * content so Google's crawler always has something fresh to find.
+ * book/person pages do — and publishes a small, steady daily drip (target:
+ * 3-4 pages/day, see DAILY_BATCH_SIZE) so Google's crawler always has
+ * something fresh to find.
+ *
+ * Hard requirement, not a scoring bonus: no book or person is ever eligible
+ * for promotion without a valid image (cover_image_url / avatar_url). A
+ * candidate missing its image simply never enters the pool below — this is
+ * the one gate every tier goes through before a page can go public.
  *
  * TIERS (checked and filled in this order):
  *   Tier 1 — Pillar: the ~31 broad-category list pages (Fiction, Nonfiction,
@@ -55,7 +61,10 @@ const { createClient } = require('@supabase/supabase-js');
 // ---------------------------------------------------------------------------
 
 const isWrite = process.argv.includes('--write') || process.env.DRY_RUN === 'false';
-const DAILY_BATCH_SIZE = parseInt(process.env.DAILY_BATCH_SIZE || process.env.BATCH_SIZE || '3', 10);
+// Target cadence is 3-4 pages/day; default to the upper bound so the daily
+// job never falls short of the rule. Override with DAILY_BATCH_SIZE=3 on
+// slower days if desired.
+const DAILY_BATCH_SIZE = parseInt(process.env.DAILY_BATCH_SIZE || process.env.BATCH_SIZE || '4', 10);
 
 function loadEnvFile() {
   const envPath = path.join(__dirname, '../../.env.local');
@@ -284,14 +293,18 @@ async function findTier3Candidates() {
 
     const count = pCounts[p.id] || 0;
     const hasFullName = p.name && p.name.trim().includes(' ');
-    if (count >= 10 && hasFullName) {
+    // Hard gate, not a scoring bonus: a published person page with no photo
+    // is exactly the "no book or person on a published URL without an
+    // image" gap this pipeline exists to prevent.
+    const hasAvatar = p.avatar_url && /^https?:\/\//i.test(p.avatar_url);
+    if (count >= 10 && hasFullName && hasAvatar) {
       candidates.push({
         tier: 3,
         type: 'person',
         id: p.id,
         slug: p.slug,
         title: p.name,
-        score: count * 10 + (p.bio ? 5 : 0) + (p.avatar_url ? 5 : 0),
+        score: count * 10 + (p.bio ? 5 : 0),
         detail: `${count} recs`,
         table: 'people',
         target_status: 'published',
