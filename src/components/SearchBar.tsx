@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 interface SearchBarProps {
   placeholder?: string;
@@ -11,29 +12,50 @@ export function SearchBar({
   placeholder = "Search...",
   className = "",
 }: SearchBarProps) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const params = new URLSearchParams(window.location.search);
-        if (query.length >= 2) {
-          params.set("q", query);
-        } else {
-          params.delete("q");
-        }
-        window.location.search = params.toString();
+  // router.replace() keeps this a soft, client-side navigation (re-fetches
+  // the server component's RSC payload in place) instead of the full-page
+  // hard reload `window.location.search = ...` previously triggered here on
+  // every search — and replace() rather than push() avoids stacking a new
+  // browser-history entry on every keystroke.
+  const navigate = useCallback(
+    (q: string) => {
+      const params = new URLSearchParams(window.location.search);
+      if (q.length >= 2) {
+        params.set("q", q);
+      } else {
+        params.delete("q");
       }
+      const qs = params.toString();
+      router.replace(qs ? `${window.location.pathname}?${qs}` : window.location.pathname, { scroll: false });
     },
-    [query]
+    [router]
   );
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setQuery(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    // Debounced auto-navigate, mirroring GlobalSearch's live-results pattern,
+    // so results update as the user pauses typing instead of requiring Enter.
+    debounceRef.current = setTimeout(() => navigate(v), 400);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      navigate(query);
+    }
+  };
 
   const handleClear = () => {
     setQuery("");
-    const params = new URLSearchParams(window.location.search);
-    params.delete("q");
-    window.location.search = params.toString();
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    navigate("");
   };
 
   return (
@@ -41,7 +63,7 @@ export function SearchBar({
       <input
         type="text"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className="w-full h-14 pl-12 pr-12 rounded-full border border-border bg-surface text-ink placeholder:text-muted/50 text-base focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all shadow-sm"

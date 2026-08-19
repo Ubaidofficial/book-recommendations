@@ -74,7 +74,10 @@ export function BookCard({
           </span>
           <div className="flex items-center gap-2 mt-2.5 text-xs">
             {showRating && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-light text-accent font-medium">
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-light text-accent font-medium"
+                title="BookMentions recommendation score — not an Amazon or Goodreads rating"
+              >
                 ★ {formatRating(rating)}
               </span>
             )}

@@ -7,6 +7,11 @@ import { displayTitle } from "@/lib/display";
 import { seriesJsonLd } from "@/lib/jsonld";
 import { BookCard, Breadcrumbs, EmptyState } from "@/components";
 
+// ISR, matching books/[slug] and people/[slug] — this page reads only
+// `params`, never searchParams/cookies/headers, so it's eligible for the
+// same cached-HTML-plus-background-regeneration treatment.
+export const revalidate = 300;
+
 interface Props {
   params: Promise<{ slug: string }>;
 }

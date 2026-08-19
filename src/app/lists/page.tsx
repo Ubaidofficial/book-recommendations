@@ -1,10 +1,10 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import {
-  getListsPaginated,
+  getListsPaginatedCached,
   searchLists,
-  getBroadCategoryLists,
-  getTopicLists,
+  getBroadCategoryListsCached,
+  getTopicListsCached,
   getListBySlug,
   type BookList,
 } from "@/lib/data";
@@ -173,7 +173,7 @@ export default async function ListsPage({ searchParams }: Props) {
   // ── Browse-all paginated mode (?page=N) ────────────────────────
   if (isBrowseMode) {
     const page = Math.max(1, pageParam || 1);
-    const { data: lists, total } = await getListsPaginated(page, PAGE_SIZE, sort);
+    const { data: lists, total } = await getListsPaginatedCached(page, PAGE_SIZE, sort);
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const sortHref = (s: "book_count" | "title") => `/lists?page=${page}&sort=${s}`;
     const prevHref = page > 1 ? `/lists?page=${page - 1}&sort=${sort}` : "";
@@ -264,10 +264,10 @@ export default async function ListsPage({ searchParams }: Props) {
   // ── Default: sectioned discovery hub ──────────────────────────
   // Overfetch fiction/nonfiction so we can dedupe IDs already shown in "Popular".
   const [broad, popular, fictionAll, nonfictionAll, meta, ...allRecommendersRaw] = await Promise.all([
-    getBroadCategoryLists(12),
-    getTopicLists({ limit: 12, sort: "book_count" }),
-    getTopicLists({ limit: 24, filter: "fiction" }),
-    getTopicLists({ limit: 24, filter: "nonfiction" }),
+    getBroadCategoryListsCached(12),
+    getTopicListsCached({ limit: 12, sort: "book_count" }),
+    getTopicListsCached({ limit: 24, filter: "fiction" }),
+    getTopicListsCached({ limit: 24, filter: "nonfiction" }),
     getListBySlug("most-recommended-books"),
     ...recommenderSlugs.map((slug) => getListBySlug(slug)),
     ...secondRecommenderSlugs.map((slug) => getListBySlug(slug)),

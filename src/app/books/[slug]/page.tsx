@@ -593,6 +593,17 @@ export default async function BookDetailPage({ params }: Props) {
                 <p className="mt-0.5 text-[11px] text-muted font-medium leading-normal">
                   Amazon availability
                 </p>
+                <a
+                  href={normalizedAmazonUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow sponsored"
+                  data-track-slug={book.slug}
+                  data-track-section="above-fold"
+                  data-track-label="See customer reviews on Amazon"
+                  className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-accent hover:text-accent-hover hover:underline"
+                >
+                  See customer reviews on Amazon →
+                </a>
               </div>
             )}
           </aside>
@@ -605,7 +616,7 @@ export default async function BookDetailPage({ params }: Props) {
                 {hasCover ? (
                   <SafeImage
                     src={book.cover_image_url}
-                    alt={displayBookTitle(book.title)}
+                    alt={coverAltText(book.title, book.author)}
                     className="w-full h-full object-cover"
                     fallback={<DetailCoverFallback title={displayBookTitle(book.title)} />}
                   />
@@ -617,8 +628,11 @@ export default async function BookDetailPage({ params }: Props) {
 
             <div className="flex flex-wrap items-center gap-2 mb-3">
               {showRating && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold">
-                  ★ {formatRating(book.rating)}
+                <span
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold"
+                  title="BookMentions recommendation score — not an Amazon or Goodreads rating"
+                >
+                  {formatRating(book.rating)} rec. score
                 </span>
               )}
               {book.recommendation_count > 0 && (
@@ -789,6 +803,17 @@ export default async function BookDetailPage({ params }: Props) {
                 <p className="mt-0.5 text-[11px] text-muted font-medium leading-normal">
                   Amazon availability
                 </p>
+                <a
+                  href={normalizedAmazonUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow sponsored"
+                  data-track-slug={book.slug}
+                  data-track-section="above-fold"
+                  data-track-label="See customer reviews on Amazon"
+                  className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-semibold text-accent hover:text-accent-hover hover:underline"
+                >
+                  See customer reviews on Amazon →
+                </a>
               </div>
             )}
 
@@ -799,7 +824,7 @@ export default async function BookDetailPage({ params }: Props) {
             const diffBars = diffVal === "easy" ? 1 : diffVal === "medium" ? 2 : diffVal === "hard" || diffVal === "advanced" || diffVal === "complex" ? 3 : 0;
             return (
               <div className="rounded-xl border border-border bg-subtle/35 p-4 mb-6">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Reading Profile</h4>
+                <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Reading Profile</h2>
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
                   {fitStripDifficulty && (
                     <div className="flex items-center gap-1.5">
@@ -840,12 +865,12 @@ export default async function BookDetailPage({ params }: Props) {
           {/* Should I read this summary card */}
           {summaryHook && (
             <div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50/60 to-white p-4 mb-6 shadow-sm">
-              <h4 className="text-xs font-bold text-amber-900 mb-2 uppercase tracking-wider flex items-center gap-1.5">
+              <h2 className="text-xs font-bold text-amber-900 mb-2 uppercase tracking-wider flex items-center gap-1.5">
                 <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
                 </svg>
                 Should I read this?
-              </h4>
+              </h2>
               <p className="text-sm md:text-base text-ink leading-relaxed font-medium">
                 {summaryHook}
               </p>
@@ -858,12 +883,12 @@ export default async function BookDetailPage({ params }: Props) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                 {bestForItems.length > 0 && (
                   <div className="rounded-xl border border-emerald-100 bg-emerald-50/20 p-4">
-                    <h4 className="text-xs font-bold text-emerald-900 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
+                    <h2 className="text-xs font-bold text-emerald-900 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
                       <svg className="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                       </svg>
                       Read this if...
-                    </h4>
+                    </h2>
                     <ul className="space-y-1.5">
                       {bestForItems.map((item, i) => (
                         <li key={i} className="text-xs md:text-sm text-ink/85 leading-relaxed flex gap-2">
@@ -876,12 +901,12 @@ export default async function BookDetailPage({ params }: Props) {
                 )}
                 {notForItems.length > 0 && (
                   <div className="rounded-xl border border-gray-200 bg-gray-50/30 p-4">
-                    <h4 className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
+                    <h2 className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
                       <svg className="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                       Skip this if...
-                    </h4>
+                    </h2>
                     <ul className="space-y-1.5">
                       {notForItems.map((item, i) => (
                         <li key={i} className="text-xs md:text-sm text-muted leading-relaxed flex gap-2">
@@ -951,9 +976,9 @@ export default async function BookDetailPage({ params }: Props) {
           {!hasInlineEditorialCtas && normalizedAmazonUrl && (
             <div className="my-8 p-6 rounded-2xl border border-amber-200/60 bg-amber-50/15 shadow-[0_8px_30px_rgba(245,158,11,0.02)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="space-y-1">
-                <h4 className="text-sm font-bold text-ink">
+                <h2 className="text-sm font-bold text-ink">
                   Looking for Kindle, hardcover, paperback, or audiobook editions?
-                </h4>
+                </h2>
                 <p className="text-xs text-muted">
                   Check formats, pricing, and current availability directly.
                 </p>

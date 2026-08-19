@@ -14,7 +14,7 @@ import {
 } from "@/lib/data";
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
-import { BookCard, SearchBar, SortSelect, Breadcrumbs, EmptyState } from "@/components";
+import { BookCard, SearchBar, SortSelect, Breadcrumbs, EmptyState, PageJump } from "@/components";
 
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
@@ -92,6 +92,28 @@ function buildQs(opts: { q?: string | null; category?: string | null; sort?: str
   if (opts.page && opts.page > 1) sp.set("page", String(opts.page));
   const s = sp.toString();
   return s ? `?${s}` : "";
+}
+
+/**
+ * Windowed page-number list: always the first and last page, plus up to two
+ * pages either side of the current one, with "…" filling any gap. Keeps
+ * `/books` navigable across ~190 pages of the curated catalogue (or ~2,000
+ * for the full one) without rendering hundreds of page links.
+ */
+function pageWindow(current: number, total: number): (number | "…")[] {
+  const pages = new Set<number>([1, total]);
+  for (let p = current - 2; p <= current + 2; p++) {
+    if (p >= 1 && p <= total) pages.add(p);
+  }
+  const sorted = Array.from(pages).sort((a, b) => a - b);
+  const result: (number | "…")[] = [];
+  let prev = 0;
+  for (const p of sorted) {
+    if (prev && p - prev > 1) result.push("…");
+    result.push(p);
+    prev = p;
+  }
+  return result;
 }
 
 export default async function BooksPage({ searchParams }: Props) {
@@ -300,6 +322,12 @@ export default async function BooksPage({ searchParams }: Props) {
                   History
                 </Link>
                 <Link
+                  href="/lists"
+                  className="text-xs px-3 py-1.5 rounded-xl border border-accent/20 bg-accent-light text-accent font-semibold hover:bg-accent/15 transition-colors"
+                >
+                  Browse All Lists →
+                </Link>
+                <Link
                   href="/people"
                   className="text-xs px-3 py-1.5 rounded-xl border border-accent/20 bg-accent-light text-accent font-semibold hover:bg-accent/15 transition-colors"
                 >
@@ -473,41 +501,72 @@ export default async function BooksPage({ searchParams }: Props) {
       )}
 
       {/* Pagination — only renders when there's actually a page beyond what we
-          just showed. Prev/Next are real <Link>s so they work without JS. */}
+          just showed. Prev/Next/numbered links are real <Link>s so they work
+          without JS; the "Go to page" input is the one client-interactive
+          piece, for jumping deep into the catalogue in one step. */}
       {(hasPrev || hasNext) && (
         <nav
           aria-label="Pagination"
-          className="flex items-center justify-center gap-2 mt-10 flex-wrap"
+          className="flex flex-col items-center gap-4 mt-10"
         >
-          {hasPrev ? (
-            <Link
-              href={`/books${buildQs({ q: q || null, category: activeChip.paramSlug, sort, scope, page: page - 1 })}`}
-              prefetch={false}
-              className="px-4 py-2 rounded-lg border border-border text-sm text-ink hover:border-accent hover:text-accent transition-colors"
-            >
-              ← Previous
-            </Link>
-          ) : (
-            <span className="px-4 py-2 rounded-lg border border-border text-sm text-muted/40 cursor-not-allowed">
-              ← Previous
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {hasPrev ? (
+              <Link
+                href={`/books${buildQs({ q: q || null, category: activeChip.paramSlug, sort, scope, page: page - 1 })}`}
+                prefetch={false}
+                className="px-4 py-2 rounded-lg border border-border text-sm text-ink hover:border-accent hover:text-accent transition-colors"
+              >
+                ← Previous
+              </Link>
+            ) : (
+              <span className="px-4 py-2 rounded-lg border border-border text-sm text-muted/40 cursor-not-allowed">
+                ← Previous
+              </span>
+            )}
+            {pageWindow(page, totalPages).map((p, i) =>
+              p === "…" ? (
+                <span key={`ellipsis-${i}`} className="px-1 text-sm text-muted/50 select-none">
+                  …
+                </span>
+              ) : p === page ? (
+                <span
+                  key={p}
+                  aria-current="page"
+                  className="w-9 h-9 flex items-center justify-center rounded-lg bg-accent text-white text-sm font-semibold"
+                >
+                  {p}
+                </span>
+              ) : (
+                <Link
+                  key={p}
+                  href={`/books${buildQs({ q: q || null, category: activeChip.paramSlug, sort, scope, page: p })}`}
+                  prefetch={false}
+                  className="w-9 h-9 flex items-center justify-center rounded-lg border border-border text-sm text-ink hover:border-accent hover:text-accent transition-colors"
+                >
+                  {p}
+                </Link>
+              )
+            )}
+            {hasNext ? (
+              <Link
+                href={`/books${buildQs({ q: q || null, category: activeChip.paramSlug, sort, scope, page: page + 1 })}`}
+                prefetch={false}
+                className="px-4 py-2 rounded-lg border border-border text-sm text-ink hover:border-accent hover:text-accent transition-colors"
+              >
+                Next →
+              </Link>
+            ) : (
+              <span className="px-4 py-2 rounded-lg border border-border text-sm text-muted/40 cursor-not-allowed">
+                Next →
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted">
+              Page {page} of {totalPages.toLocaleString()}
             </span>
-          )}
-          <span className="text-sm text-muted px-2">
-            Page {page} of {totalPages.toLocaleString()}
-          </span>
-          {hasNext ? (
-            <Link
-              href={`/books${buildQs({ q: q || null, category: activeChip.paramSlug, sort, scope, page: page + 1 })}`}
-              prefetch={false}
-              className="px-4 py-2 rounded-lg border border-border text-sm text-ink hover:border-accent hover:text-accent transition-colors"
-            >
-              Next →
-            </Link>
-          ) : (
-            <span className="px-4 py-2 rounded-lg border border-border text-sm text-muted/40 cursor-not-allowed">
-              Next →
-            </span>
-          )}
+            {totalPages > 5 && <PageJump currentPage={page} totalPages={totalPages} />}
+          </div>
         </nav>
       )}
     </div>

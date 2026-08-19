@@ -1,5 +1,5 @@
 import { Book, Person, BookList, Series } from "@/lib/data";
-import { isValidHttpUrl, isValidRating, isUsefulDescription } from "@/lib/dataQuality";
+import { isValidHttpUrl, isUsefulDescription, normalizeAmazonUrl } from "@/lib/dataQuality";
 import { sameAsFor, personSlugForAuthor } from "@/lib/entityLinks";
 import { genreForBook } from "@/lib/bookGenres";
 
@@ -80,15 +80,30 @@ export function bookJsonLd(book: Book | null, slug?: string): Record<string, unk
   if (isUsefulDescription(book.description)) {
     mainEntity.description = book.description.trim();
   }
-  if (isValidRating(book.rating) && book.recommendation_count && book.recommendation_count > 0) {
-    mainEntity.aggregateRating = {
-      "@type": "AggregateRating",
-      ratingValue: book.rating,
-      bestRating: 5,
-      worstRating: 1,
-      reviewCount: book.recommendation_count,
-    };
+
+  // sameAs: assert this Book node's identity against its Amazon listing.
+  // Safe where aggregateRating (removed below) is not — sameAs only claims
+  // "this page and that URL describe the same thing," with no numeric value
+  // to misrepresent. Stripped of the `tag` param so this identity link stays
+  // stable regardless of Associates-tag configuration — the monetized CTA
+  // href on the page itself is where the tag belongs, not here.
+  const amazonUrl = normalizeAmazonUrl(book.amazon_url);
+  if (amazonUrl) {
+    const clean = new URL(amazonUrl);
+    clean.searchParams.delete("tag");
+    mainEntity.sameAs = [clean.toString()];
   }
+
+  // No aggregateRating/Review markup here by design. `book.rating` and
+  // `book.recommendation_count` measure how many notable people recommended
+  // this book, not how many people rated or reviewed it — emitting
+  // recommendation_count as schema.org `reviewCount` would misrepresent
+  // recommendation data as review data, which violates Google's structured
+  // data guidelines for review snippets (ratings must reflect genuine
+  // reviews of the item) and risks the rich result being ignored or
+  // actioned against. Re-add this block only once real, source-attributed
+  // rating data exists (e.g. `amazon_rating` / `amazon_review_count`
+  // columns), gated the same way the fields above are.
 
   const breadcrumbs = {
     "@context": "https://schema.org",

@@ -11,5 +11,6 @@ import { SafeImage } from "./SafeImage";
 import { Avatar } from "./Avatar";
 import { Breadcrumbs } from "./Breadcrumbs";
 import { BookCardSkeleton, PersonCardSkeleton, ListCardSkeleton, EmptyState } from "./Skeletons";
+import { PageJump } from "./PageJump";
 
-export { SectionHeading, BookCard, PersonCard, ListCard, SeriesCard, SearchBar, SortSelect, GlobalSearch, HomepageVisual, SafeImage, Avatar, Breadcrumbs, BookCardSkeleton, PersonCardSkeleton, ListCardSkeleton, EmptyState };
+export { SectionHeading, BookCard, PersonCard, ListCard, SeriesCard, SearchBar, SortSelect, GlobalSearch, HomepageVisual, SafeImage, Avatar, Breadcrumbs, BookCardSkeleton, PersonCardSkeleton, ListCardSkeleton, EmptyState, PageJump };
