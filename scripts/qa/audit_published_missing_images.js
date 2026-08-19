@@ -4,15 +4,21 @@
  *
  * Read-only audit: finds every book or person that is ALREADY indexable
  * (index_status in the same set robotsDirective() treats as "index, follow")
- * but is missing a valid cover/avatar image, a usable description/bio, or
- * (for books) a title/author — i.e. exactly the pages that should never
- * have reached a published URL under the current publish_batch_pages.js /
- * publish_indexable_content.js gates, but may have been promoted before
- * those gates existed or via a path that didn't check.
+ * but has a gap the current publish gates would refuse today — missing
+ * image, missing/weak description or bio, missing title/author, OR (books)
+ * never having passed the reader-fit editorial pipeline. That last one is
+ * the commodity-content check: a book can satisfy every other check while
+ * still showing only a generic/scraped description with none of the
+ * best_for/not_for/emotional_journey reader-fit content that's the site's
+ * actual differentiation per docs/ai-editorial/ICP_READER_FIT.md — books/
+ * [slug]/page.tsx's `showEditorial` gate hides that whole section when
+ * ai_quality_status isn't set, so a page like that is live with strictly
+ * less content than the template is built to show.
  *
  * This is the retroactive check; publish_batch_pages.js and
- * publish_indexable_content.js are the forward-looking gate that stops new
- * gaps like this from being created.
+ * publish_indexable_content.js are the forward-looking gates (as of this
+ * pass, both now require ai_quality_status/isUsefulPersonBio too) that stop
+ * new gaps like this from being created.
  *
  * SAFETY:
  *   - No writes. SELECT-only, works with the anon key.
@@ -70,14 +76,24 @@ const sb = createClient(SUPABASE_URL, KEY);
 // Mirrors src/lib/seo.ts INDEXABLE_STATUSES.
 const INDEXABLE_STATUSES = ['published', 'approved', 'indexed', 'index'];
 
+// Mirrors src/lib/dataQuality.ts EDITORIAL_PASSED_STATUSES concept — see
+// publish_batch_pages.js for the full rationale.
+const EDITORIAL_PASSED_STATUSES = ['draft', 'approved'];
+const PERSON_BIO_PLACEHOLDERS = new Set(['null', 'undefined', 'n/a', 'na', 'none', 'tbd', 'coming soon', 'to be added', '-']);
+
 function hasValidUrl(u) {
   return !!u && typeof u === 'string' && /^https?:\/\//i.test(u.trim());
 }
 function isUsefulDescription(t) {
   return !!t && typeof t === 'string' && t.trim().length >= 80;
 }
+// Mirrors src/lib/dataQuality.ts isUsefulPersonBio exactly.
 function isUsefulBio(t) {
-  return !!t && typeof t === 'string' && t.trim().length >= 10;
+  if (!t || typeof t !== 'string') return false;
+  const trimmed = t.trim();
+  if (trimmed.length < 20) return false;
+  if (PERSON_BIO_PLACEHOLDERS.has(trimmed.toLowerCase())) return false;
+  return true;
 }
 
 async function fetchAllIndexable(table, columns) {
@@ -117,7 +133,7 @@ async function main() {
 
   const books = await fetchAllIndexable(
     'books',
-    'id, slug, title, author_name, cover_image_url, description, recommendation_count, index_status'
+    'id, slug, title, author_name, cover_image_url, description, recommendation_count, index_status, ai_quality_status'
   );
   const people = await fetchAllIndexable(
     'people',
@@ -131,6 +147,9 @@ async function main() {
       if (!isUsefulDescription(b.description)) reasons.push('weak_or_missing_description');
       if (!b.title || b.title.trim().length < 2) reasons.push('missing_title');
       if (!b.author_name || b.author_name.trim().length < 2) reasons.push('missing_author');
+      if (!EDITORIAL_PASSED_STATUSES.includes((b.ai_quality_status || '').toLowerCase())) {
+        reasons.push('no_reader_fit_content_commodity_risk');
+      }
       return { ...b, reasons };
     })
     .filter((b) => b.reasons.length > 0)
@@ -145,8 +164,11 @@ async function main() {
     })
     .filter((p) => p.reasons.length > 0);
 
+  const commodityBooks = badBooks.filter((b) => b.reasons.includes('no_reader_fit_content_commodity_risk'));
+
   console.log(`Indexable books scanned:  ${books.length}`);
   console.log(`  → with a gap:           ${badBooks.length}`);
+  console.log(`  → commodity-content risk (no reader-fit editorial content): ${commodityBooks.length}`);
   console.log(`Indexable people scanned: ${people.length}`);
   console.log(`  → with a gap:           ${badPeople.length}\n`);
 
@@ -187,9 +209,12 @@ async function main() {
   console.log(`Full report written to: ${outPath}`);
 
   if (badBooks.length === 0 && badPeople.length === 0) {
-    console.log('\n✅ No gaps found — every indexable book and person has an image and usable copy.');
+    console.log('\n✅ No gaps found — every indexable book and person has an image, usable copy, and (for books) reader-fit editorial content.');
   } else {
-    console.log(`\n⚠️  ${badBooks.length + badPeople.length} published page(s) have a gap. Backfill the image/copy, or demote back to noindex until they do.`);
+    console.log(`\n⚠️  ${badBooks.length + badPeople.length} published page(s) have a gap. Backfill the image/copy/editorial content, or demote back to noindex until they clear it.`);
+    if (commodityBooks.length > 0) {
+      console.log(`   ${commodityBooks.length} of those are commodity-content risk specifically — live with only a generic description, none of the best_for/not_for/emotional_journey content the ICP actually wants. These are strong candidates for scripts/select_enrichment_candidates.js's next batch, or for temporary demotion to noindex if that would take a while.`);
+    }
   }
 }
 

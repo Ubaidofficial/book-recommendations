@@ -8,10 +8,16 @@
  * 3-4 pages/day, see DAILY_BATCH_SIZE) so Google's crawler always has
  * something fresh to find.
  *
- * Hard requirement, not a scoring bonus: no book or person is ever eligible
- * for promotion without a valid image (cover_image_url / avatar_url). A
- * candidate missing its image simply never enters the pool below — this is
- * the one gate every tier goes through before a page can go public.
+ * Hard requirements, not scoring bonuses: no book or person is ever
+ * eligible for promotion without (1) a valid image (cover_image_url /
+ * avatar_url), and (2) real differentiated content — for books, that means
+ * having passed the reader-fit editorial pipeline
+ * (generate_book_editorial_enrichment.py, 4.70+ quality bar per
+ * docs/ai-editorial/ICP_READER_FIT.md), not just having *any* description;
+ * for people, an actual bio (isUsefulPersonBio's 20-char + non-placeholder
+ * bar), not just a non-empty field. A candidate missing either simply never
+ * enters the pool below — a page that's never gone through this script
+ * cannot end up commodity content with a stock blurb and nothing else.
  *
  * TIERS (checked and filled in this order):
  *   Tier 1 — Pillar: the ~31 broad-category list pages (Fiction, Nonfiction,
@@ -113,6 +119,18 @@ const BROAD_CATEGORY_SLUGS = [
   'biography', 'poetry', 'music', 'food', 'travel', 'design', 'writing',
   'programming', 'management', 'entrepreneurship',
 ];
+
+// Mirrors src/lib/dataQuality.ts PERSON_BIO_PLACEHOLDERS / isUsefulPersonBio
+// exactly — keep in sync manually for the same reason as the constants
+// above (this script runs outside the Next.js build).
+const PERSON_BIO_PLACEHOLDERS = new Set(['null', 'undefined', 'n/a', 'na', 'none', 'tbd', 'coming soon', 'to be added', '-']);
+function isUsefulPersonBio(value) {
+  if (!value || typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (trimmed.length < 20) return false;
+  if (PERSON_BIO_PLACEHOLDERS.has(trimmed.toLowerCase())) return false;
+  return true;
+}
 
 function isUsefulBookDescription(text) {
   if (!text || typeof text !== 'string') return false;
@@ -224,15 +242,27 @@ async function findTier2Candidates() {
 }
 
 // ---------------------------------------------------------------------------
-// Tier 3 — Supporting: books + people (existing EEAT guardrails, unchanged)
+// Tier 3 — Supporting: books + people
 // ---------------------------------------------------------------------------
+
+// A book is only eligible once it has passed the reader-fit editorial
+// pipeline (generate_book_editorial_enrichment.py) and cleared its 4.70+
+// quality bar — see docs/ai-editorial/ICP_READER_FIT.md. Before this gate,
+// `isUsefulBookDescription` alone (any description >=80 chars) was enough
+// to publish a book, which let generic/scraped blurbs reach a public URL
+// with none of the reader-fit content (best_for/not_for/emotional_journey)
+// that's the actual differentiator books/[slug]/page.tsx's `showEditorial`
+// gate is built around. Tying publish eligibility to the same status the
+// page uses to decide whether to render that content means a published
+// page can never show up as description-only commodity copy.
+const EDITORIAL_PASSED_STATUSES = ['draft', 'approved'];
 
 async function findTier3Candidates() {
   const candidates = [];
 
   const { data: books, error: bErr } = await sb
     .from('books')
-    .select('id, slug, title, author_name, description, cover_image_url, recommendation_count, index_status')
+    .select('id, slug, title, author_name, description, cover_image_url, recommendation_count, index_status, ai_quality_status')
     .gte('recommendation_count', 3)
     .order('recommendation_count', { ascending: false })
     .limit(500);
@@ -246,8 +276,9 @@ async function findTier3Candidates() {
     const validAuthor = b.author_name && b.author_name.length > 1;
     const validDesc = isUsefulBookDescription(b.description);
     const hasCover = b.cover_image_url && /^https?:\/\//i.test(b.cover_image_url);
+    const passedEditorial = EDITORIAL_PASSED_STATUSES.includes((b.ai_quality_status || '').toLowerCase());
 
-    if (validTitle && validAuthor && validDesc && hasCover) {
+    if (validTitle && validAuthor && validDesc && hasCover && passedEditorial) {
       candidates.push({
         tier: 3,
         type: 'book',
@@ -297,14 +328,18 @@ async function findTier3Candidates() {
     // is exactly the "no book or person on a published URL without an
     // image" gap this pipeline exists to prevent.
     const hasAvatar = p.avatar_url && /^https?:\/\//i.test(p.avatar_url);
-    if (count >= 10 && hasFullName && hasAvatar) {
+    // Same standard the page itself uses (isUsefulPersonBio in
+    // dataQuality.ts) — was previously just "non-empty," which let a person
+    // publish with a one-word bio. E-E-A-T needs an actual bio, not a stub.
+    const hasRealBio = isUsefulPersonBio(p.bio);
+    if (count >= 10 && hasFullName && hasAvatar && hasRealBio) {
       candidates.push({
         tier: 3,
         type: 'person',
         id: p.id,
         slug: p.slug,
         title: p.name,
-        score: count * 10 + (p.bio ? 5 : 0),
+        score: count * 10 + 5,
         detail: `${count} recs`,
         table: 'people',
         target_status: 'published',
