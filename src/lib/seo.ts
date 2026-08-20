@@ -4,10 +4,14 @@ export function canonicalUrl(path: string): string {
   return `${BASE_URL}${path}`;
 }
 
-const INDEXABLE_STATUSES = new Set(["published", "approved", "indexed", "index"]);
+// Array form so callers that need `.in(...)` (e.g. the sitemap's Supabase
+// query) and callers that need fast membership checks (isIndexable below)
+// can both derive from this one source of truth.
+export const INDEXABLE_STATUSES = ["published", "approved", "indexed", "index"];
+const INDEXABLE_STATUS_SET = new Set(INDEXABLE_STATUSES);
 
 export function isIndexable(row: { index_status?: string } | null | undefined): boolean {
-  return INDEXABLE_STATUSES.has((row?.index_status || "").toLowerCase());
+  return INDEXABLE_STATUS_SET.has((row?.index_status || "").toLowerCase());
 }
 
 export function robotsDirective(row: { index_status?: string } | null | undefined): string {

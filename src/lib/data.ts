@@ -2458,3 +2458,59 @@ export const getFeaturedSeriesCached = (n: number) =>
     revalidate: 60,
     tags: ["series", "featured"],
   })();
+
+/**
+ * Cached wrappers for the four hub pages' default (non-search) browse view.
+ *
+ * These pages declare `dynamic = "force-dynamic"` because they read
+ * `searchParams`, so the route itself always renders per request — but the
+ * expensive Supabase read underneath doesn't have to. Wrapping it here (same
+ * pattern as the detail-page and featured-rail caches above) means the
+ * common, un-searched, un-sorted "page 1" view hits a warm cache instead of a
+ * fresh 1-8s query on every visit. Only the default-view functions are
+ * wrapped — `searchPeople`/`searchLists`/`searchSeries` take arbitrary user
+ * text, so caching them would create unbounded cache entries for little
+ * reuse benefit and is intentionally left uncached.
+ *
+ * Deliberately NOT applied to `getBooksPaginated`: `/books` already has its
+ * own `isDefaultLandingEmpty` + `noStore()` safeguard against caching a
+ * transient empty Supabase response on the highest-traffic hub page, and
+ * layering a function-level cache on top of that would need to replicate
+ * the same empty-result check to stay safe — a large enough job to be its
+ * own change rather than folding it into this pass.
+ */
+export const getTopRecommendedPeopleCached = (topN: number) =>
+  unstable_cache(() => getTopRecommendedPeople(topN), ["top-recommended-people", String(topN)], {
+    revalidate: 60,
+    tags: ["people"],
+  })();
+
+export const getListsPaginatedCached = (page: number, pageSize: number, sort: "book_count" | "title") =>
+  unstable_cache(
+    () => getListsPaginated(page, pageSize, sort),
+    ["lists-paginated", String(page), String(pageSize), sort],
+    { revalidate: 60, tags: ["lists"] }
+  )();
+
+export const getBroadCategoryListsCached = (limit: number) =>
+  unstable_cache(() => getBroadCategoryLists(limit), ["broad-category-lists", String(limit)], {
+    revalidate: 60,
+    tags: ["lists"],
+  })();
+
+export const getTopicListsCached = (opts: {
+  limit?: number; offset?: number;
+  sort?: "book_count" | "title";
+  filter?: "all" | "fiction" | "nonfiction";
+}) =>
+  unstable_cache(
+    () => getTopicLists(opts),
+    ["topic-lists", String(opts.limit ?? 24), String(opts.offset ?? 0), opts.sort ?? "book_count", opts.filter ?? "all"],
+    { revalidate: 60, tags: ["lists"] }
+  )();
+
+export const getSeriesPaginatedCached = (page: number, pageSize: number) =>
+  unstable_cache(() => getSeriesPaginated(page, pageSize), ["series-paginated", String(page), String(pageSize)], {
+    revalidate: 60,
+    tags: ["series"],
+  })();

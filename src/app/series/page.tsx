@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { getSeriesPaginated, searchSeries } from "@/lib/data";
+import { getSeriesPaginatedCached, searchSeries } from "@/lib/data";
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
 import { SeriesCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
@@ -30,7 +30,7 @@ export default async function SeriesPage({ searchParams }: Props) {
     const data = await searchSeries(q, 24);
     seriesResult = { data, total: data.length };
   } else {
-    seriesResult = await getSeriesPaginated(1, 24);
+    seriesResult = await getSeriesPaginatedCached(1, 24);
   }
 
   const { data: seriesList, total } = seriesResult;

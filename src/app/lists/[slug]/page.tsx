@@ -10,6 +10,15 @@ import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRa
 import { itemListJsonLd } from "@/lib/jsonld";
 import { Avatar, Breadcrumbs, SafeImage, EmptyState } from "@/components";
 
+// Declared for consistency with books/[slug] and series/[slug] (all three
+// detail-page types share the same 1-8s cold-Supabase-read problem). Note
+// this page also reads `searchParams` (`sort`), which Next.js renders
+// dynamically per request regardless of `revalidate` — so the ISR benefit
+// here is smaller than on the two params-only sibling pages, but the
+// declaration keeps caching intent explicit rather than falling through to
+// an undocumented default.
+export const revalidate = 300;
+
 interface Props {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ sort?: string }>;

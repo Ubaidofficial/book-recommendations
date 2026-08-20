@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { getTopRecommendedPeople, getPersonRecommendedCount, getPersonWrittenCount, searchPeople } from "@/lib/data";
+import { getTopRecommendedPeopleCached, getPersonRecommendedCount, getPersonWrittenCount, searchPeople } from "@/lib/data";
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
 import { isProfilelessSurnameAlias } from "@/lib/dataQuality";
@@ -83,7 +83,7 @@ export default async function PeoplePage({ searchParams }: Props) {
     );
     rawTotal = peopleWithCounts.length;
   } else {
-    peopleWithCounts = await getTopRecommendedPeople(150);
+    peopleWithCounts = await getTopRecommendedPeopleCached(150);
     rawTotal = peopleWithCounts.length;
   }
 

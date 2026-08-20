@@ -2,14 +2,16 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { getAuthorCatalogIndex } from "@/lib/data";
 import { Breadcrumbs } from "@/components";
+import { pageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic"; // Force dynamic server rendering
 
-export const metadata: Metadata = {
-  title: "Authors — BookMentions Catalog",
+export const metadata: Metadata = pageMetadata({
+  title: "Authors Catalog",
   description: "Browse authors with recommended books in the BookMentions catalog.",
+  path: "/authors",
   robots: "noindex, follow", // noindex, follow as requested
-};
+});
 
 export default async function AuthorsIndexPage() {
   const authors = await getAuthorCatalogIndex(100);

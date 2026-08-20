@@ -8,7 +8,6 @@ import {
   getPersonWrittenCount,
 } from "@/lib/data";
 import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual } from "@/components";
-import { websiteJsonLd, organizationJsonLd } from "@/lib/jsonld";
 
 // noStore() used to sit in the component body and silently defeated this
 // declaration; the featured reads are cached explicitly instead.
@@ -16,8 +15,9 @@ export const revalidate = 60;
 
 export default async function HomePage() {
   const CARD_COUNT = 4;
-  const websiteSchema = websiteJsonLd();
-  const orgSchema = organizationJsonLd();
+  // WebSite/Organization JSON-LD is emitted globally in layout.tsx on every
+  // page, including this one — do not re-emit it here, or the homepage ships
+  // two copies of each schema.
 
   let featuredBooks: Awaited<ReturnType<typeof getFeaturedBooksCached>> = [];
   let featuredPeople: Awaited<ReturnType<typeof getFeaturedPeopleCached>> = [];
@@ -71,14 +71,6 @@ export default async function HomePage() {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }}
-      />
       <section className="py-20 md:py-24 px-4">
         <div className="max-w-3xl mx-auto text-center motion-fade-up">
           <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-ink leading-tight mb-5 tracking-tight">

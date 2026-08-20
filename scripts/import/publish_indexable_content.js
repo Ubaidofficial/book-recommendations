@@ -4,6 +4,15 @@
  * Bulk-update index_status to 'published' for books and people that
  * meet quality thresholds, making them eligible for Google indexing.
  *
+ * ⚠️  NOT the daily-cadence tool. This promotes every eligible row in one
+ * shot, with no tiering (pillar/cluster pages are not prioritized over
+ * individual books) and no daily cap — dumping thousands of pages into the
+ * index at once reads as a spam pattern to Google and works against the
+ * paced, pillar-first rollout this site now uses. For routine publishing,
+ * use `publish_batch_pages.js` (tiered: pillar lists > cluster lists/series
+ * > books/people, small daily quota). Reserve this script for one-off bulk
+ * catch-up situations, reviewed with DRY_RUN first as always.
+ *
  * SAFETY:
  *   - DRY RUN by default. Set DRY_RUN=false to actually write.
  *   - Shows exactly what will change before committing.
@@ -108,6 +117,23 @@ function isUsefulText(t) {
   return t && typeof t === 'string' && t.trim().length > 10;
 }
 
+// Mirrors src/lib/dataQuality.ts PERSON_BIO_PLACEHOLDERS / isUsefulPersonBio.
+const PERSON_BIO_PLACEHOLDERS = new Set(['null', 'undefined', 'n/a', 'na', 'none', 'tbd', 'coming soon', 'to be added', '-']);
+function isUsefulPersonBio(value) {
+  if (!value || typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (trimmed.length < 20) return false;
+  if (PERSON_BIO_PLACEHOLDERS.has(trimmed.toLowerCase())) return false;
+  return true;
+}
+
+// A book is only publishable once it has passed the reader-fit editorial
+// pipeline (generate_book_editorial_enrichment.py, 4.70+ bar per
+// docs/ai-editorial/ICP_READER_FIT.md) — see publish_batch_pages.js for the
+// full rationale. Without this, `isUsefulText`/title/author checks alone
+// let a book with only a generic scraped description reach a public URL.
+const EDITORIAL_PASSED_STATUSES = ['draft', 'approved'];
+
 async function updateInBatches(table, ids, patch) {
   let updated = 0;
   for (let i = 0; i < ids.length; i += BATCH_SIZE) {
@@ -142,7 +168,7 @@ async function processBooks() {
   while (true) {
     const { data, error } = await sb
       .from('books')
-      .select('id, title, author_name, recommendation_count, index_status')
+      .select('id, title, author_name, cover_image_url, recommendation_count, index_status, ai_quality_status')
       .eq('index_status', 'noindex')
       .gte('recommendation_count', MIN_BOOK_RECS)
       .range(offset, offset + PAGE - 1);
@@ -151,7 +177,12 @@ async function processBooks() {
     if (!data || data.length === 0) break;
 
     for (const book of data) {
-      if (isUsefulTitle(book.title) && isUsefulText(book.author_name)) {
+      // Hard gate: never publish a book with no valid cover image, or one
+      // that hasn't passed the reader-fit editorial pipeline (a generic
+      // description alone is commodity content, not what the ICP wants).
+      const hasCover = book.cover_image_url && /^https?:\/\//i.test(book.cover_image_url);
+      const passedEditorial = EDITORIAL_PASSED_STATUSES.includes((book.ai_quality_status || '').toLowerCase());
+      if (isUsefulTitle(book.title) && isUsefulText(book.author_name) && hasCover && passedEditorial) {
         eligible.push(book.id);
       }
     }
@@ -190,7 +221,7 @@ async function processPeople() {
   while (true) {
     const { data, error } = await sb
       .from('people')
-      .select('id, name, slug, bio, index_status, recs:book_recommendations(count)')
+      .select('id, name, slug, bio, avatar_url, index_status, recs:book_recommendations(count)')
       .eq('index_status', 'draft')
       .range(offset, offset + PAGE - 1);
 
@@ -199,7 +230,10 @@ async function processPeople() {
 
     for (const person of data) {
       const recCount = (person.recs && person.recs[0]) ? (person.recs[0].count || 0) : 0;
-      if (isUsefulText(person.bio) && recCount >= MIN_PERSON_RECS) {
+      // Hard gate: never publish a person with no valid avatar image, or
+      // with a bio too thin/placeholder to clear isUsefulPersonBio's bar.
+      const hasAvatar = person.avatar_url && /^https?:\/\//i.test(person.avatar_url);
+      if (isUsefulPersonBio(person.bio) && recCount >= MIN_PERSON_RECS && hasAvatar) {
         eligible.push({ id: person.id, name: person.name, slug: person.slug, recs: recCount });
       }
     }
