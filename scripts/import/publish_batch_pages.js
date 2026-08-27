@@ -450,27 +450,39 @@ const EDITORIAL_PASSED_STATUSES = ['draft', 'approved'];
 async function findTier3Candidates() {
   const candidates = [];
 
-  const { data: books, error: bErr } = await sb
-    .from('books')
-    .select('id, slug, title, author_name, description, cover_image_url, recommendation_count, index_status, ai_quality_status')
-    .gte('recommendation_count', 3)
-    // Exclude published rows IN the query, not after fetching.
-    //
-    // The window is a fixed slice from the top of the ranking, and the
-    // published set IS the top of that ranking — so as more pages go live the
-    // slice fills with rows that are then all discarded. At limit(50) this had
-    // already reduced book candidates to zero. limit(500) hides it for now,
-    // but the same exhaustion returns once ~500 books are live, and it fails
-    // silently: an empty batch looks identical to "nothing eligible".
-    //
-    // Filtering server-side makes the window a cursor over eligible rows.
-    .not('index_status', 'in', `(${PUBLISHED_STATUSES.join(',')})`)
-    .order('recommendation_count', { ascending: false })
-    .limit(500);
+  // Exclude published rows IN the query, not after fetching (see the same
+  // reasoning on Tier 2 above). That alone isn't enough here, though: a fixed
+  // limit() ordered by recommendation_count also hides eligible rows, just
+  // not by publishing them away. Eligibility (cover/description/editorial
+  // status) doesn't correlate with recommendation_count, so a `limit(500)`
+  // window pinned to the top of that ranking permanently excludes every
+  // eligible book below its cutoff — measured 2026-08-27 at 284 books (63%
+  // of the true eligible pool) sitting just below the window with
+  // recommendation_count 3-6, invisible to every run indefinitely. Paginating
+  // through the full non-published set removes the cap instead of just
+  // raising it.
+  const books = [];
+  let bFrom = 0;
+  const bPageSize = 1000;
+  for (;;) {
+    const { data, error } = await sb
+      .from('books')
+      .select('id, slug, title, author_name, description, cover_image_url, recommendation_count, index_status, ai_quality_status')
+      .gte('recommendation_count', 3)
+      .not('index_status', 'in', `(${PUBLISHED_STATUSES.join(',')})`)
+      .order('recommendation_count', { ascending: false })
+      .range(bFrom, bFrom + bPageSize - 1);
+    if (error) {
+      failClosed('Tier 3 (books)', error);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    books.push(...data);
+    if (data.length < bPageSize) break;
+    bFrom += bPageSize;
+  }
 
-  failClosed('Tier 3 (books)', bErr);
-
-  for (const b of books || []) {
+  for (const b of books) {
     if (PUBLISHED_STATUSES.includes((b.index_status || '').toLowerCase())) continue;
     // A redirect points away from this slug: it was retired on purpose.
     if (REDIRECTED_SLUGS.has(String(b.slug || '').toLowerCase())) continue;
