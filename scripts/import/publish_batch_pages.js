@@ -205,6 +205,78 @@ function isUsefulBookDescription(text) {
  * the "best-" prefix, the "-books" suffix and a trailing plural, which is what
  * makes memoirs/best-memoir-books resolve to the same topic.
  */
+
+/**
+ * Minimum distinct people who must stand behind a list before it can publish.
+ *
+ * book_count measures catalogue size, not substance, and the two come apart
+ * badly. Sampling the description-less backlog found "Best Astrology Books"
+ * with 84 books and ZERO recommendations, "Best Warhammer 40k Books" with 22
+ * and zero, "Best Beer Books" with 15 and zero — alongside genuinely strong
+ * candidates like "Best Spiritual Books" (175 distinct recommenders) and
+ * "Best Neuroscience Books" (108).
+ *
+ * Across an even sample of 25, roughly half were filler. Publishing on
+ * book_count alone would have made most new pages indistinguishable from any
+ * other auto-generated listicle — the one thing this site's provenance model
+ * exists to avoid. A page nobody recommended has nothing to say that a
+ * bookstore category page does not.
+ *
+ * 20 distinct recommenders is the line the sample supports: above it the pages
+ * carry real, sourced endorsement; below it they are a catalogue with a title.
+ */
+const MIN_LIST_RECOMMENDERS = 20;
+
+/** Distinct people recommending anything in this list. */
+async function countListRecommenders(listId) {
+  const bookIds = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await sb
+      .from('book_lists')
+      .select('book_id')
+      .eq('list_id', listId)
+      .range(from, from + 499);
+    if (error) return null;              // unknown, not zero — caller fails closed
+    if (!data || data.length === 0) break;
+    for (const r of data) if (r.book_id) bookIds.push(r.book_id);
+    if (data.length < 500) break;
+    from += 500;
+  }
+  if (bookIds.length === 0) return 0;
+
+  const people = new Set();
+  for (let i = 0; i < bookIds.length; i += 150) {
+    const { data, error } = await sb
+      .from('book_recommendations')
+      .select('person_id')
+      .in('book_id', bookIds.slice(i, i + 150));
+    if (error) return null;
+    for (const r of data || []) if (r.person_id) people.add(r.person_id);
+  }
+  return people.size;
+}
+
+/**
+ * A failed candidate query must abort the run, not degrade it.
+ *
+ * These queries sort books by recommendation_count, which carries no index, so
+ * they intermittently exceed the statement timeout. The old handling logged
+ * the error and carried on with an empty result — which on one dry run turned
+ * a mixed batch into a people-only batch without anything looking wrong.
+ *
+ * Unattended and daily, that silently skews what the site publishes and leaves
+ * no signal that it happened. A publisher that cannot see its candidates must
+ * stop, not guess. (The durable fix is an index on books.recommendation_count
+ * and books.index_status; this makes the failure visible until then.)
+ */
+function failClosed(label, error) {
+  if (!error) return;
+  console.error(`\n❌ ${label} query failed: ${error.message}`);
+  console.error('   Aborting: publishing a partial batch would skew the mix invisibly.');
+  process.exit(1);
+}
+
 function topicKey(slug) {
   return String(slug || '')
     .toLowerCase()
@@ -242,7 +314,7 @@ async function findTier1Candidates() {
     .in('slug', BROAD_CATEGORY_SLUGS);
 
   if (error) {
-    console.error('Tier 1 (pillar lists) query error:', error.message);
+    failClosed('Tier 1 (pillar lists)', error);
     return [];
   }
 
@@ -290,7 +362,7 @@ async function findTier2Candidates() {
     .order('book_count', { ascending: false })
     .limit(200);
 
-  if (lErr) console.error('Tier 2 (cluster lists) query error:', lErr.message);
+  failClosed('Tier 2 (cluster lists)', lErr);
 
   for (const l of lists || []) {
     if (PUBLISHED_STATUSES.includes((l.index_status || '').toLowerCase())) continue;
@@ -333,7 +405,7 @@ async function findTier2Candidates() {
     .order('book_count', { ascending: false })
     .limit(200);
 
-  if (sErr) console.error('Tier 2 (series) query error:', sErr.message);
+  failClosed('Tier 2 (series)', sErr);
 
   for (const s of series || []) {
     if (PUBLISHED_STATUSES.includes((s.index_status || '').toLowerCase())) continue;
@@ -396,7 +468,7 @@ async function findTier3Candidates() {
     .order('recommendation_count', { ascending: false })
     .limit(500);
 
-  if (bErr) console.error('Tier 3 (books) query error:', bErr.message);
+  failClosed('Tier 3 (books)', bErr);
 
   for (const b of books || []) {
     if (PUBLISHED_STATUSES.includes((b.index_status || '').toLowerCase())) continue;
@@ -448,7 +520,7 @@ async function findTier3Candidates() {
     .from('people')
     .select('id, slug, name, role, bio, avatar_url, index_status');
 
-  if (pErr) console.error('Tier 3 (people) query error:', pErr.message);
+  failClosed('Tier 3 (people)', pErr);
 
   for (const p of people || []) {
     if (PUBLISHED_STATUSES.includes((p.index_status || '').toLowerCase())) continue;
@@ -518,10 +590,29 @@ async function main() {
   // Tier 1 is never capped — it's a backlog fix, not a drip.
   const selected = [...tier1];
 
+  // Depth is checked at selection time, not while building the pool: only the
+  // few candidates about to publish need measuring, which keeps this to a
+  // handful of queries instead of hundreds.
+  let shallowSkipped = 0;
   for (const c of tier2) {
     if (remaining <= 0) break;
+    if (c.type === 'cluster-list' || c.type === 'list') {
+      const depth = await countListRecommenders(c.id);
+      if (depth === null) {
+        console.error(`⚠️  Could not measure recommender depth for ${c.slug}; skipping rather than guessing.`);
+        continue;
+      }
+      if (depth < MIN_LIST_RECOMMENDERS) {
+        shallowSkipped++;
+        continue;
+      }
+      c.detail += `, ${depth} recommenders`;
+    }
     selected.push(c);
     remaining--;
+  }
+  if (shallowSkipped > 0) {
+    console.log(`  (${shallowSkipped} list(s) skipped: fewer than ${MIN_LIST_RECOMMENDERS} distinct recommenders)`);
   }
   for (const c of tier3) {
     if (remaining <= 0) break;

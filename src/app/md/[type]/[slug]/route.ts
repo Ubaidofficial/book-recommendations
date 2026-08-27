@@ -1,4 +1,6 @@
 import {
+  getSeriesBySlug,
+  getBooksBySeries,
   getListBySlug,
   getBooksForList,
   getPersonBySlug,
@@ -7,7 +9,7 @@ import {
   getBookRecommenders,
   getRecommendersForBooks,
 } from "@/lib/data";
-import { displayListTitleFull } from "@/lib/display";
+import { displayListTitleFull, displayTitle } from "@/lib/display";
 import { genreForBook } from "@/lib/bookGenres";
 import { parseSourceUrls, sanitizeEditorialText, getProofDisplaySafety, cleanQuoteText } from "@/lib/dataQuality";
 
@@ -161,6 +163,35 @@ export async function GET(
       }
       out.push("");
     }
+    return md(out, canonical);
+  }
+
+
+  if (type === "series") {
+    const series = await getSeriesBySlug(slug);
+    if (!series) return notFound();
+    const canonical = `${BASE_URL}/series/${series.slug}`;
+    const books = await getBooksBySeries(series.id, 100);
+    const out = [
+      // series.title stores the slug for these rows; the HTML page
+      // title-cases it the same way.
+      `# ${displayTitle(series.title)}`,
+      "",
+      `Canonical: ${canonical}`,
+      "",
+      series.description || "",
+      "",
+      // Reading order is the entire point of a series page, so the numbering
+      // is explicit rather than implied by array position — an agent should
+      // not have to infer that the list happens to be sorted.
+      `## Reading order (${books.length}${series.book_count && series.book_count > books.length ? ` of ${series.book_count}` : ""})`,
+      "",
+      ...books.map(
+        (b, i) =>
+          `${i + 1}. **${b.title}**${b.author ? ` — ${b.author}` : ""} — ${BASE_URL}/books/${b.slug}`,
+      ),
+      "",
+    ];
     return md(out, canonical);
   }
 
