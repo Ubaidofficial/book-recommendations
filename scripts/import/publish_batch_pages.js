@@ -107,6 +107,46 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY || process.env.NEXT_PUBLIC_SUP
 
 // Mirrors src/lib/seo.ts INDEXABLE_STATUSES — keep in sync manually since
 // this script runs outside the Next.js build and can't import TS directly.
+
+/**
+ * Slugs that must never be published because a redirect points away from them.
+ *
+ * `index_status = 'noindex'` is overloaded: it means BOTH "not published yet"
+ * and "deliberately retired". The publisher only understood the first sense,
+ * so every page retired during duplicate consolidation — ten `best-<topic>-books`
+ * twins merged into their bare-topic counterparts — read as a fresh candidate
+ * again. A dry run put best-leadership-books back in the batch.
+ *
+ * Publishing them would recreate the duplicate pairs AND emit ten sitemap URLs
+ * that 301 away, which is a self-inflicted crawl error.
+ *
+ * next.config.js is the authoritative record of what has been retired, so it
+ * is read directly rather than duplicating a list that would drift. Anything
+ * that is the SOURCE of a redirect is off-limits, permanently.
+ */
+function loadRedirectedSlugs() {
+  const retired = new Set();
+  try {
+    // next.config.js exports `async redirects()`, so calling it returns a
+    // Promise — unusable from a module-level constant. The file is read as
+    // text instead: the rule list is a static literal, so a scan for
+    // `source: "/<type>/<slug>"` is exact and needs no evaluation.
+    const cfgPath = path.join(__dirname, '../../next.config.js');
+    const text = fs.readFileSync(cfgPath, 'utf-8');
+    const re = /source:\s*["'`]\/(?:lists|books|people|series)\/([^"'`\/:*]+)["'`]/g;
+    let m;
+    while ((m = re.exec(text)) !== null) retired.add(m[1].toLowerCase());
+  } catch (e) {
+    // A parse failure must not silently disable the guard.
+    console.error('⚠️  Could not read redirects from next.config.js:', e.message);
+    console.error('   Refusing to publish rather than risk resurrecting a retired page.');
+    process.exit(1);
+  }
+  return retired;
+}
+
+const REDIRECTED_SLUGS = loadRedirectedSlugs();
+
 const PUBLISHED_STATUSES = ['published', 'approved', 'indexed', 'index'];
 
 // Mirrors src/lib/data.ts BROAD_CATEGORY_SLUGS exactly — these are the
@@ -146,6 +186,55 @@ function isUsefulBookDescription(text) {
 // Tier 1 — Pillar: broad-category lists
 // ---------------------------------------------------------------------------
 
+
+/**
+ * Topic collision guard.
+ *
+ * A list slug and its "best-<topic>-books" variant are the same page to a
+ * search engine: /fiction and /best-fiction-books both render "Best Fiction
+ * Books" and chase one query. Ten such pairs already had to be consolidated by
+ * hand, merging memberships and 301ing the loser.
+ *
+ * 39 more are sitting in the candidate pool right now — best-history-books (77
+ * books) against a live /history (1,656), best-nonfiction-books (40) against
+ * /nonfiction (7,816). Publishing on a schedule would recreate the problem
+ * automatically, and always in the damaging direction: the new page is the
+ * thinner of the two and splits the topic's authority.
+ *
+ * So a topic whose page is already live is closed. The normalised key strips
+ * the "best-" prefix, the "-books" suffix and a trailing plural, which is what
+ * makes memoirs/best-memoir-books resolve to the same topic.
+ */
+function topicKey(slug) {
+  return String(slug || '')
+    .toLowerCase()
+    .replace(/^best-/, '')
+    .replace(/-books$/, '')
+    .replace(/s$/, '');
+}
+
+async function loadPublishedTopics() {
+  const topics = new Set();
+  let from = 0;
+  for (;;) {
+    const { data, error } = await sb
+      .from('lists')
+      .select('slug, index_status')
+      .in('index_status', PUBLISHED_STATUSES)
+      .range(from, from + 999);
+    if (error) {
+      console.error('⚠️  Could not load published topics:', error.message);
+      console.error('   Refusing to publish rather than risk creating a duplicate pair.');
+      process.exit(1);
+    }
+    if (!data || data.length === 0) break;
+    for (const l of data) if (l.slug) topics.add(topicKey(l.slug));
+    if (data.length < 1000) break;
+    from += 1000;
+  }
+  return topics;
+}
+
 async function findTier1Candidates() {
   const { data: lists, error } = await sb
     .from('lists')
@@ -159,6 +248,9 @@ async function findTier1Candidates() {
 
   return (lists || [])
     .filter((l) => !PUBLISHED_STATUSES.includes((l.index_status || '').toLowerCase()))
+    // Tier 1 uses a filter chain rather than a loop, so it needs the retired
+    // guard applied here too.
+    .filter((l) => !REDIRECTED_SLUGS.has(String(l.slug || '').toLowerCase()))
     .map((l) => ({
       tier: 1,
       type: 'pillar-list',
@@ -184,6 +276,17 @@ async function findTier2Candidates() {
     .from('lists')
     .select('id, slug, title, description, book_count, quality_score, index_status')
     .gte('book_count', 15)
+    // Exclude published rows IN the query, not after fetching.
+    //
+    // The window is a fixed slice from the top of the ranking, and the
+    // published set IS the top of that ranking — so as more pages go live the
+    // slice fills with rows that are then all discarded. At limit(50) this had
+    // already reduced book candidates to zero. limit(500) hides it for now,
+    // but the same exhaustion returns once ~500 books are live, and it fails
+    // silently: an empty batch looks identical to "nothing eligible".
+    //
+    // Filtering server-side makes the window a cursor over eligible rows.
+    .not('index_status', 'in', `(${PUBLISHED_STATUSES.join(',')})`)
     .order('book_count', { ascending: false })
     .limit(200);
 
@@ -191,6 +294,8 @@ async function findTier2Candidates() {
 
   for (const l of lists || []) {
     if (PUBLISHED_STATUSES.includes((l.index_status || '').toLowerCase())) continue;
+    // A redirect points away from this slug: it was retired on purpose.
+    if (REDIRECTED_SLUGS.has(String(l.slug || '').toLowerCase())) continue;
     if (BROAD_CATEGORY_SLUGS.includes(l.slug)) continue; // handled in Tier 1
 
     const isIntent = l.slug.startsWith('books-recommended-by-') || l.slug.startsWith('best-');
@@ -214,6 +319,17 @@ async function findTier2Candidates() {
     .from('series')
     .select('id, slug, title, description, book_count, index_status')
     .gte('book_count', 5)
+    // Exclude published rows IN the query, not after fetching.
+    //
+    // The window is a fixed slice from the top of the ranking, and the
+    // published set IS the top of that ranking — so as more pages go live the
+    // slice fills with rows that are then all discarded. At limit(50) this had
+    // already reduced book candidates to zero. limit(500) hides it for now,
+    // but the same exhaustion returns once ~500 books are live, and it fails
+    // silently: an empty batch looks identical to "nothing eligible".
+    //
+    // Filtering server-side makes the window a cursor over eligible rows.
+    .not('index_status', 'in', `(${PUBLISHED_STATUSES.join(',')})`)
     .order('book_count', { ascending: false })
     .limit(200);
 
@@ -221,6 +337,8 @@ async function findTier2Candidates() {
 
   for (const s of series || []) {
     if (PUBLISHED_STATUSES.includes((s.index_status || '').toLowerCase())) continue;
+    // A redirect points away from this slug: it was retired on purpose.
+    if (REDIRECTED_SLUGS.has(String(s.slug || '').toLowerCase())) continue;
     const hasDesc = s.description && s.description.trim().length >= 20;
     if (s.title && s.title.length > 2 && hasDesc) {
       candidates.push({
@@ -264,6 +382,17 @@ async function findTier3Candidates() {
     .from('books')
     .select('id, slug, title, author_name, description, cover_image_url, recommendation_count, index_status, ai_quality_status')
     .gte('recommendation_count', 3)
+    // Exclude published rows IN the query, not after fetching.
+    //
+    // The window is a fixed slice from the top of the ranking, and the
+    // published set IS the top of that ranking — so as more pages go live the
+    // slice fills with rows that are then all discarded. At limit(50) this had
+    // already reduced book candidates to zero. limit(500) hides it for now,
+    // but the same exhaustion returns once ~500 books are live, and it fails
+    // silently: an empty batch looks identical to "nothing eligible".
+    //
+    // Filtering server-side makes the window a cursor over eligible rows.
+    .not('index_status', 'in', `(${PUBLISHED_STATUSES.join(',')})`)
     .order('recommendation_count', { ascending: false })
     .limit(500);
 
@@ -271,6 +400,8 @@ async function findTier3Candidates() {
 
   for (const b of books || []) {
     if (PUBLISHED_STATUSES.includes((b.index_status || '').toLowerCase())) continue;
+    // A redirect points away from this slug: it was retired on purpose.
+    if (REDIRECTED_SLUGS.has(String(b.slug || '').toLowerCase())) continue;
 
     const validTitle = b.title && b.title.length > 1 && !/^\s*\d+(\.\d+)?\s*$/.test(b.title);
     const validAuthor = b.author_name && b.author_name.length > 1;
@@ -321,6 +452,8 @@ async function findTier3Candidates() {
 
   for (const p of people || []) {
     if (PUBLISHED_STATUSES.includes((p.index_status || '').toLowerCase())) continue;
+    // A redirect points away from this slug: it was retired on purpose.
+    if (REDIRECTED_SLUGS.has(String(p.slug || '').toLowerCase())) continue;
 
     const count = pCounts[p.id] || 0;
     const hasFullName = p.name && p.name.trim().includes(' ');
@@ -362,12 +495,23 @@ async function main() {
   console.log(`Daily quota for Tier 2/3: ${DAILY_BATCH_SIZE} pages (Tier 1 pillar backlog is uncapped)`);
   console.log(`==================================================\n`);
 
-  const tier1 = await findTier1Candidates();
+  // Topics already covered by a live page. Applied to LIST candidates only —
+  // a book and a list can share a topic word without competing, but two lists
+  // on one topic is the duplicate pair this project already had to unwind.
+  const publishedTopics = await loadPublishedTopics();
+  const notADuplicateTopic = (c) =>
+    !(c.type === 'pillar-list' || c.type === 'cluster-list' || c.type === 'list') ||
+    !publishedTopics.has(topicKey(c.slug));
+
+  const tier1All = await findTier1Candidates();
+  const tier1 = tier1All.filter(notADuplicateTopic);
   console.log(`Tier 1 (pillar lists) pending: ${tier1.length} of ${BROAD_CATEGORY_SLUGS.length} total broad categories`);
 
   let remaining = DAILY_BATCH_SIZE;
-  const tier2 = remaining > 0 ? await findTier2Candidates() : [];
-  console.log(`Tier 2 (cluster lists + series) candidate pool: ${tier2.length}`);
+  const tier2All = remaining > 0 ? await findTier2Candidates() : [];
+  const tier2 = tier2All.filter(notADuplicateTopic);
+  const blocked2 = tier2All.length - tier2.length;
+  console.log(`Tier 2 (cluster lists + series) candidate pool: ${tier2.length}${blocked2 ? `  (${blocked2} blocked: topic already published)` : ''}`);
   const tier3 = await findTier3Candidates();
   console.log(`Tier 3 (books + people) candidate pool: ${tier3.length}\n`);
 
