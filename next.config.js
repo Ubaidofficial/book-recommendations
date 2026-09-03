@@ -251,6 +251,16 @@ const nextConfig = {
         destination: "/lists/romance",
         permanent: true,
       },
+      // Same bare-category-vs-best-X-books pair as the ten above, missed in
+      // that batch: children-s (1,100 books) and best-childrens-books (88)
+      // were both published and both rendered "Best Childrens Books". The
+      // 24 books unique to best-childrens-books were folded into children-s;
+      // best-childrens-books is now noindexed.
+      {
+        source: "/lists/best-childrens-books",
+        destination: "/lists/children-s",
+        permanent: true,
+      },
     ];
   },
 
