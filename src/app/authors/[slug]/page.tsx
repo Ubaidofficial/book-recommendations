@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getBooksByAuthorSlug } from "@/lib/data";
+import { getBooksByAuthorSlugCached } from "@/lib/data";
 import { pageMetadata } from "@/lib/seo";
 import { BookCard, Breadcrumbs } from "@/components";
 
@@ -10,7 +10,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const data = await getBooksByAuthorSlug(slug);
+  const data = await getBooksByAuthorSlugCached(slug);
   if (!data) return { robots: "noindex, follow" };
 
   return pageMetadata({
@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function AuthorDetailPage({ params }: Props) {
   const { slug } = await params;
-  const data = await getBooksByAuthorSlug(slug);
+  const data = await getBooksByAuthorSlugCached(slug);
   if (!data) notFound();
 
   const { authorName, books } = data;

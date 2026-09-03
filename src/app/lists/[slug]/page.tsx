@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getListBySlug, getBooksForListCached, getBooksForListByRecommendationsCached, getRelatedListsCached, getRecommendersForBooksCached } from "@/lib/data";
+import { getListBySlugCached, getBooksForListCached, getBooksForListByRecommendationsCached, getRelatedListsCached, getRecommendersForBooksCached } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel } from "@/lib/display";
 import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl,
@@ -26,7 +26,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const list = await getListBySlug(slug);
+  const list = await getListBySlugCached(slug);
   if (!list) return { robots: "noindex, follow" };
   const displayName = displayListTitle(list.title, list.slug);
   // The title tag carries the phrase people actually search ("Best Philosophy
@@ -65,7 +65,7 @@ const LIST_PAGE_SIZE = 100;
 export default async function ListDetailPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { sort } = await searchParams;
-  const list = await getListBySlug(slug);
+  const list = await getListBySlugCached(slug);
   if (!list) notFound();
 
   const kind = listKindFromSlug(list.slug);

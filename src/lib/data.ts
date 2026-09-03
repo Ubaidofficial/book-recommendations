@@ -337,6 +337,22 @@ export const getPersonBySlugCached = (slug: string) =>
     tags: ["people", `person:${slug}`],
   })();
 
+// lists/[slug] and series/[slug] each call their *BySlug lookup once in
+// generateMetadata and again in the page component — two Supabase round
+// trips for the same row on every view. Caching closes that gap the same
+// way it does for books/people above, on top of unblocking ISR.
+export const getListBySlugCached = (slug: string) =>
+  unstable_cache(() => getListBySlug(slug), ["list-by-slug", slug], {
+    revalidate: 300,
+    tags: ["lists", `list:${slug}`],
+  })();
+
+export const getSeriesBySlugCached = (slug: string) =>
+  unstable_cache(() => getSeriesBySlug(slug), ["series-by-slug", slug], {
+    revalidate: 300,
+    tags: ["series", `series:${slug}`],
+  })();
+
 export async function getBookBySlug(slug: string): Promise<Book | null> {
   try {
     const { data, error } = await getSupabase()
@@ -657,6 +673,48 @@ export async function getPersonWrittenCount(personId: string): Promise<number> {
   } catch (e) {
     logQueryError("getPersonWrittenCount", e);
     return 0;
+  }
+}
+
+/**
+ * Batched form of getPersonRecommendedCount + getPersonWrittenCount.
+ *
+ * /people search called both per result — up to 48 uncached round trips for
+ * a 24-row page. Postgres can't give per-id exact counts without a GROUP BY,
+ * which count:"exact" head requests don't support, so this pulls the raw
+ * id rows for all persons in one query per table and tallies them in
+ * application code — 2 round trips total regardless of result-set size.
+ */
+export async function getPersonCountsBatch(
+  personIds: string[]
+): Promise<Map<string, { recommendedCount: number; writtenCount: number }>> {
+  const result = new Map<string, { recommendedCount: number; writtenCount: number }>(
+    personIds.map((id) => [id, { recommendedCount: 0, writtenCount: 0 }])
+  );
+  if (personIds.length === 0) return result;
+
+  try {
+    const supa = getSupabase();
+    const [{ data: recs, error: recErr }, { data: written, error: writtenErr }] = await Promise.all([
+      supa.from("book_recommendations").select("person_id").in("person_id", personIds),
+      supa.from("book_authors").select("person_id").in("person_id", personIds),
+    ]);
+
+    if (recErr) logQueryError("getPersonCountsBatch.recommended", recErr);
+    if (writtenErr) logQueryError("getPersonCountsBatch.written", writtenErr);
+
+    for (const row of recs || []) {
+      const entry = result.get(row.person_id);
+      if (entry) entry.recommendedCount += 1;
+    }
+    for (const row of written || []) {
+      const entry = result.get(row.person_id);
+      if (entry) entry.writtenCount += 1;
+    }
+    return result;
+  } catch (e) {
+    logQueryError("getPersonCountsBatch", e);
+    return result;
   }
 }
 
@@ -2035,68 +2093,52 @@ export async function getBooksByAuthorSlug(
 ): Promise<{ authorName: string; books: Book[] } | null> {
   try {
     const supa = getSupabase();
-    
-    // Step 1: Query unique author names of eligible draft books from the books table in pages
-    const rawAuthors: Array<{ author_name: string | null }> = [];
-    const pageSize = 1000;
-    let offset = 0;
-    
-    while (true) {
-      const from = offset;
-      const to = offset + pageSize - 1;
-      
-      const { data, error } = await supa
-        .from("books")
-        .select("id, author_name")
-        .eq("ai_quality_status", "draft")
-        .not("author_name", "is", null)
-        .neq("author_name", "")
-        .not("cover_image_url", "is", null)
-        .neq("cover_image_url", "")
-        .not("slug", "is", null)
-        .neq("slug", "")
-        .not("title", "is", null)
-        .neq("title", "")
-        .order("id", { ascending: true })
-        .range(from, to);
-        
-      if (error) {
-        logQueryError(`getBooksByAuthorSlug.auth[offset=${offset}]`, error);
-        return null;
-      }
-      
-      if (!data || data.length === 0) {
-        break;
-      }
-      
-      rawAuthors.push(...(data as any[]));
-      
-      if (data.length < pageSize) {
-        break;
-      }
-      offset += data.length;
+
+    // Step 1: Slug-collision check — how many distinct display names map to
+    // this slug among eligible draft books? Filtered on the indexed
+    // author_catalog_slug column (migrations/002), so this is a small,
+    // fast lookup rather than a full-table scan.
+    const { data: nameRows, error: nameErr } = await supa
+      .from("books")
+      .select("author_name")
+      .eq("author_catalog_slug", slug)
+      .eq("ai_quality_status", "draft")
+      .not("author_name", "is", null)
+      .neq("author_name", "")
+      .not("cover_image_url", "is", null)
+      .neq("cover_image_url", "")
+      .not("slug", "is", null)
+      .neq("slug", "")
+      .not("title", "is", null)
+      .neq("title", "")
+      .limit(500);
+
+    if (nameErr) {
+      logQueryError("getBooksByAuthorSlug.names", nameErr);
+      return null;
     }
-    
-    // Step 2: Find all matching display author names (Slug-Collision Protection)
-    const uniqueNames = Array.from(new Set(rawAuthors.map(r => r.author_name).filter((x): x is string => !!x)));
-    const matchingNames = uniqueNames.filter(name => slugify(name) === slug);
+
+    const matchingNames = Array.from(
+      new Set((nameRows || []).map(r => r.author_name).filter((x): x is string => !!x))
+    );
     if (matchingNames.length === 0) {
       return null; // Author not found or lacks eligible books
     }
-    
+
     if (matchingNames.length > 1) {
       console.warn(`[author-collision] Slug collision detected for slug: "${slug}". Matching names: ${JSON.stringify(matchingNames)}`);
       return null; // Return null / notFound on collision to protect author name separation
     }
-    
+
     const primaryName = matchingNames[0];
-    
-    // Step 3: Fetch all eligible draft books written by this author
+
+    // Step 2: Fetch all eligible draft books written by this author, via the
+    // same indexed column.
     const { data: books, error: booksErr } = await supa
       .from("books")
       .select("*")
+      .eq("author_catalog_slug", slug)
       .eq("ai_quality_status", "draft")
-      .eq("author_name", primaryName)
       .not("cover_image_url", "is", null)
       .neq("cover_image_url", "")
       .not("slug", "is", null)
@@ -2105,7 +2147,7 @@ export async function getBooksByAuthorSlug(
       .neq("title", "")
       .order("recommendation_count", { ascending: false })
       .limit(limit);
-      
+
     if (booksErr || !books) {
       logQueryError("getBooksByAuthorSlug.books", booksErr || new Error("No books returned"));
       return null;
@@ -2115,20 +2157,20 @@ export async function getBooksByAuthorSlug(
       return null;
     }
     
-    // Step 4: Exclude books linked to series via live DB check
+    // Step 3: Exclude books linked to series via live DB check
     const { data: seriesLinks, error: seriesErr } = await supa
       .from("book_series")
       .select("book_id")
       .in("book_id", books.map(b => b.id));
-      
+
     if (seriesErr) {
       logQueryError("getBooksByAuthorSlug.series", seriesErr);
     }
-    
+
     const seriesIds = new Set((seriesLinks || []).map(s => s.book_id));
     const nonSeriesBooks = books.filter(b => !seriesIds.has(b.id));
-    
-    // Step 5: Enforce HTTPS cover image eligibility
+
+    // Step 4: Enforce HTTPS cover image eligibility
     const eligibleBooks = nonSeriesBooks.filter(
       b => b.cover_image_url && b.cover_image_url.startsWith("https://")
     );
@@ -2154,148 +2196,60 @@ export interface AuthorIndexItem {
   totalRecommendationCount: number;
 }
 
+/**
+ * Backed by get_author_catalog_index() (migrations/002) — a Postgres
+ * function that does the eligibility filter, series exclusion, GROUP BY
+ * author, and slug-collision drop server-side in one round trip. This page
+ * fundamentally has to aggregate every eligible book by author, so unlike
+ * getBooksByAuthorSlug there's no single-row index lookup that avoids the
+ * scan entirely; the win is doing that scan-and-group in Postgres instead of
+ * paging ~98k rows into Node and grouping them in a Map.
+ */
 export async function getAuthorCatalogIndex(limit = 100): Promise<AuthorIndexItem[]> {
   try {
     const supa = getSupabase();
-    
-    // Step 1: Fetch all draft books with valid metadata in pages
-    const books: Array<{
-      id: string;
-      slug: string | null;
-      title: string | null;
-      author_name: string | null;
-      cover_image_url: string | null;
-      recommendation_count: number | null;
-    }> = [];
-    
-    const pageSize = 1000;
-    let offset = 0;
-    
-    while (true) {
-      const from = offset;
-      const to = offset + pageSize - 1;
-      
-      const { data, error } = await supa
-        .from("books")
-        .select("id, slug, title, author_name, cover_image_url, recommendation_count")
-        .eq("ai_quality_status", "draft")
-        .not("author_name", "is", null)
-        .neq("author_name", "")
-        .not("cover_image_url", "is", null)
-        .neq("cover_image_url", "")
-        .not("slug", "is", null)
-        .neq("slug", "")
-        .not("title", "is", null)
-        .neq("title", "")
-        .order("id", { ascending: true })
-        .range(from, to);
-        
-      if (error) {
-        logQueryError(`getAuthorCatalogIndex.books[offset=${offset}]`, error);
-        return [];
-      }
-      
-      if (!data || data.length === 0) {
-        break;
-      }
-      
-      books.push(...(data as any[]));
-      
-      if (data.length < pageSize) {
-        break;
-      }
-      offset += data.length;
+    const { data, error } = await supa.rpc("get_author_catalog_index", { p_limit: limit });
+
+    if (error) {
+      logQueryError("getAuthorCatalogIndex", error);
+      return [];
     }
-    
-    // Step 2: Live Supabase series exclusions check in chunked batches
-    const bookIds = books.map(b => b.id);
-    const seriesBookIds = new Set<string>();
-    const chunkBatchSize = 250;
-    
-    for (let i = 0; i < bookIds.length; i += chunkBatchSize) {
-      const chunk = bookIds.slice(i, i + chunkBatchSize);
-      const { data: seriesLinks, error: seriesErr } = await supa
-        .from("book_series")
-        .select("book_id")
-        .in("book_id", chunk);
-        
-      if (seriesErr) {
-        logQueryError(`getAuthorCatalogIndex.series[chunk=${i / chunkBatchSize}]`, seriesErr);
-        continue;
-      }
-      
-      if (seriesLinks) {
-        for (const s of seriesLinks) {
-          if (s.book_id) {
-            seriesBookIds.add(s.book_id);
-          }
-        }
-      }
-    }
-    
-    // Filter non-series books and ensure HTTPS cover URL
-    const eligibleBooks = books.filter(
-      b => !seriesBookIds.has(b.id) && b.cover_image_url && b.cover_image_url.startsWith("https://")
-    );
-    
-    // Step 3: Group books by author_name
-    const authorGroups = new Map<string, any[]>();
-    for (const b of eligibleBooks) {
-      const author = b.author_name as string;
-      if (!authorGroups.has(author)) {
-        authorGroups.set(author, []);
-      }
-      authorGroups.get(author)!.push(b);
-    }
-    
-    // Step 4: Map groups and check for slug collisions
-    const authorItems: AuthorIndexItem[] = [];
-    const slugToNames = new Map<string, string[]>();
-    
-    for (const [authorName, booksWritten] of authorGroups.entries()) {
-      const slug = slugify(authorName);
-      if (!slug) continue;
-      
-      if (!slugToNames.has(slug)) {
-        slugToNames.set(slug, []);
-      }
-      slugToNames.get(slug)!.push(authorName);
-      
-      const totalRecs = booksWritten.reduce((sum, b) => sum + (b.recommendation_count || 0), 0);
-      
-      authorItems.push({
-        authorName,
-        slug,
-        eligibleBookCount: booksWritten.length,
-        totalRecommendationCount: totalRecs,
-      });
-    }
-    
-    // Filter out collided slugs
-    const cleanItems = authorItems.filter(item => {
-      const names = slugToNames.get(item.slug);
-      return names && names.length === 1;
-    });
-    
-    // Sort: eligibleBookCount desc, totalRecommendationCount desc, authorName asc
-    cleanItems.sort((a, b) => {
-      if (b.eligibleBookCount !== a.eligibleBookCount) {
-        return b.eligibleBookCount - a.eligibleBookCount;
-      }
-      if (b.totalRecommendationCount !== a.totalRecommendationCount) {
-        return b.totalRecommendationCount - a.totalRecommendationCount;
-      }
-      return a.authorName.localeCompare(b.authorName);
-    });
-    
-    return cleanItems.slice(0, limit);
+
+    return (data || []).map((row: {
+      author_name: string;
+      author_catalog_slug: string;
+      eligible_book_count: number | string;
+      total_recommendation_count: number | string;
+    }) => ({
+      authorName: row.author_name,
+      slug: row.author_catalog_slug,
+      eligibleBookCount: Number(row.eligible_book_count) || 0,
+      totalRecommendationCount: Number(row.total_recommendation_count) || 0,
+    }));
   } catch (e) {
     logQueryError("getAuthorCatalogIndex", e);
     return [];
   }
 }
 
+/**
+ * Both author reads above are now backed by the indexed author_catalog_slug
+ * column / RPC (migrations/002) instead of a full-table scan, but they're
+ * cached on top of that anyway: these routes are noindex with no
+ * crawl-budget stakes, so trading a bit of staleness to also skip the
+ * generateMetadata + page double-call for the same slug is a clear win.
+ */
+export const getBooksByAuthorSlugCached = (slug: string, limit = 48) =>
+  unstable_cache(() => getBooksByAuthorSlug(slug, limit), ["books-by-author-slug", slug, String(limit)], {
+    revalidate: 3600,
+    tags: ["books", "authors"],
+  })();
 
+export const getAuthorCatalogIndexCached = (limit = 100) =>
+  unstable_cache(() => getAuthorCatalogIndex(limit), ["author-catalog-index", String(limit)], {
+    revalidate: 3600,
+    tags: ["books", "authors"],
+  })();
 
 /**
  * Recommenders behind a set of books, ranked by how many of them they backed.

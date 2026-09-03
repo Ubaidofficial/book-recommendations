@@ -1,10 +1,8 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { getAuthorCatalogIndex } from "@/lib/data";
+import { getAuthorCatalogIndexCached } from "@/lib/data";
 import { Breadcrumbs } from "@/components";
 import { pageMetadata } from "@/lib/seo";
-
-export const dynamic = "force-dynamic"; // Force dynamic server rendering
 
 export const metadata: Metadata = pageMetadata({
   title: "Authors Catalog",
@@ -14,7 +12,7 @@ export const metadata: Metadata = pageMetadata({
 });
 
 export default async function AuthorsIndexPage() {
-  const authors = await getAuthorCatalogIndex(100);
+  const authors = await getAuthorCatalogIndexCached(100);
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">

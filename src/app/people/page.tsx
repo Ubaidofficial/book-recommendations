@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { getTopRecommendedPeopleCached, getPersonRecommendedCount, getPersonWrittenCount, searchPeople } from "@/lib/data";
+import { getTopRecommendedPeopleCached, getPersonCountsBatch, searchPeople } from "@/lib/data";
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
 import { isProfilelessSurnameAlias } from "@/lib/dataQuality";
@@ -72,15 +72,11 @@ export default async function PeoplePage({ searchParams }: Props) {
 
   if (isSearching) {
     const data = await searchPeople(q, DISPLAY_LIMIT);
-    peopleWithCounts = await Promise.all(
-      data.map(async (p) => {
-        const [rc, wc] = await Promise.all([
-          getPersonRecommendedCount(p.id),
-          getPersonWrittenCount(p.id),
-        ]);
-        return { ...p, recommendedCount: rc, writtenCount: wc };
-      })
-    );
+    const counts = await getPersonCountsBatch(data.map((p) => p.id));
+    peopleWithCounts = data.map((p) => {
+      const c = counts.get(p.id);
+      return { ...p, recommendedCount: c?.recommendedCount || 0, writtenCount: c?.writtenCount || 0 };
+    });
     rawTotal = peopleWithCounts.length;
   } else {
     peopleWithCounts = await getTopRecommendedPeopleCached(150);

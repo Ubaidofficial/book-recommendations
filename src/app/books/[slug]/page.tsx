@@ -111,8 +111,10 @@ export default async function BookDetailPage({ params }: Props) {
   // affiliate tag is appended. Render-time only — DB is not modified.
   const normalizedAmazonUrl = normalizeAmazonUrl(book.amazon_url);
 
-  const personId = book.author_slug ? await getPersonIdBySlug(book.author_slug) : null;
-  const seriesId = book.series_slug ? await getSeriesIdBySlug(book.series_slug) : null;
+  const [personId, seriesId] = await Promise.all([
+    book.author_slug ? getPersonIdBySlug(book.author_slug) : Promise.resolve(null),
+    book.series_slug ? getSeriesIdBySlug(book.series_slug) : Promise.resolve(null),
+  ]);
 
   let authorBooks: Awaited<ReturnType<typeof getBooksByAuthor>> = [];
   let seriesBooks: Awaited<ReturnType<typeof getBooksBySeries>> = [];
