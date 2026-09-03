@@ -234,6 +234,23 @@ const nextConfig = {
         destination: "/lists/leadership",
         permanent: true,
       },
+      // mathscience mixed a merged-category import artifact with no science
+      // content at all — all 108 books were math/statistics/probability.
+      // The 35 not already in best-math-books were folded in there; this
+      // list is now noindexed and redirects to the surviving twin.
+      {
+        source: "/lists/mathscience",
+        destination: "/lists/best-math-books",
+        permanent: true,
+      },
+      // romancefiction targeted "best romance fiction books" (20 searches/mo)
+      // while the separate romance list already owns "best romance books"
+      // (7,900/mo) — pure cannibalization. romancefiction is now noindexed.
+      {
+        source: "/lists/romancefiction",
+        destination: "/lists/romance",
+        permanent: true,
+      },
     ];
   },
 

@@ -26,7 +26,10 @@ const FULL_TITLE_ALIASES: Record<string, string> = {
   "non fiction": "Nonfiction",
   "non-fiction": "Nonfiction",
   "nonfiction": "Nonfiction",
-  "teen & young": "Teen & Young Adult",
+  // "Teen & Young Adult" duplicated the separate best-young-adult-books list's
+  // exact target phrase (1,300 searches/mo) while this list's own wrapped
+  // title had none. "Teen" targets its own real term (~300/mo) instead.
+  "teen & young": "Teen",
   // singular → plural / clearer label (display-only; DB row stays as-is)
   "comic": "Comics",
   "humor": "Humor",
@@ -292,9 +295,13 @@ export function displayListTitleFull(
   // Build "Best <Name> Books" using the cleaned short name as the body.
   const core = displayListTitle(rawTitle, slug);
   if (!core) return "Best Books";
-  // If user already saved the full phrase, don't double-wrap.
+  // If user already saved the full phrase, don't double-wrap. Titles like
+  // "Books Recommended by Bill Gates" mention "Books" in the middle, not
+  // just as a trailing word — checking only startsWith/endsWith missed
+  // that and produced "Best Books Recommended by Bill Gates Books" on
+  // every books-recommended-by-* list page.
   const lc = core.toLowerCase();
-  const looksWrapped = lc.startsWith("best ") || lc.endsWith(" books");
+  const looksWrapped = lc.startsWith("best ") || /\bbooks?\b/.test(lc);
   if (looksWrapped) return core;
   if (FORMAT_TOPICS.has((slug || "").toLowerCase())) return `Best ${core}`;
   return `Best ${core} Books`;
