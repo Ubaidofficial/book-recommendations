@@ -798,6 +798,14 @@ export interface ProofItem {
 export interface PersonItem {
   slug: string;
   name: string;
+  /** Own X/Twitter handle, no "@". Null/absent = unknown, so tweets are not judged. */
+  twitter_handle?: string | null;
+}
+
+/** Account name from a twitter.com / x.com status URL, lower-cased; null for any other URL. */
+export function twitterStatusHandle(url: string | null | undefined): string | null {
+  const m = /^https?:\/\/(?:www\.|mobile\.)?(?:twitter|x)\.com\/([^/?#]+)\/status/i.exec((url || "").trim());
+  return m ? m[1].toLowerCase() : null;
 }
 
 export interface ProofDisplaySafety {
@@ -838,7 +846,16 @@ export function getProofDisplaySafety(
 
   // Stricter Trust/Provenance rules:
   // A source is trustworthy only if it has exactly one parsed URL, has no pipes, and is not a metadata link
-  const showSource = sourceUrls.length === 1 && !hasPipeSource && !isMetadata;
+  //
+  // A tweet from a different account is someone else's words, not this
+  // person's recommendation: in a comparison with another site every tweet it
+  // cited was from the person's own account, whereas ~40% of ours here were
+  // not. When we know the person's handle, hide a source/quote from any other
+  // account. With no handle on file we can't judge, so behaviour is unchanged.
+  const knownHandle = (person?.twitter_handle || "").trim().replace(/^@/, "").toLowerCase();
+  const tweetHandle = twitterStatusHandle(sourceUrls[0]);
+  const foreignTweet = !!knownHandle && !!tweetHandle && tweetHandle !== knownHandle;
+  const showSource = sourceUrls.length === 1 && !hasPipeSource && !isMetadata && !foreignTweet;
   const showQuote = showSource && quote.length >= 50 && !hasPipeQuote && !isLowConf;
 
   // Mismatch Check

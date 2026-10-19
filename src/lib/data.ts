@@ -96,6 +96,11 @@ export interface Person {
   avatar_license?: string | null;
   avatar_attribution?: string | null;
   avatar_author?: string | null;
+  // The person's own X/Twitter handle (no "@", lower case), or null when we
+  // don't know it. A tweet is only shown as the source of one of their
+  // recommendations when it comes from this account — see
+  // getProofDisplaySafety().
+  twitter_handle?: string | null;
 }
 
 export interface BookList {
@@ -1509,6 +1514,8 @@ export interface BookRecommenderSummary {
   source_url: string | null;
   quote: string | null;
   confidence_score: number | null;
+  /** The recommender's own X/Twitter handle, when known (see Person.twitter_handle). */
+  twitter_handle?: string | null;
 }
 
 /**
@@ -1532,7 +1539,7 @@ export async function getBookRecommenders(
     // the strongest proofs surface first; overfetch to allow dedupe.
     const { data, error } = await supa
       .from("book_recommendations")
-      .select("source_url, quote, confidence_score, people(id, slug, name, avatar_url, role, bio)")
+      .select("source_url, quote, confidence_score, people(id, slug, name, avatar_url, role, bio, twitter_handle)")
       .eq("book_id", bookId)
       .order("confidence_score", { ascending: false, nullsFirst: false })
       .limit(60);
@@ -1548,7 +1555,7 @@ export async function getBookRecommenders(
       // single object. Cast through `unknown` (mirrors getRecommendationProof
       // above) and narrow inline.
       people:
-        | { id: string | null; slug: string | null; name: string | null; avatar_url: string | null; role: string | null; bio: string | null }
+        | { id: string | null; slug: string | null; name: string | null; avatar_url: string | null; role: string | null; bio: string | null; twitter_handle: string | null }
         | null;
     };
     const seen = new Set<string>();
@@ -1582,6 +1589,7 @@ export async function getBookRecommenders(
         source_url: r.source_url,
         quote: r.quote,
         confidence_score: r.confidence_score,
+        twitter_handle: p.twitter_handle,
       });
     }
     // Step 2: person-wide recommendation counts for the unique people above.
