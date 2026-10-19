@@ -387,6 +387,38 @@ export async function getBooksBySeries(seriesId: string, limit = 48): Promise<Bo
 }
 
 /**
+ * Series books plus their real `book_series.position` (null when unknown).
+ * Positioned books sort first (ascending); unpositioned ones follow in a
+ * stable order, so a partially-ordered series never interleaves guesses with
+ * verified positions. Used by the series page to number only verified books.
+ */
+export async function getBooksBySeriesOrdered(
+  seriesId: string,
+  limit = 48
+): Promise<Array<Book & { series_position: number | null }>> {
+  try {
+    const { data: rows, error } = await getSupabase()
+      .from("book_series")
+      .select("position, books(*)")
+      .eq("series_id", seriesId)
+      .order("position", { ascending: true, nullsFirst: false })
+      .order("book_id", { ascending: true })
+      .limit(limit);
+
+    if (error) { logQueryError("getBooksBySeriesOrdered", error); return []; }
+    const out: Array<Book & { series_position: number | null }> = [];
+    for (const r of (rows || []) as unknown as Array<{ position: number | null; books: Book | null }>) {
+      if (!r.books || !r.books.id) continue;
+      out.push({ ...normalizeBookRows([r.books])[0], series_position: r.position ?? null });
+    }
+    return out;
+  } catch (e) {
+    logQueryError("getBooksBySeriesOrdered", e);
+    return [];
+  }
+}
+
+/**
  * True only when at least one book in the series carries a real `position`.
  * As of this writing 0 of ~87k `book_series` rows do, so every series page's
  * "#1, #2, ..." badges and "in order" wording would be an arbitrary database

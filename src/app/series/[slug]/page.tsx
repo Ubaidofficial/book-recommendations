@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getSeriesBySlug, getBooksBySeries, getRelatedSeries, seriesHasPositionsCached } from "@/lib/data";
+import { getSeriesBySlug, getBooksBySeriesOrdered, getRelatedSeries, seriesHasPositionsCached } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { displayTitle } from "@/lib/display";
 import { seriesJsonLd } from "@/lib/jsonld";
@@ -53,7 +53,7 @@ export default async function SeriesDetailPage({ params }: Props) {
   // no indication answers the question wrongly rather than partially. Matches
   // the depth list pages now use; covers below the fold lazy-load.
   const [books, related, ordered] = await Promise.all([
-    getBooksBySeries(series.id, SERIES_PAGE_SIZE),
+    getBooksBySeriesOrdered(series.id, SERIES_PAGE_SIZE),
     getRelatedSeries(series.id, 6),
     seriesHasPositionsCached(series.id),
   ]);
@@ -106,17 +106,21 @@ export default async function SeriesDetailPage({ params }: Props) {
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
-            {ordered
-              ? "Reading order is based on available series metadata."
-              : "We don’t have verified reading-order positions for this series yet, so these books are not numbered."}
+            {!ordered
+              ? "We don’t have verified reading-order positions for this series yet, so these books are not numbered."
+              : books.some((b) => b.series_position == null)
+                ? "Numbered titles are in first-publication order. Unnumbered titles have no verified position yet and are listed last."
+                : "Reading order is based on available series metadata."}
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5 mb-14">
-            {books.map((book, i) => (
+            {books.map((book) => (
               <div key={book.id} className="relative">
-                {ordered && (
+                {/* Badge shows the verified position itself, never the array
+                    index: books without a known position stay unnumbered. */}
+                {book.series_position != null && (
                   <span className="absolute top-2 left-2 z-10 px-1.5 h-5 rounded-full bg-accent text-white text-[10px] flex items-center justify-center font-bold shadow-sm">
-                    #{i + 1}
+                    #{book.series_position}
                   </span>
                 )}
                 <BookCard
