@@ -128,8 +128,8 @@ export default async function HomePage() {
               </svg>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-ink">Source-backed proof</h3>
-              <p className="text-xs text-muted mt-0.5">Verifiable links for every recommendation</p>
+              <h3 className="text-sm font-semibold text-ink">Source links</h3>
+              <p className="text-xs text-muted mt-0.5">Original source linked wherever we have one</p>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3">
@@ -239,8 +239,8 @@ export default async function HomePage() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-ink">Every recommendation links to a verifiable source</p>
-                  <p className="text-xs text-muted mt-0.5">Interviews, articles, podcasts, and curated lists — no guessing.</p>
+                  <p className="text-sm font-semibold text-ink">Recommendations link to their source where we have it</p>
+                  <p className="text-xs text-muted mt-0.5">Interviews, articles, podcasts, and curated lists.</p>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -497,10 +497,11 @@ export default async function HomePage() {
       {/* How recommendations are verified */}
       <section className="py-14 px-4 bg-subtle/40 border-y border-border">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-xl font-bold text-ink mb-3 tracking-tight">How recommendations are verified</h2>
+          <h2 className="text-xl font-bold text-ink mb-3 tracking-tight">How recommendations are sourced</h2>
           <p className="text-sm text-muted leading-relaxed max-w-2xl mx-auto mb-4">
             We collect book recommendations from public sources — interviews, articles, podcasts, and curated reading lists.
-            Each entry is linked to its original source. Recommendations without verifiable proof are excluded.
+            Where we have the original source, the entry links to it. Some entries don&apos;t have a source link yet, and
+            we show them without one rather than hide them.
           </p>
           <Link
             href="/methodology"

@@ -8,7 +8,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "BookMentions | Source-Backed Book Recommendations",
   description:
-    "Discover books recommended by notable people, curated lists, and reading series. Every recommendation is connected to source-backed evidence.",
+    "Discover books recommended by notable people, curated lists, and reading series. We link to the original source wherever we have one.",
   alternates: { canonical: "https://bookmentions.net" },
   icons: {
     icon: [
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "BookMentions | Source-Backed Book Recommendations",
     description:
-      "Discover books recommended by notable people, curated lists, and reading series. Every recommendation is connected to source-backed evidence.",
+      "Discover books recommended by notable people, curated lists, and reading series. We link to the original source wherever we have one.",
     url: "https://bookmentions.net",
     siteName: "BookMentions",
     type: "website",
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "BookMentions | Source-Backed Book Recommendations",
     description:
-      "Discover books recommended by notable people, curated lists, and reading series. Every recommendation is connected to source-backed evidence.",
+      "Discover books recommended by notable people, curated lists, and reading series. We link to the original source wherever we have one.",
   },
 };
 

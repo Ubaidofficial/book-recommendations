@@ -38,7 +38,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 
   return pageMetadata({
     title: "Books Recommended by Famous People",
-    description: "Discover books recommended by authors, founders, leaders, creators, and public figures with source-backed recommendation proof.",
+    description: "Discover books recommended by authors, founders, leaders, creators, and public figures, with source links where available.",
     path: "/people",
     robots: hasParams ? "noindex, follow" : "index, follow",
   });
@@ -128,7 +128,7 @@ export default async function PeoplePage({ searchParams }: Props) {
   const collectionJsonLd = !isSearching
     ? collectionPageJsonLd({
         name: "Featured People | BookMentions",
-        description: "Discover books recommended by authors, founders, leaders, creators, and public figures with source-backed recommendation proof.",
+        description: "Discover books recommended by authors, founders, leaders, creators, and public figures, with source links where available.",
         url: canonicalUrl("/people"),
         items: shown.map((p) => ({
           name: p.name,
