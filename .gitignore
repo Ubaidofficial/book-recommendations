@@ -35,3 +35,6 @@ CLAUDE_*.md
 scripts/fixtures/*.csv
 scripts/generate_book_editorial_enrichment_v*.py
 .env.local.save
+
+# QA audit output (regenerate with the scripts in scripts/qa/)
+scripts/qa/output/
