@@ -28,8 +28,9 @@ export default function MethodologyPage() {
         </p>
         <h2 className="text-xl font-bold text-ink mt-8">Verification</h2>
         <p>
-          Every recommendation requires at least one primary source. We cross-reference claims across multiple
-          sources where available. Recommendations without verifiable sources are excluded.
+          We prefer recommendations backed by a primary source and link to it wherever we have one. We
+          cross-reference claims across multiple sources where available. Some entries, mostly older
+          imports, don&apos;t yet have a source link; they are shown without one.
         </p>
         <h2 className="text-xl font-bold text-ink mt-8">Ranking</h2>
         <p>

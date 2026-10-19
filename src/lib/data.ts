@@ -96,6 +96,11 @@ export interface Person {
   avatar_license?: string | null;
   avatar_attribution?: string | null;
   avatar_author?: string | null;
+  // The person's own X/Twitter handle (no "@", lower case), or null when we
+  // don't know it. A tweet is only shown as the source of one of their
+  // recommendations when it comes from this account — see
+  // getProofDisplaySafety().
+  twitter_handle?: string | null;
 }
 
 export interface BookList {
@@ -401,6 +406,65 @@ export async function getBooksBySeries(seriesId: string, limit = 48): Promise<Bo
     return [];
   }
 }
+
+/**
+ * Series books plus their real `book_series.position` (null when unknown).
+ * Positioned books sort first (ascending); unpositioned ones follow in a
+ * stable order, so a partially-ordered series never interleaves guesses with
+ * verified positions. Used by the series page to number only verified books.
+ */
+export async function getBooksBySeriesOrdered(
+  seriesId: string,
+  limit = 48
+): Promise<Array<Book & { series_position: number | null }>> {
+  try {
+    const { data: rows, error } = await getSupabase()
+      .from("book_series")
+      .select("position, books(*)")
+      .eq("series_id", seriesId)
+      .order("position", { ascending: true, nullsFirst: false })
+      .order("book_id", { ascending: true })
+      .limit(limit);
+
+    if (error) { logQueryError("getBooksBySeriesOrdered", error); return []; }
+    const out: Array<Book & { series_position: number | null }> = [];
+    for (const r of (rows || []) as unknown as Array<{ position: number | null; books: Book | null }>) {
+      if (!r.books || !r.books.id) continue;
+      out.push({ ...normalizeBookRows([r.books])[0], series_position: r.position ?? null });
+    }
+    return out;
+  } catch (e) {
+    logQueryError("getBooksBySeriesOrdered", e);
+    return [];
+  }
+}
+
+/**
+ * True only when at least one book in the series carries a real `position`.
+ * As of this writing 0 of ~87k `book_series` rows do, so every series page's
+ * "#1, #2, ..." badges and "in order" wording would be an arbitrary database
+ * order presented as a reading order. Pages gate that language on this.
+ */
+export async function seriesHasPositions(seriesId: string): Promise<boolean> {
+  try {
+    const { count, error } = await getSupabase()
+      .from("book_series")
+      .select("book_id", { count: "exact", head: true })
+      .eq("series_id", seriesId)
+      .not("position", "is", null);
+    if (error) { logQueryError("seriesHasPositions", error); return false; }
+    return (count || 0) > 0;
+  } catch (e) {
+    logQueryError("seriesHasPositions", e);
+    return false;
+  }
+}
+
+export const seriesHasPositionsCached = (seriesId: string) =>
+  unstable_cache(() => seriesHasPositions(seriesId), ["series-has-positions", seriesId], {
+    revalidate: 300,
+    tags: ["series"],
+  })();
 
 export async function getRelatedBooks(
   bookId: string,
@@ -1508,6 +1572,8 @@ export interface BookRecommenderSummary {
   source_url: string | null;
   quote: string | null;
   confidence_score: number | null;
+  /** The recommender's own X/Twitter handle, when known (see Person.twitter_handle). */
+  twitter_handle?: string | null;
 }
 
 /**
@@ -1531,7 +1597,7 @@ export async function getBookRecommenders(
     // the strongest proofs surface first; overfetch to allow dedupe.
     const { data, error } = await supa
       .from("book_recommendations")
-      .select("source_url, quote, confidence_score, people(id, slug, name, avatar_url, role, bio)")
+      .select("source_url, quote, confidence_score, people(id, slug, name, avatar_url, role, bio, twitter_handle)")
       .eq("book_id", bookId)
       .order("confidence_score", { ascending: false, nullsFirst: false })
       .limit(60);
@@ -1547,7 +1613,7 @@ export async function getBookRecommenders(
       // single object. Cast through `unknown` (mirrors getRecommendationProof
       // above) and narrow inline.
       people:
-        | { id: string | null; slug: string | null; name: string | null; avatar_url: string | null; role: string | null; bio: string | null }
+        | { id: string | null; slug: string | null; name: string | null; avatar_url: string | null; role: string | null; bio: string | null; twitter_handle: string | null }
         | null;
     };
     const seen = new Set<string>();
@@ -1581,6 +1647,7 @@ export async function getBookRecommenders(
         source_url: r.source_url,
         quote: r.quote,
         confidence_score: r.confidence_score,
+        twitter_handle: p.twitter_handle,
       });
     }
     // Step 2: person-wide recommendation counts for the unique people above.
@@ -2426,12 +2493,9 @@ export const getFeaturedSeriesCached = (n: number) =>
  * text, so caching them would create unbounded cache entries for little
  * reuse benefit and is intentionally left uncached.
  *
- * Deliberately NOT applied to `getBooksPaginated`: `/books` already has its
- * own `isDefaultLandingEmpty` + `noStore()` safeguard against caching a
- * transient empty Supabase response on the highest-traffic hub page, and
- * layering a function-level cache on top of that would need to replicate
- * the same empty-result check to stay safe — a large enough job to be its
- * own change rather than folding it into this pass.
+ * `getBooksPaginated` gets its own wrapper further down
+ * (`getBooksPaginatedCached`) because it has to refuse to cache an empty
+ * result — see that function for why.
  */
 export const getTopRecommendedPeopleCached = (topN: number) =>
   unstable_cache(() => getTopRecommendedPeople(topN), ["top-recommended-people", String(topN)], {
@@ -2468,3 +2532,46 @@ export const getSeriesPaginatedCached = (page: number, pageSize: number) =>
     revalidate: 60,
     tags: ["series"],
   })();
+
+/**
+ * Cached default `/books` view. Search Console reports `/books` as
+ * "Discovered - currently not indexed": Google knows the URL from the sitemap
+ * but has not crawled it, and the page is `force-dynamic` with a live
+ * Supabase read behind every request, so a slow or cold database makes the
+ * hub slow for the crawler too.
+ *
+ * An empty result is never cached. `getBooksPaginated` returns `[]` when
+ * Supabase times out (the cold-start regression `/books` already guards
+ * against with `noStore()`), and `unstable_cache` would otherwise pin that
+ * empty page for the full revalidate window. Throwing from inside the cached
+ * function keeps it out of the cache; the caller still gets the empty result
+ * (carried on the error) without a second round-trip to a database that has
+ * just failed.
+ */
+class UncachedBooksResult extends Error {
+  constructor(readonly result: PaginatedResult<Book>) {
+    super("empty /books result — not cached");
+  }
+}
+
+export const getBooksPaginatedCached = async (
+  page: number,
+  pageSize: number,
+  sort: "recommendation_count" | "rating" | "title",
+  scope: "curated" | "all"
+): Promise<PaginatedResult<Book>> => {
+  try {
+    return await unstable_cache(
+      async () => {
+        const result = await getBooksPaginated(page, pageSize, sort, scope);
+        if (result.data.length === 0) throw new UncachedBooksResult(result);
+        return result;
+      },
+      ["books-paginated", String(page), String(pageSize), sort, scope],
+      { revalidate: 60, tags: ["books"] }
+    )();
+  } catch (e) {
+    if (e instanceof UncachedBooksResult) return e.result;
+    throw e;
+  }
+};

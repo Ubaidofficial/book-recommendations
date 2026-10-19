@@ -33,15 +33,15 @@ export default function AboutPage() {
           from interviews, articles, social media, podcasts, and curated reading lists.
         </p>
         <p>
-          Every recommendation is linked to its original source, giving you confidence that the book
-          comes genuinely recommended by someone you trust. We do not generate or fabricate recommendations.
-          If you believe a recommendation is inaccurate, you can report it and we&apos;ll review it.
+          Where we have the original source, the recommendation links to it so you can check it yourself.
+          Some older entries don&apos;t have a source link yet. We do not generate or fabricate recommendations.
+          If you believe a recommendation is inaccurate or wrongly attributed, you can report it and we&apos;ll review it.
         </p>
 
         <h2 className="text-xl font-bold text-ink mt-10">How It Works</h2>
         <p>
-          We scan public sources for book mentions by notable people. Each mention is verified against
-          at least one primary source. Books are then ranked by the number and quality of recommendations —
+          We scan public sources for book mentions by notable people and record the source where we have it.
+          Books are then ranked by the number and quality of recommendations —
           so popular books with many endorsements naturally rise while hidden gems get visibility.
         </p>
         <p>
@@ -50,12 +50,11 @@ export default function AboutPage() {
           are improved.
         </p>
 
-        <h2 className="text-xl font-bold text-ink mt-10">Source-Backed Recommendations</h2>
+        <h2 className="text-xl font-bold text-ink mt-10">Sources</h2>
         <p>
-          Unlike algorithm-only book sites, every recommendation displayed here is backed by a verifiable
-          source — a real interview, article, podcast, or curated reading list. Recommendations without
-          proof are excluded. This gives you confidence that the books you discover are genuinely endorsed
-          by the people you respect.
+          Unlike algorithm-only book sites, recommendations here come from real interviews, articles,
+          podcasts, social posts, and curated reading lists, and we link to the source wherever we have it.
+          We only list a source against a recommendation when it points clearly to one place, so some recommendations appear on a person&apos;s page without one, or are left off the list until we can source them.
         </p>
       </div>
     </div>

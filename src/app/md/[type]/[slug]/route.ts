@@ -151,7 +151,7 @@ export async function GET(
       "",
     ];
     for (const r of recommenders) {
-      const safety = getProofDisplaySafety(r, { slug: r.person_slug, name: r.person_name });
+      const safety = getProofDisplaySafety(r, { slug: r.person_slug, name: r.person_name, twitter_handle: r.twitter_handle });
       out.push(`### ${r.person_name}${r.role ? ` — ${r.role}` : ""}`);
       out.push(`${BASE_URL}/people/${r.person_slug}`);
       if (safety.showQuote && r.quote) {

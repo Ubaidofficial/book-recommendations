@@ -77,8 +77,10 @@ function buildTitle(name, rec) {
  */
 function buildDescription(name, rec, titles) {
   const lead = `${rec} books recommended by ${name}`;
-  const tail = " Every pick links back to the original interview, post, or reading list.";
-  const shortTail = " Each pick links back to its original source.";
+  // Not every recommendation has a source URL (about 42% of published
+  // people's recommendations do not), so never promise one per pick.
+  const tail = " Source links to the original interview, post, or reading list where available.";
+  const shortTail = " Source links shown where available.";
 
   for (const n of [3, 2, 1]) {
     const picked = titles.slice(0, n);
@@ -89,10 +91,10 @@ function buildDescription(name, rec, titles) {
       if (candidate.length <= DESC_MAX) return candidate;
     }
   }
-  const plain = `${lead}, with source links to the interviews, posts, and reading lists where each one appeared.`;
+  const plain = `${lead}, with source links to the interviews, posts, and reading lists where available.`;
   return plain.length <= DESC_MAX
     ? plain
-    : `${lead}, with a source link for every recommendation.`;
+    : `${lead}, with source links where available.`;
 }
 
 (async () => {

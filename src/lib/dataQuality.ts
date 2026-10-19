@@ -798,6 +798,14 @@ export interface ProofItem {
 export interface PersonItem {
   slug: string;
   name: string;
+  /** Own X/Twitter handle, no "@". Null/absent = unknown, so tweets are not judged. */
+  twitter_handle?: string | null;
+}
+
+/** Account name from a twitter.com / x.com status URL, lower-cased; null for any other URL. */
+export function twitterStatusHandle(url: string | null | undefined): string | null {
+  const m = /^https?:\/\/(?:www\.|mobile\.)?(?:twitter|x)\.com\/([^/?#]+)\/status/i.exec((url || "").trim());
+  return m ? m[1].toLowerCase() : null;
 }
 
 export interface ProofDisplaySafety {
@@ -838,7 +846,16 @@ export function getProofDisplaySafety(
 
   // Stricter Trust/Provenance rules:
   // A source is trustworthy only if it has exactly one parsed URL, has no pipes, and is not a metadata link
-  const showSource = sourceUrls.length === 1 && !hasPipeSource && !isMetadata;
+  //
+  // A tweet from a different account is someone else's words, not this
+  // person's recommendation: in a comparison with another site every tweet it
+  // cited was from the person's own account, whereas ~40% of ours here were
+  // not. When we know the person's handle, hide a source/quote from any other
+  // account. With no handle on file we can't judge, so behaviour is unchanged.
+  const knownHandle = (person?.twitter_handle || "").trim().replace(/^@/, "").toLowerCase();
+  const tweetHandle = twitterStatusHandle(sourceUrls[0]);
+  const foreignTweet = !!knownHandle && !!tweetHandle && tweetHandle !== knownHandle;
+  const showSource = sourceUrls.length === 1 && !hasPipeSource && !isMetadata && !foreignTweet;
   const showQuote = showSource && quote.length >= 50 && !hasPipeQuote && !isLowConf;
 
   // Mismatch Check
@@ -866,6 +883,22 @@ export function getProofDisplaySafety(
 
   const finalShowQuote = showQuote && !likelyMismatch;
 
+  // A source on the person's own site (jamesclear.com, paulgraham.com, ...)
+  // is the best attribution there is: they published it themselves. Such a
+  // card has no quote by design, so it must not carry the "attribution could
+  // not be safely verified" warning meant for third-party sources.
+  const sourceHost = (() => {
+    try { return new URL(sourceUrls[0] || "").hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; }
+  })();
+  const nameParts = (person?.name || "").toLowerCase().split(/\s+/).filter(Boolean);
+  const squashedName = nameParts.join("").replace(/[^a-z0-9]/g, "");
+  const surname = (nameParts[nameParts.length - 1] || "").replace(/[^a-z0-9]/g, "");
+  const isOwnSite =
+    showSource &&
+    sourceHost !== "" &&
+    ((squashedName.length >= 6 && sourceHost.replace(/[^a-z0-9]/g, "").includes(squashedName)) ||
+      (surname.length >= 5 && sourceHost.split(".")[0].replace(/[^a-z0-9]/g, "").includes(surname)));
+
   let cardCue: "proof" | "link" | "none" = "none";
   if (finalShowQuote && showSource) {
     cardCue = "proof";
@@ -873,7 +906,7 @@ export function getProofDisplaySafety(
     cardCue = "link";
   }
 
-  const warningText = !finalShowQuote && showSource
+  const warningText = !finalShowQuote && showSource && !isOwnSite
     ? "We found a public source for this recommendation, but quote text is hidden because attribution could not be safely verified."
     : null;
 

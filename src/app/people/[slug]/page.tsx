@@ -492,7 +492,7 @@ export default async function PersonDetailPage({ params }: Props) {
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
         <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">How this profile is built</h2>
         <p className="text-sm text-muted leading-relaxed">
-          This profile tracks book recommendations and authored books for {person.name}. We compile recommendations from verifiable public sources, including interviews, articles, social posts, and official reading lists. Profiles are only published when they meet our thresholds for completeness, verified details, and supporting evidence.
+          This profile tracks book recommendations and authored books for {person.name}. We compile recommendations from public sources such as interviews, articles, social posts, and reading lists, and link to the original source wherever we have one. Some recommendations don&apos;t have a source link yet; those are shown without one. If a recommendation looks wrong or wrongly attributed, please report it.
         </p>
       </section>
 
