@@ -386,6 +386,33 @@ export async function getBooksBySeries(seriesId: string, limit = 48): Promise<Bo
   }
 }
 
+/**
+ * True only when at least one book in the series carries a real `position`.
+ * As of this writing 0 of ~87k `book_series` rows do, so every series page's
+ * "#1, #2, ..." badges and "in order" wording would be an arbitrary database
+ * order presented as a reading order. Pages gate that language on this.
+ */
+export async function seriesHasPositions(seriesId: string): Promise<boolean> {
+  try {
+    const { count, error } = await getSupabase()
+      .from("book_series")
+      .select("book_id", { count: "exact", head: true })
+      .eq("series_id", seriesId)
+      .not("position", "is", null);
+    if (error) { logQueryError("seriesHasPositions", error); return false; }
+    return (count || 0) > 0;
+  } catch (e) {
+    logQueryError("seriesHasPositions", e);
+    return false;
+  }
+}
+
+export const seriesHasPositionsCached = (seriesId: string) =>
+  unstable_cache(() => seriesHasPositions(seriesId), ["series-has-positions", seriesId], {
+    revalidate: 300,
+    tags: ["series"],
+  })();
+
 export async function getRelatedBooks(
   bookId: string,
   limit = 4
