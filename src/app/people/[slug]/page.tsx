@@ -465,9 +465,6 @@ export default async function PersonDetailPage({ params }: Props) {
                         </details>
                       )
                     )}
-                    {!hasSource && (
-                      <span className="text-xs text-muted/70 italic">No source link yet</span>
-                    )}
                   </div>
                 </div>
               );

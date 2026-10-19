@@ -54,7 +54,7 @@ export default function AboutPage() {
         <p>
           Unlike algorithm-only book sites, recommendations here come from real interviews, articles,
           podcasts, social posts, and curated reading lists, and we link to the source wherever we have it.
-          A recommendation without a source link is marked &ldquo;No source link yet&rdquo;, so you can weigh it accordingly.
+          We only list a source against a recommendation when it points clearly to one place, so some recommendations appear on a person&apos;s page without one, or are left off the list until we can source them.
         </p>
       </div>
     </div>

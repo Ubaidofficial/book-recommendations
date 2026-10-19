@@ -866,6 +866,22 @@ export function getProofDisplaySafety(
 
   const finalShowQuote = showQuote && !likelyMismatch;
 
+  // A source on the person's own site (jamesclear.com, paulgraham.com, ...)
+  // is the best attribution there is: they published it themselves. Such a
+  // card has no quote by design, so it must not carry the "attribution could
+  // not be safely verified" warning meant for third-party sources.
+  const sourceHost = (() => {
+    try { return new URL(sourceUrls[0] || "").hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; }
+  })();
+  const nameParts = (person?.name || "").toLowerCase().split(/\s+/).filter(Boolean);
+  const squashedName = nameParts.join("").replace(/[^a-z0-9]/g, "");
+  const surname = (nameParts[nameParts.length - 1] || "").replace(/[^a-z0-9]/g, "");
+  const isOwnSite =
+    showSource &&
+    sourceHost !== "" &&
+    ((squashedName.length >= 6 && sourceHost.replace(/[^a-z0-9]/g, "").includes(squashedName)) ||
+      (surname.length >= 5 && sourceHost.split(".")[0].replace(/[^a-z0-9]/g, "").includes(surname)));
+
   let cardCue: "proof" | "link" | "none" = "none";
   if (finalShowQuote && showSource) {
     cardCue = "proof";
@@ -873,7 +889,7 @@ export function getProofDisplaySafety(
     cardCue = "link";
   }
 
-  const warningText = !finalShowQuote && showSource
+  const warningText = !finalShowQuote && showSource && !isOwnSite
     ? "We found a public source for this recommendation, but quote text is hidden because attribution could not be safely verified."
     : null;
 
