@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getSeriesBySlug, getBooksBySeriesOrdered, getRelatedSeries, seriesHasPositionsCached } from "@/lib/data";
+import { getSeriesBySlugCached, getBooksBySeriesOrdered, getRelatedSeries, seriesHasPositionsCached } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { displayTitle } from "@/lib/display";
 import { seriesJsonLd } from "@/lib/jsonld";
@@ -18,7 +18,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const series = await getSeriesBySlug(slug);
+  const series = await getSeriesBySlugCached(slug);
   if (!series) return { robots: "noindex, follow" };
   const name = displayTitle(series.title);
   // "<author> books in order" queries are where these pages already rank
@@ -45,7 +45,7 @@ const SERIES_PAGE_SIZE = 100;
 
 export default async function SeriesDetailPage({ params }: Props) {
   const { slug } = await params;
-  const series = await getSeriesBySlug(slug);
+  const series = await getSeriesBySlugCached(slug);
   if (!series) notFound();
 
   // Series pages showed 48 of a series that can run to 868 titles, while the

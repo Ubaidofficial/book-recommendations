@@ -10,18 +10,22 @@ These pages are set to `index, follow`:
 - `/lists` — Lists index
 - `/series` — Series index
 - `/about` — About page
-- `/methodology` — Methodology page
 
 ## Noindex Rules
 
-Detail pages are **noindex by default**:
+Detail pages are **noindex by default**, and only become indexable when their
+Supabase row has `index_status = 'index'`:
 
 - `/books/[slug]`
 - `/people/[slug]`
 - `/lists/[slug]`
 - `/series/[slug]`
 
-These pages only become indexable when their Supabase row has `index_status = 'index'`.
+A few pages are **permanently noindex** (no `index_status` gate — not on a
+path to ever being indexed):
+
+- `/methodology` — not worth the crawl budget over the higher-value pages above
+- `/authors`, `/authors/[slug]` — derived author-catalog pages with no independent quality signal beyond the books they list
 
 ## Implementation
 
