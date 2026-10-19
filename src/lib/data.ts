@@ -2472,12 +2472,9 @@ export const getFeaturedSeriesCached = (n: number) =>
  * text, so caching them would create unbounded cache entries for little
  * reuse benefit and is intentionally left uncached.
  *
- * Deliberately NOT applied to `getBooksPaginated`: `/books` already has its
- * own `isDefaultLandingEmpty` + `noStore()` safeguard against caching a
- * transient empty Supabase response on the highest-traffic hub page, and
- * layering a function-level cache on top of that would need to replicate
- * the same empty-result check to stay safe — a large enough job to be its
- * own change rather than folding it into this pass.
+ * `getBooksPaginated` gets its own wrapper further down
+ * (`getBooksPaginatedCached`) because it has to refuse to cache an empty
+ * result — see that function for why.
  */
 export const getTopRecommendedPeopleCached = (topN: number) =>
   unstable_cache(() => getTopRecommendedPeople(topN), ["top-recommended-people", String(topN)], {
@@ -2514,3 +2511,46 @@ export const getSeriesPaginatedCached = (page: number, pageSize: number) =>
     revalidate: 60,
     tags: ["series"],
   })();
+
+/**
+ * Cached default `/books` view. Search Console reports `/books` as
+ * "Discovered - currently not indexed": Google knows the URL from the sitemap
+ * but has not crawled it, and the page is `force-dynamic` with a live
+ * Supabase read behind every request, so a slow or cold database makes the
+ * hub slow for the crawler too.
+ *
+ * An empty result is never cached. `getBooksPaginated` returns `[]` when
+ * Supabase times out (the cold-start regression `/books` already guards
+ * against with `noStore()`), and `unstable_cache` would otherwise pin that
+ * empty page for the full revalidate window. Throwing from inside the cached
+ * function keeps it out of the cache; the caller still gets the empty result
+ * (carried on the error) without a second round-trip to a database that has
+ * just failed.
+ */
+class UncachedBooksResult extends Error {
+  constructor(readonly result: PaginatedResult<Book>) {
+    super("empty /books result — not cached");
+  }
+}
+
+export const getBooksPaginatedCached = async (
+  page: number,
+  pageSize: number,
+  sort: "recommendation_count" | "rating" | "title",
+  scope: "curated" | "all"
+): Promise<PaginatedResult<Book>> => {
+  try {
+    return await unstable_cache(
+      async () => {
+        const result = await getBooksPaginated(page, pageSize, sort, scope);
+        if (result.data.length === 0) throw new UncachedBooksResult(result);
+        return result;
+      },
+      ["books-paginated", String(page), String(pageSize), sort, scope],
+      { revalidate: 60, tags: ["books"] }
+    )();
+  } catch (e) {
+    if (e instanceof UncachedBooksResult) return e.result;
+    throw e;
+  }
+};

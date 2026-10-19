@@ -20,9 +20,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const series = await getSeriesBySlug(slug);
   if (!series) return { robots: "noindex, follow" };
+  const name = displayTitle(series.title);
+  // Search Console shows these pages ranking on page 1-2 for "<author> books
+  // in order" (Enid Blyton, Barbara Cartland) while the title was just the
+  // bare series name, so the query wording never appeared in the title tag.
+  // Titles that already say "order" are left alone.
+  const title = /\border\b/i.test(name) ? name : `${name} Books in Order`;
+  const count = series.book_count > 0 ? `all ${series.book_count.toLocaleString()} books` : "every book";
   return pageMetadata({
-    title: displayTitle(series.title),
-    description: series.description || `A reading-order guide for ${displayTitle(series.title)}.`,
+    title,
+    description:
+      series.description ||
+      `${name} in reading order: ${count} from first to last, with recommendation counts so you can see which titles readers rate highest.`,
     path: `/series/${series.slug}`,
     robots: robotsDirective(series),
   });
@@ -81,6 +90,9 @@ export default async function SeriesDetailPage({ params }: Props) {
 
       {hasBooks ? (
         <>
+          <h2 className="text-xl font-bold text-ink mb-1 tracking-tight">
+            {/order\b/i.test(displayName) ? "Reading order" : `${displayName} in order`}
+          </h2>
           <div className="flex items-center gap-2 mb-5 text-xs text-muted">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />

@@ -9,6 +9,7 @@ import Link from "next/link";
 import { unstable_noStore as noStore } from "next/cache";
 import {
   getBooksPaginated,
+  getBooksPaginatedCached,
   searchBooksPaginated,
   getBooksByListSlugPaginated,
 } from "@/lib/data";
@@ -157,7 +158,12 @@ export default async function BooksPage({ searchParams }: Props) {
     result = await getBooksByListSlugPaginated(activeChip.listSlug, page, PAGE_SIZE, sort);
   } else {
     mode = "all";
-    result = await getBooksPaginated(page, PAGE_SIZE, sort, scope);
+    // Only the bare default view is cached: it is the URL Google and most
+    // visitors request. Other pages/sorts/scopes are long-tail and noindex.
+    const isDefaultView = page === 1 && sort === "recommendation_count" && scope === "curated";
+    result = isDefaultView
+      ? await getBooksPaginatedCached(page, PAGE_SIZE, sort, scope)
+      : await getBooksPaginated(page, PAGE_SIZE, sort, scope);
   }
 
   const { data: books, total } = result;
