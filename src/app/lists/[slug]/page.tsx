@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getListBySlugCached, getBooksForListCached, getBooksForListByRecommendationsCached, getRelatedListsCached, getRecommendersForBooksCached } from "@/lib/data";
+import { getListBySlugCached, getBooksForListCached, getBooksForListByRecommendationsCached, getRelatedListsCached, getRecommendersForBooksCached, getRecommenderRefsForBooksCached } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
 import { displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel } from "@/lib/display";
 import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl,
@@ -61,6 +61,51 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * fraction and labelling it as the whole list.
  */
 const LIST_PAGE_SIZE = 100;
+
+
+/**
+ * Auto-generated "recommendation context" text that says nothing about the
+ * book ("Available recommendation signals cluster around ...") is dropped;
+ * only a real quote or note from a recommender is shown.
+ */
+function usableContext(value: string | null | undefined): string {
+  const v = (value || "").trim();
+  if (!v || /^available recommendation signals/i.test(v)) return "";
+  return v;
+}
+
+/**
+ * Publisher blurbs arrive cut off mid-sentence, with lost punctuation
+ * rendered as "?" between letters, or as scarce-reprint boilerplate. Those
+ * read as broken, so they are dropped rather than shown; the rest is trimmed
+ * at a sentence boundary.
+ */
+function cleanBlurb(value: string | null | undefined): string {
+  let v = (value || "").replace(/\s+/g, " ").trim();
+  if (v.length < 40) return "";
+  if (/[A-Za-z0-9]\?[A-Za-z]|\s\?[A-Za-z]/.test(v)) return "";
+  if (/scarce antiquarian|this is a reproduction of a book published before|reprint of the original/i.test(v)) return "";
+  v = v.replace(/\.{3}$|…$/, "").trim();
+  if (v.length > 280) {
+    const cut = v.slice(0, 280);
+    const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+    v = end > 120 ? cut.slice(0, end + 1) : cut.slice(0, cut.lastIndexOf(" ")) + "…";
+  } else if (!/[.!?"”)]$/.test(v)) {
+    const end = Math.max(v.lastIndexOf(". "), v.lastIndexOf("! "), v.lastIndexOf("? "));
+    if (end > 80) v = v.slice(0, end + 1);
+  }
+  return v;
+}
+
+/** Same book under two editions: keep the first (best-ranked) one. */
+function editionKey(b: { title?: string | null; author?: string | null }): string {
+  const t = (b.title || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const last = (b.author || "").toLowerCase().replace(/[^a-z\s]/g, "").trim().split(/\s+/).pop() || "";
+  return `${t}|${last}`;
+}
+
+const MIN_RECS_PRIMARY = 2;
+const MIN_PRIMARY_BOOKS = 12;
 
 export default async function ListDetailPage({ params, searchParams }: Props) {
   const { slug } = await params;
@@ -131,10 +176,258 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
   const hasDescription = list.description && list.description.length > 0;
   const hasRelated = relatedLists.length > 0;
 
+  // Who recommended what, for the per-book line and the per-person sections.
+  const refs = await getRecommenderRefsForBooksCached(books.map((b) => b.id));
+  const personStats = new Map<string, { slug: string; name: string; bookIds: string[] }>();
+  for (const r of refs) {
+    const e = personStats.get(r.slug);
+    if (e) e.bookIds.push(r.book_id);
+    else personStats.set(r.slug, { slug: r.slug, name: r.name, bookIds: [r.book_id] });
+  }
+  const recsByBook = new Map<string, { slug: string; name: string }[]>();
+  for (const r of refs) {
+    const arr = recsByBook.get(r.book_id) || [];
+    arr.push({ slug: r.slug, name: r.name });
+    recsByBook.set(r.book_id, arr);
+  }
+  // The people who account for most of this list come first on every book.
+  for (const arr of recsByBook.values()) {
+    arr.sort((a, b) => (personStats.get(b.slug)?.bookIds.length || 0) - (personStats.get(a.slug)?.bookIds.length || 0));
+  }
+  const topPeople = [...personStats.values()]
+    .sort((a, b) => b.bookIds.length - a.bookIds.length || a.name.localeCompare(b.name))
+    .slice(0, 12);
+
+  // One row per book (editions collapse), and the long tail of one-mention
+  // titles sits behind a toggle so the page leads with the books people
+  // actually keep recommending.
+  const seenEditions = new Set<string>();
+  const uniqueBooks = sortedBooks.filter((b) => {
+    const k = editionKey(b);
+    if (seenEditions.has(k)) return false;
+    seenEditions.add(k);
+    return true;
+  });
+  const byRecs = [...uniqueBooks].sort((a, b) => (b.recommendation_count || 0) - (a.recommendation_count || 0));
+  let primaryIds = new Set(byRecs.filter((b) => (b.recommendation_count || 0) >= MIN_RECS_PRIMARY).map((b) => b.id));
+  if (primaryIds.size < MIN_PRIMARY_BOOKS) primaryIds = new Set(byRecs.slice(0, MIN_PRIMARY_BOOKS).map((b) => b.id));
+  const primaryBooks = uniqueBooks.filter((b) => primaryIds.has(b.id));
+  const moreBooks = uniqueBooks.filter((b) => !primaryIds.has(b.id));
+
+  // Topic wording for headings and answers, taken from the page title
+  // ("Best Stoicism Books" -> "Stoicism Books").
+  const topic = displayListTitleFull(list.title, list.slug).replace(/^best\s+/i, "").trim() || displayName;
+  const startHere = byRecs.filter((b) => (b.recommendation_count || 0) > 0).slice(0, 5);
+  const bookById = new Map(uniqueBooks.map((b) => [b.id, b]));
+  const personSections = topPeople.slice(0, 3).map((p) => ({
+    ...p,
+    picks: p.bookIds
+      .map((id) => bookById.get(id))
+      .filter((b): b is (typeof uniqueBooks)[number] => !!b)
+      .sort((a, b) => (b.recommendation_count || 0) - (a.recommendation_count || 0))
+      .slice(0, 6),
+  }));
+  const joinNames = (names: string[]) =>
+    names.length <= 1 ? names[0] || "" : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  const faq = [
+    startHere.length >= 3 && {
+      q: `What are the most recommended ${topic.toLowerCase()}?`,
+      a: `${joinNames(startHere.slice(0, 3).map((b) => b.title))} are the most recommended ${topic.toLowerCase()} on BookMentions, ranked by how many people recommended them.`,
+    },
+    topPeople.length >= 2 && {
+      q: `Who recommends ${topic.toLowerCase()}?`,
+      a: `${joinNames(topPeople.slice(0, 4).map((p) => p.name))} are among the people who recommend books on this list. Each name links to their full set of book recommendations.`,
+    },
+    startHere[0] && {
+      q: `Which of these ${topic.toLowerCase()} should I read first?`,
+      a: `${startHere[0].title}${startHere[0].author ? ` by ${startHere[0].author}` : ""} is the most recommended here with ${startHere[0].recommendation_count} ${startHere[0].recommendation_count === 1 ? "recommendation" : "recommendations"}, which makes it the safest place to start.`,
+    },
+  ].filter((x): x is { q: string; a: string } => !!x);
+  const faqJsonLd = faq.length
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: faq.map((f) => ({
+          "@type": "Question",
+          name: f.q,
+          acceptedAnswer: { "@type": "Answer", text: f.a },
+        })),
+      }
+    : null;
+
+  const renderBook = (book: (typeof sortedBooks)[number], i: number) => {
+            const hasCover = isValidHttpUrl(book.cover_image_url);
+    const showRating = isValidRating(book.rating);
+    
+    return (
+      <div
+        key={book.id}
+        className="flex flex-col sm:flex-row gap-6 p-5 md:p-6 rounded-2xl border border-border bg-surface relative group motion-card-hover"
+      >
+        {/* Rank Badge */}
+        <span className="absolute -top-2.5 -left-2.5 z-10 w-8 h-8 rounded-full bg-accent text-white text-sm flex items-center justify-center font-bold shadow-md">
+          {i + 1}
+        </span>
+
+        {/* Cover image container */}
+        <div className="w-28 h-40 sm:w-32 sm:h-48 shrink-0 rounded-xl overflow-hidden shadow-sm bg-subtle relative mx-auto sm:mx-0 border border-border/40">
+          {hasCover ? (
+            <SafeImage
+              src={book.cover_image_url!}
+              alt={coverAltText(book.title, book.author)}
+              className="w-full h-full object-cover motion-cover-img"
+              fallback={
+                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-subtle to-subtle/40 p-2 text-center">
+                  <span className="text-[9px] uppercase tracking-wider text-muted/60">No cover</span>
+                  <span className="text-[10px] font-medium text-ink/65 leading-snug line-clamp-3 mt-1">{book.title}</span>
+                </div>
+              }
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-subtle to-subtle/40 p-2 text-center">
+              <span className="text-[9px] uppercase tracking-wider text-muted/60">No cover</span>
+              <span className="text-[10px] font-medium text-ink/65 leading-snug line-clamp-3 mt-1">{book.title}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Content details */}
+        <div className="flex-1 flex flex-col justify-between">
+          <div className="order-1">
+            <div className="mb-1">
+              <Link
+                href={`/books/${book.slug}`}
+                className="font-bold text-lg md:text-xl text-ink hover:text-accent transition-colors leading-tight block"
+              >
+                {book.title}
+              </Link>
+              {book.subtitle && (
+                <p className="text-xs md:text-sm text-muted mt-0.5">{book.subtitle}</p>
+              )}
+            </div>
+
+            {book.author && (
+              <p className="text-xs md:text-sm text-muted mb-3">
+                by <span className="text-accent font-semibold">{book.author}</span>
+              </p>
+            )}
+
+            {/* Stats */}
+            <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
+              {showRating && (
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-accent-light text-accent font-semibold">
+                  ★ {formatRating(book.rating)}
+                </span>
+              )}
+              {book.recommendation_count > 0 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-subtle text-ink font-medium">
+                  {book.recommendation_count} {book.recommendation_count === 1 ? "recommendation" : "recommendations"}
+                </span>
+              )}
+            </div>
+
+            {/* Who recommended it: the thing this site has that a
+                plain bestseller list does not. */}
+            {(() => {
+              const who = recsByBook.get(book.id) || [];
+              if (who.length === 0) return null;
+              const shown = who.slice(0, 3);
+              const extra = who.length - shown.length;
+              return (
+                <p className="text-xs md:text-sm text-muted mb-3 leading-relaxed">
+                  <span className="font-semibold text-ink">Recommended by </span>
+                  {shown.map((w, wi) => (
+                    <span key={w.slug}>
+                      {wi > 0 ? (wi === shown.length - 1 && extra === 0 ? " and " : ", ") : ""}
+                      <Link href={`/people/${w.slug}`} className="text-accent hover:underline">{w.name}</Link>
+                    </span>
+                  ))}
+                  {extra > 0 && (
+                    <>
+                      {" "}and{" "}
+                      <Link href={`/books/${book.slug}`} className="text-accent hover:underline">
+                        {extra} {extra === 1 ? "other" : "others"}
+                      </Link>
+                    </>
+                  )}
+                </p>
+              );
+            })()}
+          </div>
+
+          {/* Source context or fallback editorial summary why it appears */}
+          {usableContext(book.recommendation_context) ? (
+            <div className="order-3 sm:order-2 mt-4 sm:mt-0 bg-subtle/20 rounded-xl p-3 border border-border/40">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-muted block mb-1">What they said</span>
+              <blockquote className="text-xs md:text-sm text-muted italic border-l-2 border-accent/20 pl-2 leading-relaxed">
+                &ldquo;{book.recommendation_context}&rdquo;
+              </blockquote>
+            </div>
+          ) : book.editorial_summary && book.editorial_summary.trim().length > 0 ? (
+            <div className="order-3 sm:order-2 mt-4 sm:mt-0 bg-subtle/20 rounded-xl p-3 border border-border/40">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-muted block mb-1">Book Summary</span>
+              <p className="text-xs md:text-sm text-muted leading-relaxed line-clamp-3">
+                {book.editorial_summary}
+              </p>
+            </div>
+          ) : cleanBlurb(book.description) ? (
+            <div className="order-3 sm:order-2 mt-4 sm:mt-0 bg-subtle/20 rounded-xl p-3 border border-border/40">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-muted block mb-1">Description</span>
+              <p className="text-xs md:text-sm text-muted leading-relaxed line-clamp-3">
+                {cleanBlurb(book.description)}
+              </p>
+            </div>
+          ) : null}
+
+          {/* Actions (compliant CTAs preferring Amazon purchase/view button) */}
+          <div className="order-2 sm:order-3 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-border/40 pt-4 mt-4 sm:mt-6">
+            <Link
+              href={`/books/${book.slug}`}
+              className="text-xs text-muted hover:text-accent hover:underline flex items-center justify-center sm:justify-start gap-1 font-medium transition-colors"
+            >
+              View full details →
+            </Link>
+            {(() => {
+              // normalizeAmazonUrl repairs the dominant 22-char malformed
+              // ASIN pattern (≈25% of with-amazon-url books) and returns
+              // null for non-Amazon hosts, so the CTA is suppressed cleanly
+              // when the URL isn't usable. Render-time only — DB unchanged.
+              // No affiliate tag is appended (we don't have an approved tag
+              // yet — the env-gated withAmazonAffiliateTag helper proposed in
+              // the readiness audit is intentionally not used here).
+              const ctaUrl = normalizeAmazonUrl(book.amazon_url);
+              if (!ctaUrl) return null;
+              return (
+                <a
+                  href={ctaUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow sponsored"
+                  data-track-slug={book.slug}
+                  data-track-section="list-book"
+                  data-track-label="View on Amazon"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs md:text-sm font-semibold shadow-sm w-full sm:w-auto text-center shrink-0 motion-btn-cta"
+                >
+                  <span>View on Amazon</span>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              );
+            })()}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
       {jsonld && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />
+      )}
+      {faqJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       )}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Lists", href: "/lists" }, { label: displayName }]} />
 
@@ -202,148 +495,90 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
         )}
       </div>
 
+      {startHere.length >= 3 && (
+        <section className="mb-12" aria-labelledby="start-here">
+          <h2 id="start-here" className="text-xl font-bold text-ink mb-1 tracking-tight">
+            Where to start: {topic} recommended most often
+          </h2>
+          <p className="text-sm text-muted mb-5 max-w-2xl leading-relaxed">
+            Recommended books, ranked by how many of the {personStats.size.toLocaleString()} people behind this list recommended each one.
+          </p>
+          <ol className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {startHere.map((b, i) => {
+              const who = (recsByBook.get(b.id) || []).slice(0, 3).map((w) => w.name);
+              return (
+                <li key={b.id} className="flex gap-3 rounded-xl border border-border bg-surface p-4">
+                  <span className="w-7 h-7 shrink-0 rounded-full bg-accent text-white text-xs font-bold flex items-center justify-center">{i + 1}</span>
+                  <span className="min-w-0">
+                    <Link href={`/books/${b.slug}`} className="block font-semibold text-ink hover:text-accent leading-snug">{b.title}</Link>
+                    {b.author && <span className="block text-xs text-muted">by {b.author}</span>}
+                    <span className="block text-xs text-muted mt-1">
+                      {b.recommendation_count} {b.recommendation_count === 1 ? "recommendation" : "recommendations"}
+                      {who.length > 0 && <> · recommended by {joinNames(who)}</>}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
+
       {hasBooks ? (
+        <>
         <div className="grid grid-cols-1 gap-6 md:gap-8 mb-14">
-          {sortedBooks.map((book, i) => {
-            const hasCover = isValidHttpUrl(book.cover_image_url);
-            const showRating = isValidRating(book.rating);
-            
-            return (
-              <div
-                key={book.id}
-                className="flex flex-col sm:flex-row gap-6 p-5 md:p-6 rounded-2xl border border-border bg-surface relative group motion-card-hover"
-              >
-                {/* Rank Badge */}
-                <span className="absolute -top-2.5 -left-2.5 z-10 w-8 h-8 rounded-full bg-accent text-white text-sm flex items-center justify-center font-bold shadow-md">
-                  {i + 1}
-                </span>
-
-                {/* Cover image container */}
-                <div className="w-28 h-40 sm:w-32 sm:h-48 shrink-0 rounded-xl overflow-hidden shadow-sm bg-subtle relative mx-auto sm:mx-0 border border-border/40">
-                  {hasCover ? (
-                    <SafeImage
-                      src={book.cover_image_url!}
-                      alt={coverAltText(book.title, book.author)}
-                      className="w-full h-full object-cover motion-cover-img"
-                      fallback={
-                        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-subtle to-subtle/40 p-2 text-center">
-                          <span className="text-[9px] uppercase tracking-wider text-muted/60">No cover</span>
-                          <span className="text-[10px] font-medium text-ink/65 leading-snug line-clamp-3 mt-1">{book.title}</span>
-                        </div>
-                      }
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-subtle to-subtle/40 p-2 text-center">
-                      <span className="text-[9px] uppercase tracking-wider text-muted/60">No cover</span>
-                      <span className="text-[10px] font-medium text-ink/65 leading-snug line-clamp-3 mt-1">{book.title}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Content details */}
-                <div className="flex-1 flex flex-col justify-between">
-                  <div className="order-1">
-                    <div className="mb-1">
-                      <Link
-                        href={`/books/${book.slug}`}
-                        className="font-bold text-lg md:text-xl text-ink hover:text-accent transition-colors leading-tight block"
-                      >
-                        {book.title}
-                      </Link>
-                      {book.subtitle && (
-                        <p className="text-xs md:text-sm text-muted mt-0.5">{book.subtitle}</p>
-                      )}
-                    </div>
-
-                    {book.author && (
-                      <p className="text-xs md:text-sm text-muted mb-3">
-                        by <span className="text-accent font-semibold">{book.author}</span>
-                      </p>
-                    )}
-
-                    {/* Stats */}
-                    <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
-                      {showRating && (
-                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-accent-light text-accent font-semibold">
-                          ★ {formatRating(book.rating)}
-                        </span>
-                      )}
-                      {book.recommendation_count > 0 && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-subtle text-ink font-medium">
-                          {book.recommendation_count} {book.recommendation_count === 1 ? "recommendation" : "recommendations"}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Source context or fallback editorial summary why it appears */}
-                  {book.recommendation_context && book.recommendation_context.trim().length > 0 ? (
-                    <div className="order-3 sm:order-2 mt-4 sm:mt-0 bg-subtle/20 rounded-xl p-3 border border-border/40">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted block mb-1">Recommendation Context</span>
-                      <blockquote className="text-xs md:text-sm text-muted italic border-l-2 border-accent/20 pl-2 leading-relaxed">
-                        &ldquo;{book.recommendation_context}&rdquo;
-                      </blockquote>
-                    </div>
-                  ) : book.editorial_summary && book.editorial_summary.trim().length > 0 ? (
-                    <div className="order-3 sm:order-2 mt-4 sm:mt-0 bg-subtle/20 rounded-xl p-3 border border-border/40">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted block mb-1">Book Summary</span>
-                      <p className="text-xs md:text-sm text-muted leading-relaxed line-clamp-3">
-                        {book.editorial_summary}
-                      </p>
-                    </div>
-                  ) : book.description && book.description.trim().length > 0 ? (
-                    <div className="order-3 sm:order-2 mt-4 sm:mt-0 bg-subtle/20 rounded-xl p-3 border border-border/40">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted block mb-1">Description</span>
-                      <p className="text-xs md:text-sm text-muted leading-relaxed line-clamp-3">
-                        {book.description}
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {/* Actions (compliant CTAs preferring Amazon purchase/view button) */}
-                  <div className="order-2 sm:order-3 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-border/40 pt-4 mt-4 sm:mt-6">
-                    <Link
-                      href={`/books/${book.slug}`}
-                      className="text-xs text-muted hover:text-accent hover:underline flex items-center justify-center sm:justify-start gap-1 font-medium transition-colors"
-                    >
-                      View full details →
-                    </Link>
-                    {(() => {
-                      // normalizeAmazonUrl repairs the dominant 22-char malformed
-                      // ASIN pattern (≈25% of with-amazon-url books) and returns
-                      // null for non-Amazon hosts, so the CTA is suppressed cleanly
-                      // when the URL isn't usable. Render-time only — DB unchanged.
-                      // No affiliate tag is appended (we don't have an approved tag
-                      // yet — the env-gated withAmazonAffiliateTag helper proposed in
-                      // the readiness audit is intentionally not used here).
-                      const ctaUrl = normalizeAmazonUrl(book.amazon_url);
-                      if (!ctaUrl) return null;
-                      return (
-                        <a
-                          href={ctaUrl}
-                          target="_blank"
-                          rel="noopener noreferrer nofollow sponsored"
-                          data-track-slug={book.slug}
-                          data-track-section="list-book"
-                          data-track-label="View on Amazon"
-                          className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs md:text-sm font-semibold shadow-sm w-full sm:w-auto text-center shrink-0 motion-btn-cta"
-                        >
-                          <span>View on Amazon</span>
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                        </a>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {primaryBooks.map((book, i) => renderBook(book, i))}
         </div>
+        {moreBooks.length > 0 && (
+          <details className="mb-14 group rounded-2xl border border-border bg-surface p-5">
+            <summary className="cursor-pointer text-sm font-semibold text-accent">
+              Show {moreBooks.length} more {moreBooks.length === 1 ? "book" : "books"} with a single recommendation
+            </summary>
+            <div className="grid grid-cols-1 gap-6 md:gap-8 mt-6">
+              {moreBooks.map((book, i) => renderBook(book, primaryBooks.length + i))}
+            </div>
+          </details>
+        )}
+        </>
       ) : (
         <section className="mb-14">
           <EmptyState message="Books for this list are still being organized." />
+        </section>
+      )}
+
+      {/* Recommended books by person: keyword-matching sections that are also
+          real content (their own picks from this list) and internal links. */}
+      {personSections.filter((p) => p.picks.length > 0).map((p) => (
+        <section key={p.slug} className="mb-10" aria-labelledby={`by-${p.slug}`}>
+          <h2 id={`by-${p.slug}`} className="text-lg font-bold text-ink mb-1 tracking-tight">
+            Recommended {topic} by {p.name}
+          </h2>
+          <p className="text-sm text-muted mb-3">
+            {p.name} recommends {p.bookIds.length} {p.bookIds.length === 1 ? "book" : "books"} on this list.{" "}
+            <Link href={`/people/${p.slug}`} className="text-accent hover:underline">See all book recommendations by {p.name}</Link>
+          </p>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+            {p.picks.map((b) => (
+              <li key={b.id}>
+                <Link href={`/books/${b.slug}`} className="text-ink hover:text-accent font-medium">{b.title}</Link>
+                {b.author && <span className="text-muted"> by {b.author}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+
+      {faq.length > 0 && (
+        <section className="mt-12 mb-12" aria-labelledby="faq">
+          <h2 id="faq" className="text-lg font-bold text-ink mb-4 tracking-tight">{topic}: common questions</h2>
+          <dl className="space-y-4">
+            {faq.map((f) => (
+              <div key={f.q}>
+                <dt className="font-semibold text-ink text-sm">{f.q}</dt>
+                <dd className="text-sm text-muted leading-relaxed mt-1">{f.a}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
       )}
 
@@ -447,10 +682,10 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
       {listRecommenders.length > 0 && (
         <section className="mt-10 pt-8 border-t border-border">
           <h2 className="text-lg font-bold text-ink mb-1 tracking-tight">
-            Who recommended these books
+            Recommended books by person: who recommends {topic.toLowerCase()}
           </h2>
           <p className="text-sm text-muted mb-5">
-            The people whose recommendations shaped this list.
+            Books recommended by the people below. Open a profile to see everything they recommend, with the source behind each pick.
           </p>
           <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {listRecommenders.map((r) => (
@@ -471,7 +706,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                       {r.name}
                     </span>
                     <span className="block text-xs text-muted truncate">
-                      {r.bookCount} {r.bookCount === 1 ? "book" : "books"} here
+                      Books recommended by {r.name.split(" ")[0]}: {r.bookCount}
                     </span>
                   </span>
                 </Link>
