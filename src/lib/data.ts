@@ -2394,6 +2394,57 @@ export async function getRecommendersForBooks(
   }
 }
 
+export interface BookRecommenderRef {
+  book_id: string;
+  slug: string;
+  name: string;
+}
+
+/**
+ * Who recommended each of the given books: one row per (book, person).
+ * Feeds the per-book "Recommended by" line and the per-person sections on
+ * list pages. Same alias filter as getRecommendersForBooks so bare-surname
+ * aggregate rows never get named.
+ */
+export async function getRecommenderRefsForBooks(bookIds: string[]): Promise<BookRecommenderRef[]> {
+  const ids = (bookIds || []).filter(Boolean);
+  if (ids.length === 0) return [];
+  try {
+    const supa = getSupabase();
+    const out: BookRecommenderRef[] = [];
+    const seen = new Set<string>();
+    const chunkSize = 100;
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const { data, error } = await supa
+        .from("book_recommendations")
+        .select("book_id, people(slug, name, avatar_url, role, bio)")
+        .in("book_id", ids.slice(i, i + chunkSize));
+      if (error) {
+        logQueryError(`getRecommenderRefsForBooks[chunk=${i / chunkSize}]`, error);
+        continue;
+      }
+      type Row = {
+        book_id: string | null;
+        people: { slug: string | null; name: string | null; avatar_url: string | null; role: string | null; bio: string | null } | null;
+      };
+      for (const row of (data || []) as unknown as Row[]) {
+        const p = row.people;
+        if (!row.book_id || !p || !p.slug || !p.name) continue;
+        const name = repairEncoding(p.name);
+        if (isProfilelessSurnameAlias({ name, role: p.role, bio: p.bio, avatar_url: p.avatar_url })) continue;
+        const key = `${row.book_id}|${p.slug}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ book_id: row.book_id, slug: p.slug, name });
+      }
+    }
+    return out;
+  } catch (e) {
+    logQueryError("getRecommenderRefsForBooks", e);
+    return [];
+  }
+}
+
 /**
  * Cached wrappers for the expensive detail-page reads.
  *
@@ -2429,6 +2480,13 @@ export const getRecommendersForBooksCached = (bookIds: string[], limit: number) 
   unstable_cache(
     () => getRecommendersForBooks(bookIds, limit),
     ["recommenders-for-books", bookIds.slice(0, 40).join(",").slice(0, 400), String(limit)],
+    { revalidate: 900, tags: ["recommendations"] },
+  )();
+
+export const getRecommenderRefsForBooksCached = (bookIds: string[]) =>
+  unstable_cache(
+    () => getRecommenderRefsForBooks(bookIds),
+    ["recommender-refs-for-books", bookIds.slice(0, 40).join(",").slice(0, 400), String(bookIds.length)],
     { revalidate: 900, tags: ["recommendations"] },
   )();
 
