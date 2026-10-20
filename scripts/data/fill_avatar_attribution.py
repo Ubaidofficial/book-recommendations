@@ -69,7 +69,7 @@ def main():
     out, missing = [], 0
     jobs = []
     for r in rows:
-        m = re.search(r"/commons/(?:thumb/)?[0-9a-f]/[0-9a-f]{2}/([^/]+)", r["proposed_avatar_url"])
+        m = re.search(r"/commons/(?:thumb/)?[0-9a-f]/[0-9a-f]{2}/([^/?]+)", r["proposed_avatar_url"])
         if not m:
             missing += 1
             continue

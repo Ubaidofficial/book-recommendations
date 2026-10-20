@@ -66,6 +66,8 @@ def sentences(par):
 def build_bio(extract):
     par = (extract or "").strip().split("\n")[0].strip()
     par = re.sub(r"\s*\([^()]*\)", lambda m: "" if re.search(r"/|pronounced|IPA|listen", m.group(0)) else m.group(0), par)
+    # Pronunciation guides: "( ay-OH-kee; born ...)", "(; born ...)", "( ; born ...)".
+    par = re.sub(r"\(\s*[^();\d]{0,40};\s*", "(", par)
     par = re.sub(r"\s+", " ", par)
     bio = ""
     for s in sentences(par):
@@ -101,9 +103,14 @@ def main():
 
     # Wikipedia article + clean lead per person with a proposed bio.
     want = [r for r in rows if r.get("proposed_bio")]
-    wiki = {}
-    for i in range(0, len(want), 20):
-        batch = want[i : i + 20]
+    cache_path = a.out + "_wiki_cache.json"
+    try:
+        wiki = json.load(open(cache_path))  # results accumulate across runs (the API rate-limits shared IPs)
+    except Exception:
+        wiki = {}
+    todo = [r for r in want if r["id"] not in wiki]
+    for i in range(0, len(todo), 20):
+        batch = todo[i : i + 20]
         data = wiki_batch([r["name"] for r in batch])
         norm = {n["from"]: n["to"] for n in data.get("normalized", [])}
         redir = {n["from"]: n["to"] for n in data.get("redirects", [])}
@@ -114,7 +121,8 @@ def main():
             p = pages.get(t)
             if p and p.get("extract"):
                 wiki[r["id"]] = p
-        time.sleep(0.5)
+        time.sleep(1.5)
+    json.dump(wiki, open(cache_path, "w"))
 
     out, stats = [], {"bio": 0, "bio_unverified": 0, "avatar": 0, "role": 0}
     for r in rows:
@@ -128,6 +136,11 @@ def main():
                 bio, src = build_bio(p["extract"]), p["fullurl"]
             else:
                 stats["bio_unverified"] += 1
+        # Wikidata descriptions are only trusted for people whose same-name
+        # Wikipedia article was verified above; an unverified match can be a
+        # different person (e.g. a film producer for "Scott Galloway").
+        if not bio or len(role) > 90 or re.search(r"victim|\bb\. |\d{4}-\d{2}", role, re.I):
+            role = ""
         c = credit.get(r["id"])
         av = {}
         if c and c["avatar_license"] and c["avatar_author"] and c["avatar_source_url"]:
