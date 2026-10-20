@@ -261,6 +261,192 @@ const nextConfig = {
         destination: "/lists/children-s",
         permanent: true,
       },
+      // People duplicate consolidation (2026-10-20): surname-only rows merged into the full-name person.
+      {
+        source: "/people/rabois",
+        destination: "/people/keith-rabois",
+        permanent: true,
+      },
+      {
+        source: "/people/mauboussin",
+        destination: "/people/michael-mauboussin",
+        permanent: true,
+      },
+      {
+        source: "/people/kagan",
+        destination: "/people/noah-kagan",
+        permanent: true,
+      },
+      {
+        source: "/people/srinivasan",
+        destination: "/people/balaji-s-srinivasan",
+        permanent: true,
+      },
+      {
+        source: "/people/huffington",
+        destination: "/people/arianna-huffington",
+        permanent: true,
+      },
+      {
+        source: "/people/munger",
+        destination: "/people/charlie-munger",
+        permanent: true,
+      },
+      {
+        source: "/people/cuban",
+        destination: "/people/mark-cuban",
+        permanent: true,
+      },
+      {
+        source: "/people/ohanian",
+        destination: "/people/alexis-ohanian",
+        permanent: true,
+      },
+      {
+        source: "/people/lavingia",
+        destination: "/people/sahil-lavingia",
+        permanent: true,
+      },
+      {
+        source: "/people/levchin",
+        destination: "/people/max-levchin",
+        permanent: true,
+      },
+      {
+        source: "/people/sethi",
+        destination: "/people/ramit-sethi",
+        permanent: true,
+      },
+      {
+        source: "/people/strauss",
+        destination: "/people/neil-strauss",
+        permanent: true,
+      },
+      {
+        source: "/people/sincero",
+        destination: "/people/jen-sincero",
+        permanent: true,
+      },
+      {
+        source: "/people/dimon",
+        destination: "/people/jamie-dimon",
+        permanent: true,
+      },
+      {
+        source: "/people/allred",
+        destination: "/people/austen-allred",
+        permanent: true,
+      },
+      {
+        source: "/people/thiel",
+        destination: "/people/peter-thiel",
+        permanent: true,
+      },
+      {
+        source: "/people/fridman",
+        destination: "/people/lex-fridman",
+        permanent: true,
+      },
+      {
+        source: "/people/bourdain",
+        destination: "/people/anthony-bourdain",
+        permanent: true,
+      },
+      {
+        source: "/people/hemingway",
+        destination: "/people/ernest-hemingway",
+        permanent: true,
+      },
+      {
+        source: "/people/attia",
+        destination: "/people/peter-attia",
+        permanent: true,
+      },
+      {
+        source: "/people/pompliano",
+        destination: "/people/anthony-pompliano",
+        permanent: true,
+      },
+      {
+        source: "/people/niequist",
+        destination: "/people/shauna-niequist",
+        permanent: true,
+      },
+      {
+        source: "/people/bilyeu",
+        destination: "/people/tom-bilyeu",
+        permanent: true,
+      },
+      {
+        source: "/people/parrish",
+        destination: "/people/shane-parrish",
+        permanent: true,
+      },
+      {
+        source: "/people/manson",
+        destination: "/people/mark-manson",
+        permanent: true,
+      },
+      {
+        source: "/people/cowen",
+        destination: "/people/tyler-cowen",
+        permanent: true,
+      },
+      {
+        source: "/people/gurley",
+        destination: "/people/bill-gurley",
+        permanent: true,
+      },
+      {
+        source: "/people/keller",
+        destination: "/people/timothy-keller",
+        permanent: true,
+      },
+      {
+        source: "/people/klein",
+        destination: "/people/ezra-klein",
+        permanent: true,
+      },
+      {
+        source: "/people/pink",
+        destination: "/people/daniel-pink",
+        permanent: true,
+      },
+      {
+        source: "/people/zhao",
+        destination: "/people/changpeng-zhao",
+        permanent: true,
+      },
+      {
+        source: "/people/jobs",
+        destination: "/people/steve-jobs",
+        permanent: true,
+      },
+      {
+        source: "/people/ramsey",
+        destination: "/people/dave-ramsey",
+        permanent: true,
+      },
+      {
+        source: "/people/heisman",
+        destination: "/people/dan-heisman",
+        permanent: true,
+      },
+      {
+        source: "/people/armstrong",
+        destination: "/people/brian-armstrong",
+        permanent: true,
+      },
+      {
+        source: "/people/o-reilly",
+        destination: "/people/tim-o-reilly",
+        permanent: true,
+      },
+      {
+        source: "/people/tim-o-x0092-reilly",
+        destination: "/people/tim-o-reilly",
+        permanent: true,
+      },
     ];
   },
 
