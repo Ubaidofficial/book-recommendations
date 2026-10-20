@@ -227,6 +227,22 @@ function isUsefulBookDescription(text) {
  */
 const MIN_LIST_RECOMMENDERS = 20;
 
+/**
+ * Lists held back after a manual coherence review (top books vs. topic): the
+ * contents do not match the name, so publishing would be a thin or misleading
+ * page. An empty slug is also never publishable. Remove an entry once the
+ * list's books have been fixed.
+ */
+const HELD_LIST_SLUGS = new Set([
+  'best-books-on-revolutions',
+  'best-quantum-physics-books',
+  'best-books-for-dads',
+  'best-data-science-books',
+  'best-design-books',
+  'best-physics-books',
+  'best-books-on-persuasion',
+]);
+
 /** Distinct people recommending anything in this list. */
 async function countListRecommenders(listId) {
   const bookIds = [];
@@ -593,7 +609,7 @@ async function main() {
 
   let remaining = DAILY_BATCH_SIZE;
   const tier2All = remaining > 0 ? await findTier2Candidates() : [];
-  const tier2 = tier2All.filter(notADuplicateTopic);
+  const tier2 = tier2All.filter((c) => c.slug && !HELD_LIST_SLUGS.has(c.slug)).filter(notADuplicateTopic);
   const blocked2 = tier2All.length - tier2.length;
   console.log(`Tier 2 (cluster lists + series) candidate pool: ${tier2.length}${blocked2 ? `  (${blocked2} blocked: topic already published)` : ''}`);
   const tier3 = await findTier3Candidates();
