@@ -304,5 +304,10 @@ export function displayListTitleFull(
   const looksWrapped = lc.startsWith("best ") || /\bbooks?\b/.test(lc);
   if (looksWrapped) return core;
   if (FORMAT_TOPICS.has((slug || "").toLowerCase())) return `Best ${core}`;
+  // Stored titles for "books about X / for X / on X" lists start with the
+  // preposition ("About Japan", "For 3 Year Olds"). Wrapping those as
+  // "Best <Name> Books" produced "Best About Japan Books"; the phrase people
+  // search is "best books about japan".
+  if (/^(about|for|on|in|with|from)\s/i.test(core)) return `Best Books ${core}`;
   return `Best ${core} Books`;
 }
