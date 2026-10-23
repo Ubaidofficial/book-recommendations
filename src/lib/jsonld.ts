@@ -197,17 +197,33 @@ export function itemListJsonLd(
   return [mainEntity, breadcrumbs];
 }
 
+/** FAQPage node for a page's visible Q&A section. Null when there is none. */
+export function faqPageJsonLd(faq: { q: string; a: string }[]): Record<string, unknown> | null {
+  if (faq.length === 0) return null;
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faq.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
+}
+
 export function seriesJsonLd(
   series: Series | null,
-  books: Book[] | null
+  books: Book[] | null,
+  displayName?: string
 ): Record<string, unknown>[] {
   if (!series) return [];
   const seriesUrl = `${BASE_URL}/series/${series.slug}`;
+  const name = displayName || series.title;
 
   const mainEntity: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    name: series.title,
+    name,
     description: series.description || undefined,
     url: seriesUrl,
     numberOfItems: books?.length || 0,
@@ -224,7 +240,7 @@ export function seriesJsonLd(
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Home", item: BASE_URL },
       { "@type": "ListItem", position: 2, name: "Book Series", item: `${BASE_URL}/series` },
-      { "@type": "ListItem", position: 3, name: series.title, item: seriesUrl },
+      { "@type": "ListItem", position: 3, name, item: seriesUrl },
     ],
   };
 

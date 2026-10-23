@@ -84,6 +84,30 @@ export function pageTitle(base: string): string {
 }
 
 /**
+ * Book page <title>. A book recommended by 2+ people leads with that proof
+ * ("Sapiens by Yuval Noah Harari: Recommended by 88 People"), which is the
+ * one thing a BookMentions result offers that a retailer or Goodreads result
+ * doesn't, and matches "who recommended / recommended by" searches.
+ *
+ * Tries the longest form first and falls back to shorter ones so the title is
+ * never cut mid-phrase by pageTitle's length budget. The stored meta_title is
+ * only used for books without that proof: every published row's meta_title
+ * is the generic "<title> by <author> | Book Recommendations".
+ */
+export function bookPageTitle(
+  title: string,
+  author: string | null | undefined,
+  recommenderCount: number,
+  metaTitle?: string | null
+): string {
+  const byline = author ? `${title} by ${author}` : title;
+  if (recommenderCount < 2) return metaTitle || byline;
+  const proof = `Recommended by ${recommenderCount.toLocaleString()} People`;
+  const candidates = [`${byline}: ${proof}`, `${title}: ${proof}`, byline];
+  return candidates.find((c) => c.length <= TITLE_MAX) || byline;
+}
+
+/**
  * Upper bound for a meta description. Google truncates the SERP snippet
  * somewhere around 155–160 characters on desktop; anything past that is
  * wasted and often makes the snippet end mid-word.

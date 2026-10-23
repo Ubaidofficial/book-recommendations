@@ -49,6 +49,10 @@ export interface Book {
   // identifier for reconciling a book against an external catalogue.
   isbn_13?: string | null;
   isbn_10?: string | null;
+  // Verified first-publication year (migration 003). Absent until that
+  // migration runs; NULL unless the backfill matched the book confidently.
+  // Unlike publish_date, safe to order a series by.
+  first_published_year?: number | null;
   description: string;
   rating: number;
   recommendation_count: number;
@@ -459,6 +463,12 @@ export async function seriesHasPositions(seriesId: string): Promise<boolean> {
     return false;
   }
 }
+
+export const getBooksBySeriesOrderedCached = (seriesId: string, limit = 48) =>
+  unstable_cache(() => getBooksBySeriesOrdered(seriesId, limit), ["series-books-ordered", seriesId, String(limit)], {
+    revalidate: 300,
+    tags: ["series"],
+  })();
 
 export const seriesHasPositionsCached = (seriesId: string) =>
   unstable_cache(() => seriesHasPositions(seriesId), ["series-has-positions", seriesId], {
