@@ -7,13 +7,53 @@ Date: 2026-10-23. Project: BookMentions (`bookmentions.net`), market US / Englis
 - Sources: each competitor's public homepage, a sample person page, a sample topic
   list, `sitemap.xml`, and MRB's `llms-full.txt`, fetched on 2026-10-23. Also a
   US web search for two of our keywords.
-- **Missing: traffic, ranked keywords and backlinks.** The hosted OpenSEO account has
-  17 credits. A domain overview costs about 100-300 credits, so none was pulled. The
-  self-hosted OpenSEO connector is not authorized in this session yet. Re-run
-  `get_domain_overview`, `get_ranked_keywords` and `get_backlinks_overview` for both
-  domains once one of them can be used. Until then, nothing below says who gets more
-  traffic or has stronger links.
+- Traffic, ranked keywords, backlinks and live SERPs: self-hosted OpenSEO project
+  "BookMentions" (DataForSEO data, US/English), pulled 2026-10-23. See "Search data"
+  below. DataForSEO traffic numbers are modelled estimates, not analytics. Use them for
+  relative comparison only.
 - Sitemap counts are URL counts, not counts of indexed or ranking pages.
+
+## Search data (OpenSEO self-hosted, 2026-10-23)
+
+| | mostrecommendedbooks.com | goodbooks.io | bookmentions.net |
+|---|---|---|---|
+| Est. US organic traffic / month | 47,019 | 3,680 | 7 |
+| Ranked US keywords | 82,547 | 4,488 | 147 |
+| Backlinks / referring domains | 12,851 / 4,600 | 6,898 / 1,213 | 60 / 56 (backlink spam score 57; only 3 referring domains left after the spam filter) |
+| Backlink rank (DataForSEO) | 45 | 44 | 0 |
+
+**Where MRB's traffic actually comes from:** almost all of it is **series pages**. Its
+top 60 non-brand keywords by estimated traffic are 58 `/series/*-books-in-order` pages
+(e.g. "suzanne collins books" #4, "john grisham books in order" #2) and 2 `/lists/`
+pages. Its topic lists (7,176 ranked keywords) and people pages (1,226) are weak:
+the best list keyword brings an estimated 122 visits, and most rank 20-40. For
+example, "true crime books" ranks #33 and "elon musk books" #23. Many of its people
+URLs that rank are `books-written-by-*` pages, not recommendation pages.
+
+**goodbooks.io:** traffic is spread across the homepage ("good books" #5, "best books
+to read" #7), a few series pages and people pages. It ranks #1 for several
+"[person] book recommendations" long-tail queries (Tim Ferriss, Andrew Huberman,
+Warren Buffett, Peter Thiel), and #2 for "books recommended by elon musk".
+
+**BookMentions today:** 147 keywords, all ranked 22 or worse (best: "books ceos read"
+#22). The site has no organic traffic yet, so every keyword below is a fresh target.
+
+**Live top-10 SERPs (US desktop) for 10 saved keywords:** neither competitor is in the
+top 10 for any of them, except goodbooks.io at #2 for "books recommended by elon
+musk". The top 10s are dominated by Reddit, Quora, Facebook groups, Goodreads, Amazon,
+publishers (Penguin Random House, Pan Macmillan), fivebooks.com and Medium/Substack
+posts. Most also show an AI Overview. "Books recommended by bill gates" is led by
+gatesnotes.com itself. recommentions.com ("80 books Elon Musk mentioned, ranked!",
+#4) is a third competitor worth watching.
+
+What this means (my interpretation, not measured):
+- The topic keywords are not locked up by either competitor. Google is mostly showing
+  forum threads, which suggests searchers want to know what real people recommend.
+  That is BookMentions' core data.
+- Domain authority is the main gap. MRB has about 80x our referring domains, and ours
+  look spammy, so links matter as much as content.
+- If you want traffic at MRB's scale, series ("[author] books in order") is where its
+  traffic is. That is a different play from recommendations.
 
 ## Snapshot
 
@@ -117,12 +157,13 @@ mean nothing ranks for the query.
 ## Plan to out-compete them
 
 Ordered by how much I expect each to move rankings. These are judgment calls, not
-measured. Validate them against ranking data once credits or the self-hosted
-connector are available.
+measured. Track the saved keywords before and after each change to check them.
 
 1. **Ship the uncontested gaps first:** best screenwriting books, best books about new
    york city, best books about china, japan and korea (country lists, not just
-   history). MRB has no direct page for these, and goodbooks has none.
+   history). MRB has no direct page for these, and goodbooks has none. The live SERPs
+   for screenwriting, New York City and Japan show forums and publishers, and neither
+   competitor.
 2. **Make "ranked by real people" the headline on every topic list.** Show the
    recommender count per book with names, quotes and source links, and say plainly in
    the intro and title area that MRB's equivalent ranks by blog mentions. Drop books
@@ -142,15 +183,20 @@ connector are available.
 6. **Pick off goodbooks' person-page long tail:** their 741 person pages have no
    quotes or sources. Where we have the same people with sourced recommendations, our
    page is plainly more useful.
-7. **Backlinks and outreach: unknown until data is pulled.** Both sites list press
-   (MRB names Forbes, Business Insider and Tim Ferriss; goodbooks shows Product Hunt).
-   Pull `get_backlinks_overview` before deciding on a link strategy.
+7. **Backlinks are the biggest gap.** We have 56 referring domains with a spam score
+   of 57, against MRB's 4,600 and goodbooks' 1,213. Both competitors get links from
+   directories and launch sites (Product Hunt, SaaSHub, alternative.to,
+   startupbuffer) and from AI and reading tools (easyreads.ai, superbook.ai). Getting
+   listed in those places is a cheap first step. Review our spammy referring domains
+   before deciding whether a disavow file is needed.
+8. **Decide on series pages.** That is where MRB gets most of its traffic. We already
+   have `/series/` pages, but the Enid Blyton page says the reading order is not
+   verified. Verified reading orders for popular authors could be a second traffic
+   pillar. It is a separate decision from the recommendations strategy.
 
-## Next data to pull (when credits or the self-hosted connector allow)
+## Next data to pull
 
-- `get_domain_overview` for both competitors and bookmentions.net
-- `get_ranked_keywords` for mostrecommendedbooks.com filtered to `/lists/` and
-  `/people/`, excluding brand terms
-- `get_serp_results` for the top 10 saved keywords, to see whether MRB actually ranks
-  where it has pages
-- `get_backlinks_overview` for both competitors
+- `get_ranked_keywords` for mostrecommendedbooks.com `/series/` (sorted by traffic),
+  if series pages are on the table
+- A rank tracker for the 33 saved keywords, to set a baseline before shipping changes
+- `get_backlinks_profile` for bookmentions.net, to review the spammy referring domains
