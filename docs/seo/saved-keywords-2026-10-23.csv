@@ -1,0 +1,34 @@
+keyword,search_volume,keyword_difficulty,cpc,competition,intent
+best memoirs,6600,0,0.27,0.80,informational
+best world war 2 books,5400,0,1.00,0.70,informational
+best true crime books,4400,0,0.28,0.93,informational
+best investing books,2900,10,1.31,0.77,informational
+best ai books,2900,0,2.27,0.80,informational
+best greek mythology books,2400,0,0.58,0.81,informational
+best entrepreneurship books,1900,5,1.10,0.89,informational
+best personal finance books,1600,12,0.57,0.72,informational
+best world war 1 books,1600,0,0.56,0.37,informational
+best stoicism books,1600,0,0.64,0.81,informational
+best books on the vietnam war,1300,0,0.53,0.90,informational
+best holocaust books,1000,0,0.45,0.90,informational
+best cyberpunk books,720,0,0.92,0.24,informational
+best screenwriting books,590,0,1.43,0.91,informational
+books recommended by bill gates,480,3,0.49,0.06,informational
+best magical realism books,480,3,0.52,0.71,informational
+best neuroscience books,480,0,0.53,0.86,informational
+best music books,480,0,0.42,0.63,informational
+books recommended by elon musk,480,0,0.32,0.11,informational
+best negotiation books,320,0,1.07,0.60,informational
+best books about new york city,320,0,0.51,0.66,informational
+best crypto books,260,6,0.90,0.56,commercial
+best books about china,260,0,0.64,0.53,informational
+best books on writing fiction,260,0,0.79,0.83,informational
+best climate change books,210,0,0.38,0.77,informational
+best books about japan,210,0,0.25,0.95,informational
+best books about wealth,170,0,1.42,0.87,informational
+best steampunk books,170,0,1.60,0.47,informational
+best books on psychedelics,110,0,0.65,0.74,informational
+best books about korea,50,0,1.41,0.50,informational
+best biohacking books,20,0,0.76,0.63,informational
+best silicon valley books,20,0,,0.16,informational
+best growth hacking books,10,18,,0.00,commercial
