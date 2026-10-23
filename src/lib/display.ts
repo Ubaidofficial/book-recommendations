@@ -309,5 +309,13 @@ export function displayListTitleFull(
   // "Best <Name> Books" produced "Best About Japan Books"; the phrase people
   // search is "best books about japan".
   if (/^(about|for|on|in|with|from)\s/i.test(core)) return `Best Books ${core}`;
+  // "best-books-on-*" lists store the bare subject ("Psychedelics"), which
+  // wrapped to "Best Psychedelics Books". The slug carries the phrasing people
+  // search; named wars and revolutions take "the" ("on the Vietnam War").
+  const prep = (slug || "").toLowerCase().match(/^best-books-(on|about)-/);
+  if (prep) {
+    const article = /\b(war|revolution)$/i.test(core) ? "the " : "";
+    return `Best Books ${prep[1]} ${article}${core}`;
+  }
   return `Best ${core} Books`;
 }

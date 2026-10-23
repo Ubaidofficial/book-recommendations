@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getListBySlugCached, getBooksForListCached, getBooksForListByRecommendationsCached, getRelatedListsCached, getRecommendersForBooksCached, getRecommenderRefsForBooksCached } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
-import { displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel } from "@/lib/display";
+import { displayBookTitle, displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel } from "@/lib/display";
 import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl,
   coverAltText,
 } from "@/lib/dataQuality";
@@ -32,23 +32,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // The title tag carries the phrase people actually search ("Best Philosophy
   // Books"), not the bare subject; displayName stays short for prose.
   const seoName = displayListTitleFull(list.title, list.slug);
-  // Lists had no og:image, so every share of a list rendered as a bare text
-  // card while book and person pages showed artwork. The top-ranked book's
-  // cover is the honest representative image for the list.
+  // The first ranked book with a real cover represents the list on share
+  // cards. Only the top book was tried before, and ~19 of 31 new lists lead
+  // with a filename-only cover that doesn't resolve, so they had no image.
+  // Same cached call the page body makes, so this adds no query.
   let ogImage: string | undefined;
+  let topBooks: Awaited<ReturnType<typeof getBooksForListCached>> = [];
   try {
-    const top = await getBooksForListCached(list.id, 1);
-    const cover = top[0]?.cover_image_url;
-    if (isValidHttpUrl(cover)) ogImage = cover;
+    topBooks = await (listKindFromSlug(list.slug) === "meta"
+      ? getBooksForListByRecommendationsCached(list.id, LIST_PAGE_SIZE)
+      : getBooksForListCached(list.id, LIST_PAGE_SIZE));
+    ogImage = topBooks.map((b) => b.cover_image_url).find(isValidHttpUrl) ?? undefined;
   } catch {
     // A missing share image is not worth failing metadata generation over.
   }
 
   return pageMetadata({
     title: seoName,
-    description:
-      list.description ||
-      `The ${seoName.toLowerCase()} recommended most often, with the source behind every pick.`,
+    description: listMetaDescription(list.description, seoName, topBooks),
     path: `/lists/${list.slug}`,
     image: ogImage,
     robots: robotsDirective(list),
@@ -61,6 +62,92 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * fraction and labelling it as the whole list.
  */
 const LIST_PAGE_SIZE = 100;
+
+const META_DESC_MAX = 160;
+
+/** "A, B and C" → ["A", "B", "C"]. Safe for people's names only. */
+function splitNames(text: string): string[] {
+  return text.split(/,\s*|\s+and\s+/).map((x) => x.trim()).filter(Boolean);
+}
+
+/**
+ * Book titles carry commas and "and" ("Thinking, Fast and Slow", "Think and
+ * Grow Rich"), so the picks sentence can't be split on them. Instead find the
+ * list's own book titles inside it; if they don't account for the whole
+ * sentence, return [] and the caller keeps it whole or drops it.
+ */
+function splitBookTitles(text: string, books: { title?: string | null }[]): string[] {
+  const lower = text.toLowerCase();
+  const spans: { start: number; end: number }[] = [];
+  for (const b of books) {
+    const t = displayBookTitle(repairNumericTitle(b.title)).trim();
+    if (t.length < 2) continue;
+    const i = lower.indexOf(t.toLowerCase());
+    if (i >= 0) spans.push({ start: i, end: i + t.length });
+  }
+  // Longest match first so "On Writing Well" wins over "On Writing".
+  spans.sort((a, b) => a.start - b.start || b.end - a.end);
+  const kept: { start: number; end: number }[] = [];
+  for (const sp of spans) {
+    if (kept.some((k) => sp.start < k.end && sp.end > k.start)) continue;
+    kept.push(sp);
+  }
+  const titles = kept.sort((a, b) => a.start - b.start).map((k) => text.slice(k.start, k.end));
+  return joinNames(titles) === text ? titles : [];
+}
+
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/**
+ * Meta description that fits the snippet budget.
+ *
+ * Stored list descriptions read "<Topic> books, including titles recommended
+ * by A, B and C. Most recommended here: X, Y and Z." and run 150–230 chars,
+ * so the sentence-boundary clamp dropped the second sentence — the one naming
+ * actual books — and left ~95-char snippets. Shortening the name lists keeps
+ * both sentences. Lists with no description get one built from their top
+ * books instead of a generic line.
+ */
+function listMetaDescription(
+  stored: string | null | undefined,
+  seoName: string,
+  books: { title?: string | null }[],
+): string {
+  const text = (stored || "").replace(/\s+/g, " ").trim();
+  if (text && text.length <= META_DESC_MAX) return text;
+
+  const m = text.match(/^(.+?), including titles recommended by (.+?)\.(?: Most recommended here: (.+?)\.)?$/);
+  if (m) {
+    const [, head, recs, picks] = m;
+    const r = splitNames(recs);
+    const p = picks ? splitBookTitles(picks, books) : [];
+    // Unsplittable picks can still be used whole.
+    const pickSets = p.length ? [3, 2, 1].map((n) => p.slice(0, n)) : picks ? [[picks]] : [];
+    const combos: [number, string[]][] = [];
+    for (const ps of pickSets) combos.push([3, ps], [2, ps]);
+    combos.push([3, []], [2, []]);
+    for (const [rn, ps] of combos) {
+      let out = `${head}, including titles recommended by ${joinNames(r.slice(0, rn))}.`;
+      if (ps.length) out += ` Most recommended here: ${joinNames(ps)}.`;
+      if (out.length <= META_DESC_MAX) return out;
+    }
+  }
+  if (text) return text;
+
+  const titles = books
+    .map((b) => displayBookTitle(repairNumericTitle(b.title)))
+    .filter((t) => isProbablyValidBookTitle(t))
+    .slice(0, 3);
+  const lead = `The ${seoName.toLowerCase()} and the people who recommend them.`;
+  for (let n = titles.length; n > 0; n--) {
+    const out = `${lead} Includes ${joinNames(titles.slice(0, n))}.`;
+    if (out.length <= META_DESC_MAX) return out;
+  }
+  return lead;
+}
 
 
 /**
