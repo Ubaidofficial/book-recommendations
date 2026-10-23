@@ -200,3 +200,130 @@ measured. Track the saved keywords before and after each change to check them.
   if series pages are on the table
 - A rank tracker for the 33 saved keywords, to set a baseline before shipping changes
 - `get_backlinks_profile` for bookmentions.net, to review the spammy referring domains
+
+---
+
+# Update (later on 2026-10-23): two more competitors and plan v2
+
+Data: self-hosted OpenSEO (DataForSEO, US/English), Supabase production
+read-only queries, and an Open Library dry run. Traffic figures are modelled
+estimates.
+
+## Executive summary
+
+BookMentions has almost no organic traffic yet (an estimated 7 visits a month).
+The biggest opening in this niche is **"[author] books in order" pages**. The
+keywords have high volume and very low difficulty: 183 of bookseriesinorder.com's
+top 200 traffic keywords have keyword difficulty 20 or lower. We already hold
+series rows for 140 of the 177 author pages that drive that site's top traffic.
+What blocks us is data and indexing, not page count:
+
+1. **Every year in the series data is wrong.** For series books,
+   `books.publish_date` holds one year per author (every Harry Potter book reads
+   1997), so no page can honestly say "in order" today. Fix: migration 003 plus
+   the Open Library backfill.
+2. **Almost nothing is indexable.** 2 of 3,565 series, 54 of 98,845 books and
+   52 of 2,359 people have an indexable `index_status`.
+3. **Links.** We have 56 referring domains, against 5,375 for
+   bookseriesinorder.com and 4,600 for MRB.
+
+## New competitors
+
+| | bookseriesinorder.com | recommentions.com |
+|---|---|---|
+| Est. US organic traffic / month | **96,320** (the largest in this set) | 345 |
+| Ranked keywords | 99,201 | 386 |
+| Referring domains | 5,375 (backlink rank 58) | 2,361, but most appeared in Sept-Oct 2026 from spam "SEO checker" domains |
+| What ranks | Author pages (`/tom-clancy/`, `/john-sandford/`, `/nora-roberts/`), mostly thriller and mystery | Person pages (`/elon-musk/books/`, top 5 for many "[person] favorite books" variants) and **person + book pair pages** (`/elon-musk/books/dune.../`) |
+
+bookseriesinorder.com's top pages by estimated traffic (top 200 keywords):
+homepage, Tom Clancy, John Sandford, Nora Roberts, James Patterson, Harlan Coben,
+Patricia Cornwell, Stone Barrington, Vince Flynn, Stuart Woods, Mitch Rapp,
+Michael Connelly, Jack Carr, Alex Cross.
+
+Recommentions shows a pattern worth copying: a page per person-book pair answers
+queries like "elon musk lord of the rings" and "ray dalio and bill gates". We
+already hold that data (`book_recommendations` with quote and source).
+
+## Keyword opportunity table
+
+Volume and difficulty (KD) are DataForSEO US figures. "Competitor rank" is
+bookseriesinorder.com's position. All of these are saved in the OpenSEO
+project.
+
+| Keyword | US vol. | KD | Competitor rank | We have the series row? | Opportunity |
+|---|---|---|---|---|---|
+| harry potter books in order | 60,500 | 23 | — | yes (5 books, 100% dated in dry run) | High |
+| percy jackson books in order | 40,500 | 15 | — | yes (100% dated) | High |
+| louise penny books in order | 33,100 | 18 | 10 | yes | High |
+| jack reacher books in order | 27,100 | 9 | 6 | yes (93% dated) | High |
+| dune books in order | 22,200 | 19 | — | yes (83% dated) | High |
+| alex cross books in order | 22,200 | 3 | 3 | yes | High |
+| stephen king books in order | 18,100 | 19 | — | yes (94% dated) | High |
+| jack carr books in order | 18,100 | 9 | 2 | yes | High |
+| david baldacci books in order | 14,800 | 4 | 3 | yes | High |
+| mitch rapp books in order | 14,800 | 2 | 2 | yes | High |
+| harry bosch books in order | 14,800 | 1 | 9 | yes | High |
+| michael connelly books in order | 14,800 | 17 | 5 | yes | High |
+| john grisham books in order | 12,100 | 18 | — | yes (87% dated) | High |
+| cj box books in order | 12,100 | 16 | 3 | **no** | Medium (needs data) |
+| tana french books in order | 9,900 | 8 | 3 | **no** | Medium (needs data) |
+| daniel silva books in order | 9,900 | 0 | 4 | yes | High |
+| discworld reading order | 8,100 | 12 | — | yes (100% dated) | High |
+| nora roberts books in order | 8,100 | 6 | 2 | yes | High |
+| brandon sanderson reading order | 6,600 | 7 | — | yes (84% dated) | High |
+| books like 1984 | 2,400 | 0 | — | book page | Medium |
+| books like the alchemist | 1,900 | 0 | — | book page | Medium |
+| atomic habits review | 1,000 | 20 | — | book page | Low (we don't write reviews) |
+| books like atomic habits | 720 | 0 | — | book page | Medium |
+| is atomic habits worth reading | 390 | 4 | — | book page (FAQ) | Medium |
+
+"Who recommended [book]" and "[book] recommended by" have **no measurable
+volume** in DataForSEO (tested for Sapiens, Atomic Habits, The Intelligent
+Investor). Target them on book pages because it costs nothing and fits the
+data, but the real volume around a book is "books like [book]" and "is [book]
+worth reading".
+
+## What shipped in this session (code, not yet deployed)
+
+- **Series pages:** the title becomes "[Author] Books in Order" only when 80%+
+  of the books have a verified first-publication year. Otherwise it reads
+  "[Author] Books" with no order claimed. Year badges, clean names instead of
+  slug titles, an FAQ (first book, latest book, how many, most recommended,
+  what order to read) with FAQPage JSON-LD.
+- **Book pages:** title "Sapiens by Yuval Noah Harari: Recommended by 88
+  People", a meta description naming the top recommenders, H2s "Who
+  recommended [book]?" and "Books like [book]", and an FAQ (who recommended,
+  is it worth reading, books like it) with FAQPage JSON-LD.
+- **Data:** `migrations/003_books_first_published_year.sql` (not applied) and
+  `scripts/backfill_first_published_year.py`. Dry run on 10 series: 306 of 340
+  books matched (90%). The spot check found wrong years from Open Library
+  records: Jack Reacher's "Bad Luck and Trouble" came back as 1984 (it was
+  published in 2007) and "Nothing to Lose" as 1998 (2008). Review the CSV
+  before `--write`, and add a second source or a manual check for the top
+  series.
+
+## Prioritized action plan
+
+**Quick wins (this week)**
+
+| Action | Impact | Effort | Depends on |
+|---|---|---|---|
+| Apply migration 003 (additive, nullable columns) | Unblocks series order | 5 min | Your approval |
+| Run the backfill dry run for the ~140 covered author series, review outliers, then `--write` | High | Half a day including review | Migration 003 |
+| Deploy this branch (series + book page changes) | High | Under 1 hour | None |
+| Set `index_status = 'published'` on series that pass publication order with 15+ books, starting with the 19 keywords above | High | 1-2 hours | Backfill |
+| Submit the newly indexable URLs (IndexNow tool in OpenSEO, plus the Search Console sitemap) | Medium | 30 min | Indexing |
+| Remove duplicate series rows (`dune`, `dune-series`, `dune-books-in-order`), or 301 them to the `-books-in-order` slug | Medium | 1-2 hours | None |
+
+**Strategic investments (this quarter)**
+
+| Action | Impact | Effort |
+|---|---|---|
+| Fill the 37 missing author series from bookseriesinorder.com's top-traffic list (C.J. Box, Tana French, Freida McFadden, Rebecca Yarros, Jo Nesbø...) from Open Library author works | High | Multi-day |
+| Split author bibliographies into true series (Jack Reacher inside Lee Child; Mitch Rapp inside Vince Flynn) with positions | High | Multi-day |
+| Add the BookMentions angle to series pages: "most recommended [author] book", with recommender names. Neither series competitor has it | Medium | 1 day |
+| Person + book pair pages (the Recommentions pattern), e.g. `/people/elon-musk/dune`, from `book_recommendations` quotes | Medium | 1-2 days |
+| Index more people and book pages by quality score (today: 52 people, 54 books) | High | Ongoing |
+| Link building: library and reading-blog outreach (bookseriesinorder.com's links include libraries such as bpld.org, cheshirelibraryblog.com and iberiaschools.org), plus directories (Product Hunt, SaaSHub, alternative.to). Review our spammy referring domains | High | Ongoing |
+| Rank tracker on the saved keywords for a baseline (estimate cost first) | Medium | 30 min |
