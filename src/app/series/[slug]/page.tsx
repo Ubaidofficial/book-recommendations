@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import { getSeriesBySlugCached, getBooksBySeriesOrderedCached, getRelatedSeries, seriesHasPositionsCached } from "@/lib/data";
 import { pageMetadata, robotsDirective } from "@/lib/seo";
@@ -24,6 +24,18 @@ const SERIES_FETCH_LIMIT = 1000;
 // Series pages showed 48 of a series that can run to 868 titles, while the
 // page's entire promise is "in order". Covers below the fold lazy-load.
 const SERIES_PAGE_SIZE = 200;
+
+/**
+ * The import left several rows per series ("dune", "dune-series",
+ * "dune-books-in-order"), each a thin copy competing for the same query.
+ * "<base>-books-in-order" is the slug the target searches use, so the
+ * variants 301 to it — but only when that row actually exists.
+ */
+async function canonicalSeriesSlug(slug: string): Promise<string | null> {
+  if (slug.endsWith("-books-in-order")) return null;
+  const target = `${slug.replace(/-series$/, "")}-books-in-order`;
+  return (await getSeriesBySlugCached(target)) ? target : null;
+}
 
 async function loadSeriesView(seriesId: string) {
   const [rawBooks, hasPositions] = await Promise.all([
@@ -62,6 +74,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function SeriesDetailPage({ params }: Props) {
   const { slug } = await params;
+  const canonical = await canonicalSeriesSlug(slug);
+  if (canonical) permanentRedirect(`/series/${canonical}`);
   const series = await getSeriesBySlugCached(slug);
   if (!series) notFound();
 

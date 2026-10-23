@@ -65,7 +65,7 @@ def open_library_docs(title: str, author: str, retries: int = 3) -> List[Dict[st
     params = {
         "title": title,
         "author": author,
-        "fields": "key,title,author_name,first_publish_year,edition_count",
+        "fields": "key,title,author_name,first_publish_year,publish_year,edition_count",
         "limit": "10",
     }
     url = OPEN_LIBRARY_SEARCH_URL + "?" + urllib.parse.urlencode(params)
@@ -80,6 +80,24 @@ def open_library_docs(title: str, author: str, retries: int = 3) -> List[Dict[st
     return []
 
 
+def corroborated_year(first_year: int, edition_years: List[int]) -> int:
+    """Earliest edition year that another edition backs up within two years.
+
+    Open Library's work-level first_publish_year is the minimum over every
+    edition record, so one mis-dated edition drags it decades early (Lee
+    Child's "Bad Luck and Trouble", 2007, reads 1984 there because of stray
+    1984 and 1998 records). A real first edition is followed by reprints and
+    paperbacks within a year or two; a stray record usually is not.
+    """
+    years = sorted(set(y for y in edition_years if isinstance(y, int)))
+    if len(years) < 3:
+        return first_year
+    for i in range(len(years) - 1):
+        if years[i + 1] - years[i] <= 2:
+            return years[i]
+    return first_year
+
+
 def best_year(title: str, author: str) -> Optional[Dict[str, Any]]:
     """The first-publication year of the closest matching work, or None."""
     candidates = []
@@ -91,8 +109,13 @@ def best_year(title: str, author: str) -> Optional[Dict[str, Any]]:
         a_sim = max((author_similarity(author, a) for a in doc.get("author_name") or []), default=0.0)
         if t_sim < MIN_TITLE_SIMILARITY or a_sim < MIN_AUTHOR_SIMILARITY:
             continue
+        corroborated = corroborated_year(year, doc.get("publish_year") or [])
         candidates.append({
             "year": year,
+            # When the corroborated year disagrees, the true year is uncertain:
+            # report it, but never write it.
+            "suspect": corroborated != year,
+            "corroborated_year": corroborated,
             "score": round(min(t_sim, a_sim), 3),
             "editions": int(doc.get("edition_count") or 0),
             "ol_title": clean(doc.get("title")),
@@ -186,7 +209,11 @@ def main() -> int:
             match = best_year(book["title"], book.get("author_name") or "")
             status = "no_match"
             if match:
-                status = "match" if match["score"] >= args.min_score else "below_min_score"
+                status = (
+                    "suspect_year" if match["suspect"]
+                    else "match" if match["score"] >= args.min_score
+                    else "below_min_score"
+                )
                 if args.write and status == "match":
                     write_year(book["id"], match["year"])
                     written += 1
@@ -195,12 +222,13 @@ def main() -> int:
                 "series": series["slug"], "book_id": book["id"], "title": book["title"],
                 "author": book.get("author_name") or "", "year": match["year"] if match else "",
                 "score": match["score"] if match else "", "editions": match["editions"] if match else "",
+                "corroborated_year": match["corroborated_year"] if match else "",
                 "ol_title": match["ol_title"] if match else "", "ol_key": match["ol_key"] if match else "",
                 "status": status,
             })
             time.sleep(args.delay)
 
-    fields = ["series", "book_id", "title", "author", "year", "score", "editions", "ol_title", "ol_key", "status"]
+    fields = ["series", "book_id", "title", "author", "year", "corroborated_year", "score", "editions", "ol_title", "ol_key", "status"]
     with open(args.report, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=fields)
         writer.writeheader()
