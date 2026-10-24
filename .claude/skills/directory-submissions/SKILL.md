@@ -83,7 +83,8 @@ the page), then set `status` to `skip` with a one-line reason in `notes`
 for anything that does not fit (wrong audience, product-type mismatch, dead,
 gated in a way the person won't accept). Present the remaining rows grouped
 by effort (public form / login needed / editorial pitch) and get the
-person's go-ahead before Phase 5.
+person's go-ahead before Phase 5. Set `status` to `approved` on exactly the
+rows they agree to; Phase 5 works only on `approved` rows.
 
 Also write `positioning_brief.md` from `templates/positioning_brief.md` now,
 and have the person confirm it — every form field is filled from it.
@@ -94,6 +95,19 @@ Needs a browser the person can see and act in: Claude in Chrome, the Claude
 desktop app's built-in browser, or Cowork. A headless browser in a cloud
 container cannot hand logins or CAPTCHAs to the person, so do not attempt
 submissions from one; stop after Phase 4 and say so.
+
+Two ways to run it:
+
+- **Scripted, with browser-use** (`scripts/submit_with_browser_use.py`). The
+  person runs it on their own computer; usage is in the script's docstring.
+  It opens a visible Chrome, has an agent fill each `approved` row's form
+  from the brief, asks in the terminal whenever a login/CAPTCHA/missing fact
+  comes up, stops before the final submit, lets the person review and click
+  submit themselves, then records the outcome in the tracker. Start with
+  `--dry-run` on two or three sites to check fill quality. Do not point it at
+  browser-use's cloud browsers or their CAPTCHA-solving/stealth features.
+- **Interactively**, with Claude in Chrome or the desktop browser, following
+  the steps below.
 
 For each approved row, in rank order:
 
