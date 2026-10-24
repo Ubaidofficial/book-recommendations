@@ -1,0 +1,24 @@
+{
+  "name": "Example Project",
+  "url": "https://example.com",
+  "one_liner": "What it is and who it is for, in one sentence.",
+  "product_kind": "e.g. free consumer website / B2B SaaS / mobile app / open-source library",
+  "core_keywords": ["words that make a destination clearly relevant"],
+  "context_keywords": ["weaker signals", "launch", "indie", "community"],
+  "exclude_terms": ["things the project is not, e.g. AI tool, B2B, Shopify"],
+  "exclude_types": ["github"],
+  "type_weights": {
+    "product-launch-site": 15,
+    "community": 10,
+    "subreddit": 6,
+    "directory": 5,
+    "citation": 3,
+    "newsletter": 0,
+    "marketplace": 0
+  },
+  "allow": { "paid": false, "reciprocal_badge": false, "registry_skips": false },
+  "extra_destinations": "extra_destinations.csv",
+  "niche_bonus": 25,
+  "min_score": 25,
+  "max_rows": 60
+}
