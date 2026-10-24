@@ -182,6 +182,7 @@ def main() -> int:
     parser.add_argument("--overwrite", action="store_true", help="Replace an existing first_published_year.")
     parser.add_argument("--delay", type=float, default=0.5, help="Seconds between Open Library requests.")
     parser.add_argument("--report", default=DEFAULT_REPORT_PATH)
+    parser.add_argument("--skip-ids-file", help="File of book ids (one per line) already looked up; they are not re-queried.")
     parser.add_argument("--sample-title")
     parser.add_argument("--sample-author", default="")
     args = parser.parse_args()
@@ -194,12 +195,18 @@ def main() -> int:
     if args.write and not has_column:
         raise SystemExit("books.first_published_year does not exist yet: apply migrations/003_books_first_published_year.sql first.")
 
+    skip_ids = set()
+    if args.skip_ids_file:
+        skip_ids = {line.strip() for line in open(args.skip_ids_file) if line.strip()}
+
     rows: List[Dict[str, Any]] = []
     lookups = written = 0
     for series in fetch_series(args.series, args.top):
         for book in fetch_series_books(series["id"], has_column):
             if lookups >= args.max_books:
                 break
+            if book["id"] in skip_ids:
+                continue
             existing = book.get("first_published_year")
             if existing and not args.overwrite:
                 rows.append({"series": series["slug"], "book_id": book["id"], "title": book["title"],

@@ -40,6 +40,8 @@ LIMIT=25 node scripts/import/enrich_people_metadata.js --write
 ```
 node scripts/import/publish_batch_pages.js --dry-run
 ```
+The batch is the usual daily quota (`DAILY_BATCH_SIZE`) **plus** up to `SERIES_DAILY_QUOTA` (default 6) series pages from the series queue, for roughly 12-15 pages a day in total. Only series with `series.publish_ready = true` are ever released, in `publish_priority` order (best "<author> books in order" keyword first). Never set `publish_ready` by hand to grow the batch: it records that a series passed the verified-publication-order and completeness checks (see `migrations/004_series_publish_queue.sql`). If the queue is empty, report it.
+
 Read the output. **Abort the publish and report instead of writing** if any of these appear:
 - a "query failed" / abort message (the script fails closed on query errors by design — do not work around it)
 - a candidate whose slug appears as a redirect source in `next.config.js`
