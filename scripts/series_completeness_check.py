@@ -44,6 +44,12 @@ def series_books(slug: str) -> List[Dict[str, Any]]:
     return [r["books"] for r in links if r.get("books")]
 
 
+def same_author(a: str, b: str) -> bool:
+    """Name match that ignores initials spacing ("C.J. Box" vs "C. J. Box")."""
+    squash = lambda x: re.sub(r"[^a-z]", "", normalize(x))
+    return author_similarity(a, b) >= 0.8 or (squash(a) != "" and squash(a) == squash(b))
+
+
 def major_works(author: str, min_editions: int) -> List[Dict[str, Any]]:
     params = {"author": author, "sort": "editions", "limit": "100",
               "fields": "title,author_name,edition_count,first_publish_year"}
@@ -59,7 +65,7 @@ def major_works(author: str, min_editions: int) -> List[Dict[str, Any]]:
     works, seen = [], set()
     for d in docs:
         names = d.get("author_name") or []
-        if not names or author_similarity(author, names[0]) < 0.8:
+        if not names or not same_author(author, names[0]):
             continue
         if int(d.get("edition_count") or 0) < min_editions:
             continue
@@ -93,6 +99,10 @@ def main() -> int:
         base = slug.replace("-books-in-order", "").replace("-", " ")
         kind = "author" if author_similarity(base, author) >= 0.8 else "character"
         works = major_works(author, args.min_editions)
+        if not works and "\ufffd" in author:
+            # A mis-encoded name ("Jo Nesb\ufffd") cannot be searched; fall
+            # back to the name the series slug spells out.
+            works = major_works(base.title(), args.min_editions)
         titles = [b["title"] for b in books]
         missing = [w["title"] for w in works if max((title_similarity(w["title"], t) for t in titles), default=0) < 0.85]
         out.append({"series": slug, "kind": kind, "author": author, "books": len(books),
