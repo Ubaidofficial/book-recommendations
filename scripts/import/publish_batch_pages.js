@@ -30,8 +30,16 @@
  *            every run (uncapped by DAILY_BATCH_SIZE), because there are
  *            only ~31 of them and they're already content-complete.
  *   Tier 2 — Cluster: narrower topic lists (best-*-books,
- *            books-recommended-by-*) and series pages, which support and
- *            link back to the Tier 1 pillars. Capped by the daily quota.
+ *            books-recommended-by-*), which support and link back to the
+ *            Tier 1 pillars. Capped by the daily quota.
+ *   Series queue — "<author> books in order" pages. Released from their own
+ *            quota (SERIES_DAILY_QUOTA, default 6) on top of DAILY_BATCH_SIZE,
+ *            and ONLY rows with series.publish_ready = true, in
+ *            publish_priority order. publish_ready is set offline once a
+ *            series has a verified publication order and no missing major
+ *            works (migrations/004_series_publish_queue.sql); this script
+ *            cannot run those Open Library checks itself, so it never
+ *            publishes a series that has not passed them.
  *   Tier 3 — Supporting: individual books and people, ranked by the
  *            existing EEAT scoring. Fills whatever's left of the daily
  *            quota after Tiers 1 and 2.
@@ -71,6 +79,10 @@ const isWrite = process.argv.includes('--write') || process.env.DRY_RUN === 'fal
 // job never falls short of the rule. Override with DAILY_BATCH_SIZE=3 on
 // slower days if desired.
 const DAILY_BATCH_SIZE = parseInt(process.env.DAILY_BATCH_SIZE || process.env.BATCH_SIZE || '4', 10);
+// Series pages drip from their own quota so a ready backlog (93 series on
+// 2026-10-24) goes out over weeks, not in one run. With the usual ~7 other
+// pages a day this lands at roughly 12-15 pages/day.
+const SERIES_DAILY_QUOTA = parseInt(process.env.SERIES_DAILY_QUOTA || '6', 10);
 
 function loadEnvFile() {
   const envPath = path.join(__dirname, '../../.env.local');
@@ -403,46 +415,6 @@ async function findTier2Candidates() {
     }
   }
 
-  const { data: series, error: sErr } = await sb
-    .from('series')
-    .select('id, slug, title, description, book_count, index_status')
-    .gte('book_count', 5)
-    // Exclude published rows IN the query, not after fetching.
-    //
-    // The window is a fixed slice from the top of the ranking, and the
-    // published set IS the top of that ranking — so as more pages go live the
-    // slice fills with rows that are then all discarded. At limit(50) this had
-    // already reduced book candidates to zero. limit(500) hides it for now,
-    // but the same exhaustion returns once ~500 books are live, and it fails
-    // silently: an empty batch looks identical to "nothing eligible".
-    //
-    // Filtering server-side makes the window a cursor over eligible rows.
-    .not('index_status', 'in', `(${PUBLISHED_STATUSES.join(',')})`)
-    .order('book_count', { ascending: false })
-    .limit(200);
-
-  failClosed('Tier 2 (series)', sErr);
-
-  for (const s of series || []) {
-    if (PUBLISHED_STATUSES.includes((s.index_status || '').toLowerCase())) continue;
-    // A redirect points away from this slug: it was retired on purpose.
-    if (REDIRECTED_SLUGS.has(String(s.slug || '').toLowerCase())) continue;
-    const hasDesc = s.description && s.description.trim().length >= 20;
-    if (s.title && s.title.length > 2 && hasDesc) {
-      candidates.push({
-        tier: 2,
-        type: 'cluster-series',
-        id: s.id,
-        slug: s.slug,
-        title: s.title,
-        score: (s.book_count || 0) * 3,
-        detail: `${s.book_count} books — series`,
-        table: 'series',
-        target_status: 'published',
-      });
-    }
-  }
-
   candidates.sort((a, b) => b.score - a.score);
   return candidates;
 }
@@ -585,6 +557,37 @@ async function findTier3Candidates() {
 }
 
 // ---------------------------------------------------------------------------
+// Series queue: ready series, best keyword first
+// ---------------------------------------------------------------------------
+
+async function findSeriesQueue(limit) {
+  if (limit <= 0) return [];
+  const { data, error } = await sb
+    .from('series')
+    .select('id, slug, title, book_count, publish_priority')
+    .eq('publish_ready', true)
+    .eq('index_status', 'draft')
+    .order('publish_priority', { ascending: true, nullsFirst: false })
+    .limit(limit + 20);
+  failClosed('Series queue', error);
+  return (data || [])
+    // A redirect points away from this slug: it was retired on purpose.
+    .filter((s) => !REDIRECTED_SLUGS.has(String(s.slug || '').toLowerCase()))
+    .slice(0, limit)
+    .map((s) => ({
+      tier: 2,
+      type: 'cluster-series',
+      id: s.id,
+      slug: s.slug,
+      title: s.title,
+      score: -(s.publish_priority || 0),
+      detail: `${s.book_count} books — series queue #${s.publish_priority}`,
+      table: 'series',
+      target_status: 'published',
+    }));
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -593,6 +596,7 @@ async function main() {
   console.log(`🛡️  BookMentions Tiered Publisher (Pillar > Cluster > Support)`);
   console.log(`Mode: ${isWrite ? '⚡ LIVE PUBLISH' : '🔍 PREVIEW (Dry Run)'}`);
   console.log(`Daily quota for Tier 2/3: ${DAILY_BATCH_SIZE} pages (Tier 1 pillar backlog is uncapped)`);
+  console.log(`Daily quota for the series queue: ${SERIES_DAILY_QUOTA} pages`);
   console.log(`==================================================\n`);
 
   // Topics already covered by a live page. Applied to LIST candidates only —
@@ -611,7 +615,7 @@ async function main() {
   const tier2All = remaining > 0 ? await findTier2Candidates() : [];
   const tier2 = tier2All.filter((c) => c.slug && !HELD_LIST_SLUGS.has(c.slug)).filter(notADuplicateTopic);
   const blocked2 = tier2All.length - tier2.length;
-  console.log(`Tier 2 (cluster lists + series) candidate pool: ${tier2.length}${blocked2 ? `  (${blocked2} blocked: topic already published)` : ''}`);
+  console.log(`Tier 2 (cluster lists) candidate pool: ${tier2.length}${blocked2 ? `  (${blocked2} blocked: topic already published)` : ''}`);
   const tier3 = await findTier3Candidates();
   console.log(`Tier 3 (books + people) candidate pool: ${tier3.length}\n`);
 
@@ -647,6 +651,10 @@ async function main() {
     selected.push(c);
     remaining--;
   }
+
+  const seriesQueue = await findSeriesQueue(SERIES_DAILY_QUOTA);
+  console.log(`Series queue: releasing ${seriesQueue.length} of up to ${SERIES_DAILY_QUOTA}`);
+  selected.push(...seriesQueue);
 
   if (selected.length === 0) {
     console.log('🎉 Nothing pending in any tier. All eligible pages are already published.');
