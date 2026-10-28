@@ -49,6 +49,22 @@ const nextConfig = {
         permanent: true,
       },
       {
+        // The Railway service URL serves the full site too, and Google has
+        // already found it. Pages there carry a bookmentions.net canonical,
+        // but a redirect consolidates signals outright.
+        source: "/:path*",
+        has: [{ type: "host", value: ".+\\.up\\.railway\\.app" }],
+        destination: "https://bookmentions.net/:path*",
+        permanent: true,
+      },
+      {
+        // Duplicate of /lists/memoirs (71 books, already earning impressions)
+        // published on 2026-10-21 with 24 books; one page per topic.
+        source: "/lists/best-memoir-books",
+        destination: "/lists/memoirs",
+        permanent: true,
+      },
+      {
         source: "/people/gates",
         destination: "/people/bill-gates",
         permanent: true,
