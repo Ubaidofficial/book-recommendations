@@ -304,6 +304,10 @@ export function displayListTitleFull(
   const looksWrapped = lc.startsWith("best ") || /\bbooks?\b/.test(lc);
   if (looksWrapped) return core;
   if (FORMAT_TOPICS.has((slug || "").toLowerCase())) return `Best ${core}`;
+  // A topic whose last word is already a kind of book ("Autobiographies",
+  // "Sports Biographies", "Short Stories", "Cookbooks") must not get a second
+  // "Books": people search "best autobiographies", not "best autobiographies books".
+  if (/\b(cookbooks|autobiographies|biographies|memoirs|novels|stories|poems|essays|comics|textbooks)$/i.test(core)) return `Best ${core}`;
   // Stored titles for "books about X / for X / on X" lists start with the
   // preposition ("About Japan", "For 3 Year Olds"). Wrapping those as
   // "Best <Name> Books" produced "Best About Japan Books"; the phrase people

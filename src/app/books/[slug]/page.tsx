@@ -15,8 +15,8 @@ import {
   type BookRecommenderSummary,
   type RecommendationProof,
 } from "@/lib/data";
-import { pageMetadata, robotsDirective } from "@/lib/seo";
-import { bookJsonLd } from "@/lib/jsonld";
+import { pageMetadata, robotsDirective, bookPageTitle } from "@/lib/seo";
+import { bookJsonLd, faqPageJsonLd } from "@/lib/jsonld";
 import { displayTitle, displayListTitle, listKindFromSlug, displayBookTitle } from "@/lib/display";
 import {
   isValidHttpUrl,
@@ -79,17 +79,31 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
+const joinNames = (names: string[]) =>
+  names.length <= 1 ? names[0] || "" : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const book = await getBookBySlugCached(slug);
   if (!book) return { robots: "noindex, follow" };
-  const desc = isUsefulDescription(book.meta_description)
-    ? book.meta_description
-    : isUsefulDescription(book.description)
-      ? book.description
-      : undefined;
+  const title = displayBookTitle(book.title);
+  const recCount = book.recommendation_count || 0;
+  // Lead the snippet with who recommends the book — the answer to "who
+  // recommended <book>" and the reason to click this result over a retailer's.
+  // Falls back to the book's own description when there's no such proof.
+  const recommenders = recCount >= 2 ? await getBookRecommenders(book.id, 3) : [];
+  const names = recommenders.map((r) => r.person_name).filter((n) => n && n.trim().length > 0);
+  const proofDesc = names.length > 0
+    ? `${title}${book.author ? ` by ${book.author}` : ""} is recommended by ${recCount.toLocaleString()} people, including ${joinNames(names)}. See what they said, with sources, plus books like it.`
+    : undefined;
+  const desc = proofDesc
+    || (isUsefulDescription(book.meta_description)
+      ? book.meta_description
+      : isUsefulDescription(book.description)
+        ? book.description
+        : undefined);
   return pageMetadata({
-    title: book.meta_title || (book.author ? `${displayBookTitle(book.title)} by ${book.author}` : displayBookTitle(book.title)),
+    title: bookPageTitle(title, book.author, recCount, book.meta_title),
     description: desc || "",
     path: `/books/${book.slug}`,
     image: isValidHttpUrl(book.cover_image_url) ? book.cover_image_url : undefined,
@@ -355,6 +369,31 @@ export default async function BookDetailPage({ params }: Props) {
 
   const jsonld = bookJsonLd(book, book.slug);
 
+  // Visible Q&A answering the searches a book page can satisfy — "who
+  // recommended <book>", "is <book> worth reading", "books like <book>" —
+  // built only from data already on the page. Each question is omitted when
+  // its answer would be empty or invented.
+  const bookTitle = displayBookTitle(book.title);
+  const recommenderNames = notableRecommenders
+    .map((r) => (typeof r.person_name === "string" ? r.person_name.trim() : ""))
+    .filter((n) => n.length > 0);
+  const recommenderTotal = Math.max(book.recommendation_count || 0, recommenderNames.length);
+  const faq = [
+    recommenderNames.length > 0 && {
+      q: `Who recommended ${bookTitle}?`,
+      a: `${recommenderTotal.toLocaleString()} ${recommenderTotal === 1 ? "person has" : "people have"} recommended ${bookTitle} in the interviews, articles and reading lists we track, including ${joinNames(recommenderNames.slice(0, 4))}. Each name links to their full reading list.`,
+    },
+    bestForItems.length > 0 && {
+      q: `Is ${bookTitle} worth reading?`,
+      a: `${recommenderTotal > 0 ? `${recommenderTotal.toLocaleString()} ${recommenderTotal === 1 ? "person we track recommends it" : "people we track recommend it"}. ` : ""}It is best for: ${bestForItems.join("; ")}.${notForItems.length > 0 ? ` It may not suit: ${notForItems.join("; ")}.` : ""}`,
+    },
+    similarBooks.length >= 3 && {
+      q: `What books are like ${bookTitle}?`,
+      a: `Readers of ${bookTitle} also turn to ${joinNames(similarBooks.slice(0, 3).map((b) => displayBookTitle(b.title)))}, based on the lists and recommenders these books share.`,
+    },
+  ].filter((x): x is { q: string; a: string } => !!x);
+  const faqJsonLd = faqPageJsonLd(faq);
+
   // Social Proof Summary Row
   const socialProofRow = (() => {
     const validRecs = (notableRecommenders || [])
@@ -539,6 +578,7 @@ export default async function BookDetailPage({ params }: Props) {
       {/* Main page content wrapper */}
       <div className="max-w-7xl mx-auto px-4 md:px-6">
         {jsonld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />}
+        {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />}
         <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Books", href: "/books" }, { label: displayBookTitle(book.title) }]} />
 
         {/* Full-page sticky sidebar grid */}
@@ -1152,7 +1192,7 @@ export default async function BookDetailPage({ params }: Props) {
           Hidden entirely when no recommenders exist; no empty state. */}
       {notableRecommenders.length > 0 && (
         <section className="mb-10">
-          <h2 className="text-xl font-bold text-ink mb-2 tracking-tight">Recommended by notable people</h2>
+          <h2 className="text-xl font-bold text-ink mb-2 tracking-tight">Who recommended {displayBookTitle(book.title)}?</h2>
           <p className="text-sm text-muted mb-5">People and public figures who have recommended this book.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {notableRecommenders.map((r) => (
@@ -1612,12 +1652,26 @@ export default async function BookDetailPage({ params }: Props) {
 
       {similarBooks.length > 0 && (
         <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Similar books</h2>
+          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Books like {displayBookTitle(book.title)}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {similarBooks.map((b) => (
               <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} amazonUrl={b.amazon_url} />
             ))}
           </div>
+        </section>
+      )}
+
+      {faq.length > 0 && (
+        <section className="mb-14" aria-labelledby="faq">
+          <h2 id="faq" className="text-lg font-bold text-ink mb-4 tracking-tight">{bookTitle}: common questions</h2>
+          <dl className="space-y-4">
+            {faq.map((f) => (
+              <div key={f.q}>
+                <dt className="font-semibold text-ink text-sm">{f.q}</dt>
+                <dd className="text-sm text-muted leading-relaxed mt-1">{f.a}</dd>
+              </div>
+            ))}
+          </dl>
         </section>
       )}
 
