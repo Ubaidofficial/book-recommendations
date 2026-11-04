@@ -63,6 +63,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
           })(window,document,'script','dataLayer','GTM-N8SF996L');`}
         </Script>
+        {/* SourceTrack: queue stub so calls made before the tracker loads are not lost */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `!function(w){if(w.sourcetrack)return;var q=[],s={_q:q};"track conversion identify group reset consent optIn optOut".split(" ").forEach(function(m){s[m]=function(){q.length<100&&q.push([m,[].slice.call(arguments)])}});w.sourcetrack=s}(window);`,
+          }}
+        />
+        <script
+          async
+          src="https://sourcetrack-api-staging.up.railway.app/tracker.min.js"
+          data-site-key="ae77737b-5211-4cba-8da9-9da94d9d5abb"
+        />
       </head>
       <body className="bg-bg text-ink antialiased min-h-screen flex flex-col">
         <noscript>
@@ -77,11 +88,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="flex-1">{children}</main>
         <Footer />
       </body>
-      <Script
-        src="https://track.bookmentions.net/tracker.min.js"
-        data-site-key="79638a99-3500-4357-9e61-7c356cba1957"
-        strategy="afterInteractive"
-      />
     </html>
   );
 }
