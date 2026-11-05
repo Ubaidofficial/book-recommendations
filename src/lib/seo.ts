@@ -20,6 +20,49 @@ export function robotsDirective(row: { index_status?: string } | null | undefine
 
 export const SITE_NAME = "BookMentions";
 
+export interface ContentDates {
+  /** ISO timestamp the page's record was first published (falls back to created_at). */
+  published: string | null;
+  /** ISO timestamp the page's record last changed. Never earlier than `published`. */
+  modified: string | null;
+}
+
+/**
+ * The dates a page can honestly state.
+ *
+ * `modified` is the row's `updated_at`: the last time anything on the record
+ * (description, counts, editorial text, status) changed. It is deliberately
+ * not "today" and never moves on its own, so a page that has not changed
+ * keeps an old date. It is clamped so it is never earlier than the publish
+ * date and never in the future. Caveat: a bulk maintenance job that touches
+ * every row will move every page's date, so such jobs should not rewrite
+ * `updated_at` unless the visible content changed.
+ */
+export function contentDates(
+  row: { created_at?: string | null; published_at?: string | null; updated_at?: string | null } | null | undefined
+): ContentDates {
+  const toIso = (v: string | null | undefined): string | null => {
+    if (!v) return null;
+    const t = Date.parse(v);
+    return Number.isFinite(t) ? new Date(t).toISOString() : null;
+  };
+  const now = new Date().toISOString();
+  let published = toIso(row?.published_at) || toIso(row?.created_at);
+  let modified = toIso(row?.updated_at) || published;
+  if (published && published > now) published = now;
+  if (modified && modified > now) modified = now;
+  if (published && modified && modified < published) modified = published;
+  return { published, modified };
+}
+
+/** "5 November 2026" — fixed locale and UTC so server and crawler agree. */
+export function formatDateLong(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+}
+
 /** Fallback share image for pages that have no image of their own. */
 export const DEFAULT_OG_IMAGE_PATH = "/icon-512.png";
 

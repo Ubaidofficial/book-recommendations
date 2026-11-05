@@ -62,6 +62,8 @@ export interface Book {
   meta_title: string | null;
   meta_description: string | null;
   created_at: string;
+  published_at?: string | null;
+  updated_at?: string | null;
   // AI editorial fields — present in the production schema since the editorial pipeline.
   // `select("*")` already returns them; declaring here lets the UI render without casts.
   editorial_summary?: string | null;
@@ -116,6 +118,8 @@ export interface BookList {
   curator: string | null;
   index_status: string;
   created_at: string;
+  published_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface RecommendationProof {
@@ -134,6 +138,8 @@ export interface Series {
   book_count: number;
   index_status: string;
   created_at: string;
+  published_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface PaginatedResult<T> {
@@ -1097,7 +1103,7 @@ export async function getBooksForListByRecommendations(listId: string, limit = 4
     });
 
     const result = allBooks.slice(0, limit);
-    return result;
+    return normalizeBookRows(result);
   } catch (e) {
     logQueryError("getBooksForListByRecommendations", e);
     return [];
@@ -1138,7 +1144,10 @@ export async function getBooksForList(listId: string, limit = 48): Promise<Book[
       const b = byId.get(id);
       if (b) ordered.push(b);
     }
-    return ordered;
+    // Fill `author` from `author_name`, as every other book fetcher does.
+    // Without this the list page rendered no author on any book and the
+    // ItemList JSON-LD had none, because rows from "*" only carry author_name.
+    return normalizeBookRows(ordered);
   } catch (e) {
     logQueryError("getBooksForList", e);
     return [];

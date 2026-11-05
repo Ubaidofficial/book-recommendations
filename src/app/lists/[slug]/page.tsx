@@ -2,13 +2,13 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getListBySlugCached, getBooksForListCached, getBooksForListByRecommendationsCached, getRelatedListsCached, getRecommendersForBooksCached, getRecommenderRefsForBooksCached } from "@/lib/data";
-import { pageMetadata, robotsDirective } from "@/lib/seo";
+import { pageMetadata, robotsDirective, contentDates } from "@/lib/seo";
 import { displayBookTitle, displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel } from "@/lib/display";
 import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl,
   coverAltText,
 } from "@/lib/dataQuality";
 import { itemListJsonLd } from "@/lib/jsonld";
-import { Avatar, Breadcrumbs, SafeImage, EmptyState } from "@/components";
+import { Avatar, Breadcrumbs, SafeImage, EmptyState, LastUpdated } from "@/components";
 
 // Declared for consistency with books/[slug] and series/[slug] (all three
 // detail-page types share the same 1-8s cold-Supabase-read problem). Note
@@ -316,6 +316,44 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
   }));
   const joinNames = (names: string[]) =>
     names.length <= 1 ? names[0] || "" : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  const recWord = (n: number) => `${n} ${n === 1 ? "recommendation" : "recommendations"}`;
+  const dates = contentDates(list);
+
+  // Key Takeaways: 3-5 complete, quotable claims shown first on the page.
+  // Every figure is read from the same data the rest of the page renders —
+  // nothing here is written copy — so it cannot drift from the list below it.
+  // Topic wording is deliberately left out of the bullets: the page title
+  // gives mixed-case topics ("Books About Japan") and lowercasing them
+  // mid-sentence would misspell proper nouns.
+  const takeaways: string[] = [];
+  if (startHere.length >= 3) {
+    const topCount = startHere[0].recommendation_count || 0;
+    const leaders = startHere.filter((b) => (b.recommendation_count || 0) === topCount);
+    const bookRef = (b: (typeof startHere)[number]) =>
+      `${b.title}${b.author ? ` by ${b.author}` : ""}${b.first_published_year ? ` (${b.first_published_year})` : ""}`;
+    takeaways.push(
+      leaders.length === 1
+        ? `${bookRef(leaders[0])} is the most recommended book on this list, with ${recWord(topCount)}.`
+        : `${joinNames(leaders.map(bookRef))} are tied as the most recommended books on this list, with ${recWord(topCount)} each.`
+    );
+    const next = startHere.filter((b) => (b.recommendation_count || 0) < topCount).slice(0, 2);
+    if (next.length > 0) {
+      takeaways.push(
+        `${joinNames(next.map((b) => `${b.title} (${recWord(b.recommendation_count || 0)})`))} ${next.length === 1 ? "comes" : "come"} next.`
+      );
+    }
+    takeaways.push(
+      `This page shows ${totalInList > books.length ? `${books.length} of ${totalInList.toLocaleString()}` : books.length} books with ${totalRecs.toLocaleString()} recommendations in total.`
+    );
+    if (topPeople.length >= 2) {
+      takeaways.push(`Recommenders include ${joinNames(topPeople.slice(0, 3).map((p) => p.name))}.`);
+    }
+  }
+
+  // Ranked summary table: the same ordering as "Where to start", with the
+  // facts a reader (or an answer engine) compares books on.
+  const tableBooks = byRecs.filter((b) => (b.recommendation_count || 0) > 0).slice(0, 8);
+
   const faq = [
     startHere.length >= 3 && {
       q: `What are the most recommended ${topic.toLowerCase()}?`,
@@ -540,6 +578,16 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
             </span>
           )}
         </div>
+        {takeaways.length >= 3 && (
+          <section className="mb-5 rounded-2xl border border-border bg-surface p-5 max-w-3xl" aria-labelledby="key-takeaways">
+            <h2 id="key-takeaways" className="text-lg font-bold text-ink mb-2 tracking-tight">Key Takeaways</h2>
+            <ul className="list-disc pl-5 space-y-1.5 text-sm text-ink leading-relaxed">
+              {takeaways.map((t) => (
+                <li key={t}>{t}</li>
+              ))}
+            </ul>
+          </section>
+        )}
         {hasDescription ? (
           <p className="text-base text-muted max-w-2xl leading-relaxed">{list.description}</p>
         ) : (
@@ -550,6 +598,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
         {list.curator && (
           <p className="text-sm text-accent font-medium mt-2">Curated by {list.curator}</p>
         )}
+        <LastUpdated modified={dates.modified} />
 
         {/* Dynamic server-side sort controls */}
         {hasBooks && (
@@ -585,29 +634,46 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
       {startHere.length >= 3 && (
         <section className="mb-12" aria-labelledby="start-here">
           <h2 id="start-here" className="text-xl font-bold text-ink mb-1 tracking-tight">
-            Where to start: {topic} recommended most often
+            What are the most recommended {topic}?
           </h2>
           <p className="text-sm text-muted mb-5 max-w-2xl leading-relaxed">
-            Recommended books, ranked by how many of the {personStats.size.toLocaleString()} people behind this list recommended each one.
+            The most recommended {topic} are {joinNames(startHere.slice(0, 3).map((b) => `${b.title} (${b.recommendation_count})`))}, ranked by how many of the {personStats.size.toLocaleString()} people behind this list recommended each one.
           </p>
-          <ol className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {startHere.map((b, i) => {
-              const who = (recsByBook.get(b.id) || []).slice(0, 3).map((w) => w.name);
-              return (
-                <li key={b.id} className="flex gap-3 rounded-xl border border-border bg-surface p-4">
-                  <span className="w-7 h-7 shrink-0 rounded-full bg-accent text-white text-xs font-bold flex items-center justify-center">{i + 1}</span>
-                  <span className="min-w-0">
-                    <Link href={`/books/${b.slug}`} className="block font-semibold text-ink hover:text-accent leading-snug">{b.title}</Link>
-                    {b.author && <span className="block text-xs text-muted">by {b.author}</span>}
-                    <span className="block text-xs text-muted mt-1">
-                      {b.recommendation_count} {b.recommendation_count === 1 ? "recommendation" : "recommendations"}
-                      {who.length > 0 && <> · recommended by {joinNames(who)}</>}
-                    </span>
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
+          {/* A real <table>: ranked, comparable columns for the books people
+              recommend most. Rows are the top of the same ordering the page
+              uses everywhere else. */}
+          <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+            <table className="w-full text-sm text-left">
+              <caption className="sr-only">Most recommended {topic}, ranked by number of recommendations</caption>
+              <thead className="bg-subtle text-xs uppercase tracking-wide text-muted">
+                <tr>
+                  <th scope="col" className="px-4 py-2.5 font-semibold">Rank</th>
+                  <th scope="col" className="px-4 py-2.5 font-semibold">Book</th>
+                  <th scope="col" className="px-4 py-2.5 font-semibold">Author</th>
+                  <th scope="col" className="px-4 py-2.5 font-semibold">First published</th>
+                  <th scope="col" className="px-4 py-2.5 font-semibold">Recommendations</th>
+                  <th scope="col" className="px-4 py-2.5 font-semibold">Recommended by</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {tableBooks.map((b, i) => {
+                  const who = (recsByBook.get(b.id) || []).slice(0, 3).map((w) => w.name);
+                  return (
+                    <tr key={b.id}>
+                      <td className="px-4 py-2.5 text-muted">{i + 1}</td>
+                      <td className="px-4 py-2.5 font-semibold">
+                        <Link href={`/books/${b.slug}`} className="text-ink hover:text-accent">{b.title}</Link>
+                      </td>
+                      <td className="px-4 py-2.5 text-muted">{b.author || "—"}</td>
+                      <td className="px-4 py-2.5 text-muted">{b.first_published_year || "—"}</td>
+                      <td className="px-4 py-2.5 text-ink">{b.recommendation_count}</td>
+                      <td className="px-4 py-2.5 text-muted">{who.length > 0 ? joinNames(who) : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
@@ -638,7 +704,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
       {personSections.filter((p) => p.picks.length > 0).map((p) => (
         <section key={p.slug} className="mb-10" aria-labelledby={`by-${p.slug}`}>
           <h2 id={`by-${p.slug}`} className="text-lg font-bold text-ink mb-1 tracking-tight">
-            Recommended {topic} by {p.name}
+            Which {topic} does {p.name} recommend?
           </h2>
           <p className="text-sm text-muted mb-3">
             {p.name} recommends {p.bookIds.length} {p.bookIds.length === 1 ? "book" : "books"} on this list.{" "}
@@ -745,15 +811,14 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
           list and contributed to the "templated feel" the live-readiness
           audit flagged. */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
-        <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">About this list</h2>
+        <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">How is the {topic} list built?</h2>
         <p className="text-sm text-muted leading-relaxed">
-          This list aggregates books that appear in public recommendation
-          sources, reader-interest signals, and category data. Books are
-          ranked by their position from the source list; recommendation
-          counts and ratings are shown where available. Open any book to
-          see source-backed recommendation proof, editorial context, and
-          Amazon options — the per-book detail page is where the trust
-          signals live.
+          The {topic} list is built from public recommendation sources and
+          category memberships. Books are ranked by how many distinct people
+          recommended each one; recommendation counts and ratings are shown
+          where available. Open any book to see source-backed recommendation
+          proof, editorial context, and Amazon options — the per-book detail
+          page is where the trust signals live.
         </p>
       </section>
 
@@ -769,10 +834,10 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
       {listRecommenders.length > 0 && (
         <section className="mt-10 pt-8 border-t border-border">
           <h2 className="text-lg font-bold text-ink mb-1 tracking-tight">
-            Recommended books by person: who recommends {topic.toLowerCase()}
+            Who recommends {topic}?
           </h2>
           <p className="text-sm text-muted mb-5">
-            Books recommended by the people below. Open a profile to see everything they recommend, with the source behind each pick.
+            {topic} are recommended by the people below, including {joinNames(listRecommenders.slice(0, 3).map((r) => r.name))}. Open a profile to see everything they recommend, with the source behind each pick.
           </p>
           <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {listRecommenders.map((r) => (

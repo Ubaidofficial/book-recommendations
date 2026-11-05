@@ -15,7 +15,7 @@ import {
   type BookRecommenderSummary,
   type RecommendationProof,
 } from "@/lib/data";
-import { pageMetadata, robotsDirective, bookPageTitle } from "@/lib/seo";
+import { pageMetadata, robotsDirective, bookPageTitle, contentDates } from "@/lib/seo";
 import { bookJsonLd, faqPageJsonLd } from "@/lib/jsonld";
 import { displayTitle, displayListTitle, listKindFromSlug, displayBookTitle } from "@/lib/display";
 import {
@@ -36,7 +36,7 @@ import {
   coverAltText,
   cleanQuoteText,
 } from "@/lib/dataQuality";
-import { Avatar, BookCard, Breadcrumbs, SafeImage } from "@/components";
+import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
 
 // Detail-page cover fallback — calmer than the previous oversized-purple version.
 // Subtle neutral gradient, small icon, readable but non-dominant title, "Cover unavailable" caption.
@@ -698,6 +698,7 @@ export default async function BookDetailPage({ params }: Props) {
                 by <span className="text-accent font-semibold">{book.author}</span>
               </p>
             )}
+            <LastUpdated modified={contentDates(book).modified} className="text-xs text-muted -mt-2 mb-4" />
 
             {socialProofRow}
 
