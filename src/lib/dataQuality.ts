@@ -35,17 +35,39 @@ export function isAmazonUrl(url: string | null | undefined): boolean {
 }
 
 /**
+ * Hosts whose pages are user-generated or unvetted: social platforms, Q&A and
+ * review sites, and link shorteners. Links to these keep `nofollow` — we cite a
+ * tweet or a review as evidence that a recommendation was made, not to vouch
+ * for the platform. Matches the host or any subdomain of it.
+ */
+const NOFOLLOW_HOST_RE =
+  /(^|\.)(twitter\.com|x\.com|t\.co|instagram\.com|facebook\.com|fb\.com|tiktok\.com|linkedin\.com|lnkd\.in|reddit\.com|quora\.com|pinterest\.com|goodreads\.com|bit\.ly|tinyurl\.com|ow\.ly|buff\.ly)$/;
+
+/**
  * Returns the `rel` attribute value to use on an outbound `<a>` tag.
- * Amazon links get the affiliate-compliant `sponsored` token added; all
- * other outbound links keep the safe-default `noopener noreferrer nofollow`.
+ *
+ * - Amazon links: `nofollow sponsored` (affiliate-compliant).
+ * - Social / user-generated hosts, link shorteners and unparseable URLs:
+ *   `nofollow` (safe default).
+ * - Everything else is an editorial source citation — the interview, essay,
+ *   podcast, video or Wikipedia/Wikimedia page that backs a recommendation or
+ *   a portrait credit — and is a normal followed link. Citing primary sources
+ *   is part of what makes these pages trustworthy, so the links are not
+ *   devalued; `noopener noreferrer` still applies to every external link.
  *
  * Use this on every outbound proof / source / CTA anchor that may carry an
  * Amazon URL coming from data (e.g. `source_url`, `book.amazon_url`).
  */
 export function outboundLinkRel(url: string | null | undefined): string {
-  return isAmazonUrl(url)
-    ? "noopener noreferrer nofollow sponsored"
-    : "noopener noreferrer nofollow";
+  if (isAmazonUrl(url)) return "noopener noreferrer nofollow sponsored";
+  let host: string;
+  try {
+    host = new URL(String(url || "")).hostname.toLowerCase();
+  } catch {
+    return "noopener noreferrer nofollow";
+  }
+  if (!host || NOFOLLOW_HOST_RE.test(host)) return "noopener noreferrer nofollow";
+  return "noopener noreferrer";
 }
 
 function getAmazonAssociateTag(): string {

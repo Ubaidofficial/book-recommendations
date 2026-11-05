@@ -64,6 +64,39 @@ const nextConfig = {
         destination: "/lists/memoirs",
         permanent: true,
       },
+      // Duplicate topic pairs found in the 2026-11-05 on-page audit: same
+      // <title> (or identical meta description) on two published lists, which
+      // splits ranking signals between them. Each pair is consolidated onto
+      // the larger page — more books, more distinct recommenders — and the
+      // smaller slug is set to noindex in the DB so it leaves the sitemap
+      // (same pattern as best-memoir-books above).
+      {
+        // 135 books / 25 recommenders -> 175 books / 59 recommenders
+        source: "/lists/best-comic-books",
+        destination: "/lists/comics-fiction",
+        permanent: true,
+      },
+      {
+        // 210 books / 78 recommenders -> 283 books / 139 recommenders
+        // (`food` is also one of the canonical broad-category slugs)
+        source: "/lists/foodhobbies",
+        destination: "/lists/food",
+        permanent: true,
+      },
+      {
+        // 96 books / 109 recommenders -> 215 books / 184 recommenders
+        // (`writing` is also one of the canonical broad-category slugs)
+        source: "/lists/best-books-on-writing",
+        destination: "/lists/writing",
+        permanent: true,
+      },
+      {
+        // Draft duplicate of /lists/lgbtq (36 books -> 255 books). It was live
+        // for a few hours on 2026-11-05, so redirect it in case it was crawled.
+        source: "/lists/best-lgbt-books",
+        destination: "/lists/lgbtq",
+        permanent: true,
+      },
       {
         source: "/people/gates",
         destination: "/people/bill-gates",
