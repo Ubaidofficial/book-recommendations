@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import Link from "next/link";
 import { getSeriesPaginatedCached, searchSeries } from "@/lib/data";
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
@@ -6,9 +7,24 @@ import { SeriesCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
 
 export const dynamic = "force-dynamic";
 
+// Published series per page. The index lists every published series so each
+// has a crawlable inbound link; at 100 per page this is one page today and
+// paginates (self-canonical, crawlable) as the daily releases accumulate.
+const PAGE_SIZE = 100;
+
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const sp = await searchParams;
   const hasParams = !!(sp.q && sp.q.trim());
+  const pageParam = parseInt(sp.page || "0", 10);
+
+  if (!hasParams && Number.isFinite(pageParam) && pageParam > 1) {
+    return pageMetadata({
+      title: `Book Series in Order — Page ${pageParam}`,
+      description: `Page ${pageParam} of every book series on BookMentions, ordered by how many books each series has.`,
+      path: `/series?page=${pageParam}`,
+      robots: "index, follow",
+    });
+  }
 
   return pageMetadata({
     title: "Book Series in Order",
@@ -19,21 +35,26 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 }
 
 interface Props {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }
 
 export default async function SeriesPage({ searchParams }: Props) {
-  const { q } = await searchParams;
+  const { q, page: pageParam } = await searchParams;
+  const parsedPage = parseInt(pageParam || "1", 10);
+  const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 
   let seriesResult;
   if (q && q.length >= 2) {
     const data = await searchSeries(q, 24);
     seriesResult = { data, total: data.length };
   } else {
-    seriesResult = await getSeriesPaginatedCached(1, 24);
+    seriesResult = await getSeriesPaginatedCached(page, PAGE_SIZE);
   }
 
   const { data: seriesList, total } = seriesResult;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const prevHref = page > 1 ? (page === 2 ? "/series" : `/series?page=${page - 1}`) : "";
+  const nextHref = page < totalPages ? `/series?page=${page + 1}` : "";
 
   const isSearching = q && q.length >= 2;
   const collectionJsonLd = !isSearching
@@ -95,12 +116,15 @@ export default async function SeriesPage({ searchParams }: Props) {
           ))}
         </div>
       )}
-      {total > 24 && !q && (
-        <div className="flex items-center justify-center mt-10 gap-2">
-          <span className="text-sm text-muted">Page 1 of {Math.ceil(total / 24)}</span>
-          <span className="px-3 py-1.5 rounded-full bg-subtle border border-border text-xs text-muted">
-            More coming soon
-          </span>
+      {totalPages > 1 && !q && (
+        <div className="flex items-center justify-center mt-10 gap-3">
+          {prevHref ? (
+            <Link href={prevHref} className="px-3 py-1.5 rounded-lg border border-border bg-surface text-sm text-ink hover:bg-accent-light">← Previous</Link>
+          ) : null}
+          <span className="text-sm text-muted">Page {page} of {totalPages}</span>
+          {nextHref ? (
+            <Link href={nextHref} className="px-3 py-1.5 rounded-lg border border-border bg-surface text-sm text-ink hover:bg-accent-light">Next →</Link>
+          ) : null}
         </div>
       )}
     </div>

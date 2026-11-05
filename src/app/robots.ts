@@ -32,6 +32,10 @@ export default function robots(): MetadataRoute.Robots {
           // Google resolves allow/disallow conflicts by longest matching
           // rule, so `/lists?page=` (12) beats `/*?*` (4).
           "/lists?page=",
+          // Same carve-out for the /series browse-all view. getSeriesPaginated
+          // is limited to published series, so this opens a handful of pages
+          // (100 series each), not the ~3,500-row table.
+          "/series?page=",
         ],
         disallow: [
           "/admin/",

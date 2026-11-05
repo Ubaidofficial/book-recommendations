@@ -922,6 +922,15 @@ const BROAD_CATEGORY_SLUGS = [
 // to enforce the non-empty-slug requirement.
 const LIST_PUBLIC_OR = `index_status.neq.draft,slug.in.(${BROAD_CATEGORY_SLUGS.join(",")})`;
 
+// Stricter filter for lists that are LINKED FROM other pages ("related lists",
+// "appears in"). LIST_PUBLIC_OR is "anything not draft", which also admits the
+// 14 `noindex` lists — retired pages such as best-art-books, best-leadership-
+// books and best-science-fiction-books that next.config.js now 301s away. Those
+// were being linked from dozens of live pages (each link a wasted redirect hop
+// to a noindex target). Link only to published lists, keeping the broad-
+// category allowlist so the hub categories stay reachable.
+const LIST_LINKABLE_OR = `index_status.in.(${BOOK_INDEXABLE_STATUSES.join(",")}),slug.in.(${BROAD_CATEGORY_SLUGS.join(",")})`;
+
 export async function getBroadCategoryLists(limit = 12): Promise<BookList[]> {
   try {
     const { data, error } = await getSupabase()
@@ -1242,7 +1251,7 @@ export async function getRelatedLists(listId: string, limit = 6): Promise<BookLi
         .select("*")
         .like("slug", "best-%")
         .neq("id", listId)
-        .or(LIST_PUBLIC_OR)
+        .or(LIST_LINKABLE_OR)
         .not("slug", "is", null)
         .neq("slug", "")
         .limit(2000);
@@ -1294,7 +1303,7 @@ export async function getRelatedLists(listId: string, limit = 6): Promise<BookLi
           if (candidateIds.length > 0) {
             // Public-discovery filter: drop draft/concat rows from the
             // co-membership related-list candidate pool.
-            const { data: cands } = await supa.from("lists").select("*").in("id", candidateIds).or(LIST_PUBLIC_OR).not("slug", "is", null).neq("slug", "");
+            const { data: cands } = await supa.from("lists").select("*").in("id", candidateIds).or(LIST_LINKABLE_OR).not("slug", "is", null).neq("slug", "");
             coRanked = ((cands || []) as BookList[])
               .filter((c) => {
                 const s = (c.slug || "").toLowerCase();
@@ -1365,7 +1374,7 @@ export async function getRelatedLists(listId: string, limit = 6): Promise<BookLi
           .from("lists")
           .select("*")
           .in("id", Array.from(counts.keys()))
-          .or(LIST_PUBLIC_OR)
+          .or(LIST_LINKABLE_OR)
           .not("slug", "is", null)
           .neq("slug", "");
         const BROAD2 = new Set(BROAD_CATEGORY_SLUGS);
@@ -1393,6 +1402,7 @@ export async function getRelatedLists(listId: string, limit = 6): Promise<BookLi
       .select("*")
       .like("slug", "best-%")
       .neq("id", listId)
+      .or(LIST_LINKABLE_OR)
       .order("book_count", { ascending: false })
       .limit(limit);
     return fallback || [];
@@ -1404,6 +1414,13 @@ export async function getRelatedLists(listId: string, limit = 6): Promise<BookLi
 
 // --- Series ---
 
+// Every public series surface below is limited to indexable (published) rows.
+// The table holds ~3,500 unpublished draft series; before this filter the
+// /series index, the homepage cards, llms.txt and every series page's
+// "related" block drew from all of them ordered by book_count, so the index
+// linked to drafts and none of the smaller published series (65 of 68 had no
+// inbound link from any page). `total` is also the real row count now — it
+// used to be the page length, which meant pagination could never appear.
 export async function getSeriesPaginated(
   page = 1,
   pageSize = 24
@@ -1412,14 +1429,16 @@ export async function getSeriesPaginated(
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    const { data, error } = await getSupabase()
+    const { data, count, error } = await getSupabase()
       .from("series")
-      .select("*")
+      .select("*", { count: "exact" })
+      .in("index_status", BOOK_INDEXABLE_STATUSES)
       .order("book_count", { ascending: false })
+      .order("slug", { ascending: true })
       .range(from, to);
 
     if (error) { logQueryError("getSeriesPaginated", error); return { data: [], total: 0, page, pageSize }; }
-    return { data: data || [], total: (data || []).length, page, pageSize };
+    return { data: data || [], total: count ?? (data || []).length, page, pageSize };
   } catch (e) {
     logQueryError("getSeriesPaginated", e);
     return { data: [], total: 0, page, pageSize };
@@ -1431,6 +1450,7 @@ export async function getFeaturedSeries(count = 3): Promise<Series[]> {
     const { data, error } = await getSupabase()
       .from("series")
       .select("*")
+      .in("index_status", BOOK_INDEXABLE_STATUSES)
       .order("book_count", { ascending: false })
       .limit(count);
 
@@ -1458,18 +1478,42 @@ export async function getSeriesBySlug(slug: string): Promise<Series | null> {
   }
 }
 
-// Related series — other popular series by book_count
+// Related series — other PUBLISHED series.
+//
+// Previously the six biggest series in the whole table (mostly unpublished
+// drafts) appeared on every series page, so the block was identical sitewide
+// and linked to noindex pages. Now each page links to the `limit` published
+// series that follow it in slug order, wrapping around. That gives every
+// published series exactly `limit` inbound links and a different neighbourhood
+// per page. It is a link-distribution rule, not a topical one — there is no
+// genre data on series rows to rank by.
 export async function getRelatedSeries(seriesId: string, limit = 6): Promise<Series[]> {
   try {
-    const { data, error } = await getSupabase()
+    const supa = getSupabase();
+    const { data: all, error: allErr } = await supa
       .from("series")
-      .select("*")
-      .neq("id", seriesId)
-      .order("book_count", { ascending: false })
-      .limit(limit);
+      .select("id, slug")
+      .in("index_status", BOOK_INDEXABLE_STATUSES)
+      .order("slug", { ascending: true })
+      .limit(2000);
+    if (allErr) { logQueryError("getRelatedSeries[ids]", allErr); return []; }
 
+    const ring = (all || []) as Array<{ id: string; slug: string }>;
+    if (ring.length <= 1) return [];
+    const selfIdx = ring.findIndex((r) => r.id === seriesId);
+    const n = Math.min(limit, ring.length - (selfIdx >= 0 ? 1 : 0));
+    const ids: string[] = [];
+    // An unpublished series (selfIdx -1) starts the ring at the beginning.
+    for (let step = 1, i = selfIdx; ids.length < n && step <= ring.length; step++) {
+      i = (i + 1) % ring.length;
+      if (ring[i].id !== seriesId) ids.push(ring[i].id);
+    }
+    if (ids.length === 0) return [];
+
+    const { data, error } = await supa.from("series").select("*").in("id", ids);
     if (error) { logQueryError("getRelatedSeries", error); return []; }
-    return data || [];
+    const byId = new Map((data || []).map((s: Series) => [s.id, s]));
+    return ids.map((id) => byId.get(id)).filter((s): s is Series => !!s);
   } catch (e) {
     logQueryError("getRelatedSeries", e);
     return [];
@@ -1746,7 +1790,7 @@ export async function getListsForBook(bookId: string, limit = 8): Promise<BookLi
       .from("lists")
       .select("*")
       .in("id", ids)
-      .or(LIST_PUBLIC_OR)
+      .or(LIST_LINKABLE_OR)
       .not("slug", "is", null)
       .neq("slug", "");
     if (listErr) { logQueryError("getListsForBook[lists]", listErr); return []; }
