@@ -402,7 +402,11 @@ async function amazonProductSharedElsewhere(book: Book): Promise<boolean> {
     const { data, error } = await getSupabase()
       .from("books")
       .select("title")
-      .like("amazon_url", `%/dp/${asin}%`)
+      // Prefix match on the canonical stored form. A "contains" match scans the
+      // whole table (about 3x slower, and it timed out under crawl load); the
+      // prefix form is as fast as a keyed lookup and also catches the variants
+      // with junk after the product id. URLs stored in other shapes are missed.
+      .like("amazon_url", `https://www.amazon.com/dp/${asin}%`)
       .neq("id", book.id)
       .limit(25);
     if (error) { logQueryError("amazonProductSharedElsewhere", error); return false; }
