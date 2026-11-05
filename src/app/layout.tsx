@@ -28,9 +28,11 @@ export const metadata: Metadata = {
     url: "https://bookmentions.net",
     siteName: "BookMentions",
     type: "website",
+    images: [{ url: "https://bookmentions.net/icon-512.png", width: 512, height: 512, alt: "BookMentions" }],
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
+    images: ["https://bookmentions.net/icon-512.png"],
     title: "BookMentions | Source-Backed Book Recommendations",
     description:
       "Discover books recommended by notable people, curated lists, and reading series. We link to the original source wherever we have one.",

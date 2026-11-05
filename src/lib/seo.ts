@@ -20,6 +20,9 @@ export function robotsDirective(row: { index_status?: string } | null | undefine
 
 export const SITE_NAME = "BookMentions";
 
+/** Fallback share image for pages that have no image of their own. */
+export const DEFAULT_OG_IMAGE_PATH = "/icon-512.png";
+
 /**
  * Upper bound for a page title. Google truncates the SERP link around 60
  * characters / ~600px.
@@ -174,6 +177,15 @@ export function pageMetadata({
   const desc = clampDescription(description);
   const fullTitle = pageTitle(title);
 
+  // Pages without their own image (the home and index pages, about, and all
+  // series pages — 86 of 377 sitemap URLs) used to emit no og:image at all,
+  // so shared links rendered as bare text. Fall back to the site icon. It is
+  // square, so those pages use the "summary" card rather than a large-image
+  // card that would crop it.
+  const ogImage = image
+    ? { url: image }
+    : { url: `${BASE_URL}${DEFAULT_OG_IMAGE_PATH}`, width: 512, height: 512, alt: SITE_NAME };
+
   return {
     title: fullTitle,
     description: desc,
@@ -184,14 +196,14 @@ export function pageMetadata({
       description: desc,
       url: canonicalUrl(path),
       siteName: SITE_NAME,
-      images: image ? [{ url: image }] : [],
+      images: [ogImage],
       type,
     },
     twitter: {
-      card: "summary_large_image" as const,
+      card: (image ? "summary_large_image" : "summary") as "summary_large_image" | "summary",
       title: fullTitle,
       description: desc,
-      images: image ? [image] : [],
+      images: [ogImage.url],
     },
   };
 }
