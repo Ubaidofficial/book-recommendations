@@ -44,6 +44,81 @@ const NOFOLLOW_HOST_RE =
   /(^|\.)(twitter\.com|x\.com|t\.co|instagram\.com|facebook\.com|fb\.com|tiktok\.com|linkedin\.com|lnkd\.in|reddit\.com|quora\.com|pinterest\.com|goodreads\.com|bit\.ly|tinyurl\.com|ow\.ly|buff\.ly)$/;
 
 /**
+ * The 10-character Amazon product id (ASIN) in a /dp/ or /gp/product/ URL,
+ * upper-cased, or null when the URL has none.
+ */
+export function amazonAsin(url: string | null | undefined): string | null {
+  if (!url || typeof url !== "string") return null;
+  const m = url.match(/\/(?:dp|gp\/product)\/([A-Za-z0-9]{10})(?:[/?#]|$)/);
+  return m ? m[1].toUpperCase() : null;
+}
+
+function workKey(title: string | null | undefined): string {
+  return String(title || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+/**
+ * Whether two titles name the same work. Equal once punctuation is stripped,
+ * or one is the other plus a subtitle ("Zero to One" / "Zero to One Notes on
+ * Startups"). Very short keys must match exactly so "It" does not swallow
+ * every title that starts with it.
+ */
+export function sameWork(a: string | null | undefined, b: string | null | undefined): boolean {
+  const x = workKey(a);
+  const y = workKey(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  return Math.min(x.length, y.length) >= 4 && (x.startsWith(y) || y.startsWith(x));
+}
+
+/**
+ * Amazon products used by more than one different book in this set.
+ *
+ * A product page is one specific book. Many imported rows carry the product
+ * id of a different book in the same series (one author page's first result
+ * pasted onto every title: 74 of the 76 "View on Amazon" links on a 38-book
+ * series page pointed at one product, and a 675-book series used a single
+ * id). When two different titles share a product, at most one link is right
+ * and there is no way to tell which, so none of them can be trusted.
+ */
+export function sharedAmazonAsins(
+  books: ReadonlyArray<{ title?: string | null; amazon_url?: string | null }>
+): Set<string> {
+  const titlesByAsin = new Map<string, string[]>();
+  for (const b of books) {
+    const asin = amazonAsin(b.amazon_url);
+    if (!asin) continue;
+    const list = titlesByAsin.get(asin) || [];
+    list.push(b.title || "");
+    titlesByAsin.set(asin, list);
+  }
+  const shared = new Set<string>();
+  for (const [asin, titles] of titlesByAsin) {
+    if (titles.some((t) => !sameWork(titles[0], t))) shared.add(asin);
+  }
+  return shared;
+}
+
+/**
+ * Clears `amazon_url` on every book whose Amazon product is shared with a
+ * different title in the same set, so no page shows a "View on Amazon" button
+ * that opens the wrong book. Mutates and returns the rows, like the other
+ * normalisers. Stored data is not changed. A link that is withheld is better
+ * than one that sends a reader to a different book.
+ */
+export function dropSharedAmazonUrls<T extends { title?: string | null; amazon_url?: string | null }>(
+  books: T[]
+): T[] {
+  const shared = sharedAmazonAsins(books);
+  if (shared.size === 0) return books;
+  for (const b of books) {
+    const asin = amazonAsin(b.amazon_url);
+    if (asin && shared.has(asin)) b.amazon_url = null;
+  }
+  return books;
+}
+
+/**
  * Returns the `rel` attribute value to use on an outbound `<a>` tag.
  *
  * - Amazon links: `nofollow sponsored` (affiliate-compliant).

@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { supabase as getSupabase } from "./supabase";
-import { isProfilelessSurnameAlias, repairEncoding } from "./dataQuality";
+import { isProfilelessSurnameAlias, repairEncoding, dropSharedAmazonUrls, amazonAsin, sameWork } from "./dataQuality";
 
 /**
  * People rows reach the UI straight off the table, so a stored `_x00NN_`
@@ -171,6 +171,9 @@ function normalizeBookRow<T extends Partial<Book>>(row: T | null | undefined): T
 function normalizeBookRows<T extends Partial<Book>>(rows: T[] | null | undefined): T[] {
   if (!rows) return [];
   for (const r of rows) normalizeBookRow(r);
+  // Withhold an Amazon link that several different titles in this set share:
+  // it can only be right for one of them (see sharedAmazonAsins).
+  dropSharedAmazonUrls(rows);
   return rows;
 }
 
@@ -377,10 +380,36 @@ export async function getBookBySlug(slug: string): Promise<Book | null> {
       .single();
 
     if (error) { logQueryError("getBookBySlug", error); return null; }
-    return normalizeBookRow(data as Book | null);
+    const book = normalizeBookRow(data as Book | null);
+    if (book && (await amazonProductSharedElsewhere(book))) book.amazon_url = null;
+    return book;
   } catch (e) {
     logQueryError("getBookBySlug", e);
     return null;
+  }
+}
+
+/**
+ * True when another, different book in the catalogue uses this book's Amazon
+ * product. A single book page cannot see its neighbours, so the check goes to
+ * the database. Fails open: if the lookup errors, the stored link is kept
+ * rather than hiding a link that may be right.
+ */
+async function amazonProductSharedElsewhere(book: Book): Promise<boolean> {
+  const asin = amazonAsin(book.amazon_url);
+  if (!asin) return false;
+  try {
+    const { data, error } = await getSupabase()
+      .from("books")
+      .select("title")
+      .like("amazon_url", `%/dp/${asin}%`)
+      .neq("id", book.id)
+      .limit(25);
+    if (error) { logQueryError("amazonProductSharedElsewhere", error); return false; }
+    return (data || []).some((r: { title: string | null }) => !sameWork(book.title, r.title));
+  } catch (e) {
+    logQueryError("amazonProductSharedElsewhere", e);
+    return false;
   }
 }
 
