@@ -469,8 +469,11 @@ export async function getBooksBySeriesOrdered(
     const out: Array<Book & { series_position: number | null }> = [];
     for (const r of (rows || []) as unknown as Array<{ position: number | null; books: Book | null }>) {
       if (!r.books || !r.books.id) continue;
-      out.push({ ...normalizeBookRows([r.books])[0], series_position: r.position ?? null });
+      out.push({ ...(normalizeBookRow(r.books) as Book), series_position: r.position ?? null });
     }
+    // Check the whole series at once: normalising one row at a time cannot see
+    // that dozens of titles share a single Amazon product.
+    dropSharedAmazonUrls(out);
     return out;
   } catch (e) {
     logQueryError("getBooksBySeriesOrdered", e);

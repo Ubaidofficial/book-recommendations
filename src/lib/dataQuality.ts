@@ -46,11 +46,21 @@ const NOFOLLOW_HOST_RE =
 /**
  * The 10-character Amazon product id (ASIN) in a /dp/ or /gp/product/ URL,
  * upper-cased, or null when the URL has none.
+ *
+ * Applies the same repair as normalizeAmazonUrl: many stored URLs carry a
+ * valid 10-character id followed by 12 junk characters (".../dp/0307743667444aa9cd52d5"),
+ * and the page link is built from the first 10. The id compared here has to be
+ * the one the link actually opens, or those rows slip past the shared-product
+ * check.
  */
 export function amazonAsin(url: string | null | undefined): string | null {
   if (!url || typeof url !== "string") return null;
-  const m = url.match(/\/(?:dp|gp\/product)\/([A-Za-z0-9]{10})(?:[/?#]|$)/);
-  return m ? m[1].toUpperCase() : null;
+  const m = url.match(/\/(?:dp|gp\/product)\/([^/?#]+)/);
+  if (!m) return null;
+  const candidate = m[1];
+  if (/^[A-Za-z0-9]{10}$/.test(candidate)) return candidate.toUpperCase();
+  if (candidate.length === 22 && /^[A-Za-z0-9]{10}/.test(candidate)) return candidate.slice(0, 10).toUpperCase();
+  return null;
 }
 
 function workKey(title: string | null | undefined): string {
