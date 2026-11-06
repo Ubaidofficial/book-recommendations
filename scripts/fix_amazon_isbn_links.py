@@ -15,6 +15,13 @@ Usage (public Supabase anon key in SUPA_KEY is enough for the read-only steps; w
   SUPA_KEY=... python3 scripts/fix_amazon_isbn_links.py targets  OUT.jsonl [series|lists]
   python3 scripts/fix_amazon_isbn_links.py resolve  TARGETS.jsonl RESULTS.jsonl [--limit N] [--offset N]   # resumable
   python3 scripts/fix_amazon_isbn_links.py apply-sql RESULTS.jsonl APPLIED.txt BATCH_SIZE BACKUP_TABLE       # prints one guarded UPDATE
+  SUPA_KEY=... python3 scripts/fix_amazon_isbn_links.py stage RESULTS.jsonl APPLIED.txt                   # preferred for >100 rows
+
+Preferred write path ("stage"): hand-copying hundreds of ids into SQL loses rows to typos. Instead create a temporary
+table `tmp_amz_stage (id uuid primary key, isbn10 text)` with RLS on and an INSERT-only policy for anon, run `stage`
+to load the rows straight from the results file, compare md5(string_agg(replace(id::text,'-','')||':'||isbn10, ','
+order by 1)) in SQL with the fingerprint `stage` prints, then run the guarded UPDATE joining the staging table and the
+backup table, and drop the staging table. 2,160 books were repaired this way with every row checked.
 Before applying, back up the affected rows into BACKUP_TABLE (id, amazon_url). The UPDATE only touches a row that
 still equals its backed-up value, and never touches updated_at (page "Last updated" dates are built from it).
 After each batch, compare md5(string_agg(id || ':' || asin ...)) in SQL with the same hash of the results file.
@@ -260,9 +267,29 @@ def apply_sql(res, applied_path, n, backup):
           "where b.id = v.id::uuid and k.id = b.id and b.amazon_url = k.amazon_url returning 1;")
 
 
+def stage(res, applied_path):
+    """Load resolved rows into public.tmp_amz_stage with plain inserts and print a fingerprint to compare in SQL."""
+    import hashlib
+    key = KEY
+    url = SUPA + "/tmp_amz_stage"
+    R = [json.loads(l) for l in open(res)]
+    applied = set(open(applied_path).read().split()) if os.path.exists(applied_path) else set()
+    ok = [r for r in R if r["status"] == "ok"]
+    cnt = collections.Counter(r["isbn10"] for r in ok)
+    todo = [r for r in ok if r["id"] not in applied and cnt[r["isbn10"]] == 1]
+    for i in range(0, len(todo), 400):
+        body = json.dumps([{"id": r["id"], "isbn10": r["isbn10"]} for r in todo[i:i + 400]]).encode()
+        req = urllib.request.Request(url, data=body, method="POST", headers={
+            "apikey": key, "Authorization": "Bearer " + key, "Content-Type": "application/json", "Prefer": "return=minimal"})
+        urllib.request.urlopen(req, timeout=120).read()
+    rows = sorted((r["id"].replace("-", ""), r["isbn10"]) for r in todo)
+    print(f"staged {len(rows)} rows; fingerprint {hashlib.md5(','.join(f'{a}:{b}' for a, b in rows).encode()).hexdigest()}")
+
+
 if __name__ == "__main__":
     a = sys.argv
     if a[1] == "targets": targets(a[2], a[3] if len(a) > 3 else "series")
+    elif a[1] == "stage": stage(a[2], a[3])
     elif a[1] == "apply-sql": apply_sql(a[2], a[3], int(a[4]), a[5])
     elif a[1] == "resolve":
         lim = int(a[a.index("--limit") + 1]) if "--limit" in a else 0
