@@ -30,7 +30,7 @@ import {
   parseEditorialList,
   sanitizeEditorialText,
   outboundLinkRel,
-  normalizeAmazonUrl,
+  amazonCtaUrl,
   normalizeOutboundUrl,
   getProofDisplaySafety,
   coverAltText,
@@ -123,7 +123,7 @@ export default async function BookDetailPage({ params }: Props) {
   // truncates the corrupt suffix; it also returns null for non-Amazon hosts
   // (8 rows in DB) so the CTAs are simply suppressed for those books. No
   // affiliate tag is appended. Render-time only — DB is not modified.
-  const normalizedAmazonUrl = normalizeAmazonUrl(book.amazon_url);
+  const normalizedAmazonUrl = amazonCtaUrl(book);
 
   const [personId, seriesId] = await Promise.all([
     book.author_slug ? getPersonIdBySlug(book.author_slug) : Promise.resolve(null),
@@ -1629,7 +1629,7 @@ export default async function BookDetailPage({ params }: Props) {
                   // book's Amazon link only after normalizing it, so a broken
                   // /dp/<22-char-ASIN> alternative also renders cleanly (or
                   // is suppressed if the alternative's URL is non-Amazon).
-                  const altUrl = normalizeAmazonUrl(alternativeCandidate.amazon_url);
+                  const altUrl = amazonCtaUrl(alternativeCandidate);
                   if (!altUrl) return null;
                   return (
                     <a

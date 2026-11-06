@@ -155,6 +155,35 @@ export function outboundLinkRel(url: string | null | undefined): string {
   return "noopener noreferrer";
 }
 
+/**
+ * The Amazon destination for a book's "View on Amazon" button.
+ *
+ * - A verified product link (the stored `amazon_url`, repaired and tagged) when
+ *   the book has one. A product link is only stored when it is that book's own
+ *   ISBN-10; links that several different books shared have been cleared.
+ * - Otherwise an Amazon search for the title and author, tagged the same way.
+ *   A search can show several editions but cannot open the wrong book, so a
+ *   missing product link costs a click, not accuracy, and the button is never
+ *   dropped.
+ * - null only when there is no title to search for.
+ */
+export function amazonCtaUrl(book: {
+  title?: string | null;
+  author?: string | null;
+  author_name?: string | null;
+  amazon_url?: string | null;
+}): string | null {
+  const product = normalizeAmazonUrl(book.amazon_url);
+  if (product) return product;
+  const title = String(book.title || "").trim();
+  if (!title) return null;
+  const author = String(book.author || book.author_name || "").trim();
+  const u = new URL("https://www.amazon.com/s");
+  u.searchParams.set("k", `${title} ${author}`.trim().slice(0, 150));
+  u.searchParams.set("i", "stripbooks");
+  return withAmazonAssociateTag(u);
+}
+
 function getAmazonAssociateTag(): string {
   return (process.env.AMAZON_ASSOCIATE_TAG || process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || "bookmentions-20").trim();
 }

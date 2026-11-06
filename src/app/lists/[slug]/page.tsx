@@ -4,7 +4,7 @@ import Link from "next/link";
 import { getListBySlugCached, getBooksForListCached, getBooksForListByRecommendationsCached, getRelatedListsCached, getRecommendersForBooksCached, getRecommenderRefsForBooksCached } from "@/lib/data";
 import { pageMetadata, robotsDirective, contentDates } from "@/lib/seo";
 import { displayBookTitle, displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel } from "@/lib/display";
-import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl,
+import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, amazonCtaUrl,
   coverAltText,
 } from "@/lib/dataQuality";
 import { itemListJsonLd } from "@/lib/jsonld";
@@ -520,7 +520,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
               // No affiliate tag is appended (we don't have an approved tag
               // yet — the env-gated withAmazonAffiliateTag helper proposed in
               // the readiness audit is intentionally not used here).
-              const ctaUrl = normalizeAmazonUrl(book.amazon_url);
+              const ctaUrl = amazonCtaUrl(book);
               if (!ctaUrl) return null;
               return (
                 <a

@@ -19,7 +19,7 @@ import {
   uniqueByNormalizedText,
   parseSourceUrls,
   outboundLinkRel,
-  normalizeAmazonUrl,
+  amazonCtaUrl,
   getProofDisplaySafety,
 } from "@/lib/dataQuality";
 import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
@@ -309,7 +309,7 @@ export default async function PersonDetailPage({ params }: Props) {
                     // ASIN pattern and returns null for non-Amazon hosts, so
                     // the CTA is suppressed cleanly when the URL isn't usable.
                     // Render-time only — DB is not modified.
-                    const ctaUrl = normalizeAmazonUrl(p.book.amazon_url);
+                    const ctaUrl = amazonCtaUrl(p.book);
                     if (!ctaUrl) return null;
                     return (
                       <a
