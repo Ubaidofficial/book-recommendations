@@ -9,7 +9,7 @@ import {
   getPersonWrittenCount,
   getQualityPeople,
 } from "@/lib/data";
-import { pageMetadata, robotsDirective } from "@/lib/seo";
+import { pageMetadata, robotsDirective, contentDates } from "@/lib/seo";
 import { personJsonLd } from "@/lib/jsonld";
 import {
   isValidHttpUrl,
@@ -19,10 +19,10 @@ import {
   uniqueByNormalizedText,
   parseSourceUrls,
   outboundLinkRel,
-  normalizeAmazonUrl,
+  amazonCtaUrl,
   getProofDisplaySafety,
 } from "@/lib/dataQuality";
-import { Avatar, BookCard, Breadcrumbs, SafeImage } from "@/components";
+import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
 
 /**
  * Incremental static regeneration.
@@ -211,6 +211,7 @@ export default async function PersonDetailPage({ params }: Props) {
             <p className="text-sm text-accent font-semibold mb-3">{person.role}</p>
           )}
           {hasBio && <p className="text-base text-muted max-w-2xl leading-relaxed mb-3">{person.bio}</p>}
+          <LastUpdated modified={contentDates(person).modified} className="text-xs text-muted mb-3" />
           <div className="flex flex-wrap gap-3">
             {recommendedCount > 0 && (
               <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-accent-light text-accent text-sm font-semibold">
@@ -308,7 +309,7 @@ export default async function PersonDetailPage({ params }: Props) {
                     // ASIN pattern and returns null for non-Amazon hosts, so
                     // the CTA is suppressed cleanly when the URL isn't usable.
                     // Render-time only — DB is not modified.
-                    const ctaUrl = normalizeAmazonUrl(p.book.amazon_url);
+                    const ctaUrl = amazonCtaUrl(p.book);
                     if (!ctaUrl) return null;
                     return (
                       <a

@@ -2,8 +2,47 @@ import { Book, Person, BookList, Series } from "@/lib/data";
 import { isValidHttpUrl, isUsefulDescription, normalizeAmazonUrl } from "@/lib/dataQuality";
 import { sameAsFor, personSlugForAuthor } from "@/lib/entityLinks";
 import { genreForBook } from "@/lib/bookGenres";
+import { contentDates, SITE_NAME } from "@/lib/seo";
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://bookmentions.net";
+
+/**
+ * A WebPage / CollectionPage node carrying datePublished and dateModified.
+ *
+ * The date properties belong on the page, not on the entity it describes:
+ * `dateModified` is a CreativeWork property, and an ItemList or a Person is
+ * not one. `mainEntity` points at the entity's own `@id` so the page and the
+ * entity stay linked. The dates come from contentDates(), so they are the
+ * record's real publish and last-change times and are omitted when unknown.
+ */
+export function webPageNode({
+  url,
+  name,
+  type = "WebPage",
+  row,
+  mainEntityId,
+}: {
+  url: string;
+  name: string;
+  type?: "WebPage" | "CollectionPage";
+  row: { created_at?: string | null; published_at?: string | null; updated_at?: string | null } | null | undefined;
+  mainEntityId?: string;
+}): Record<string, unknown> {
+  const dates = contentDates(row);
+  const node: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": type,
+    "@id": `${url}#webpage`,
+    url,
+    name,
+    inLanguage: "en",
+    isPartOf: { "@type": "WebSite", name: SITE_NAME, url: BASE_URL },
+  };
+  if (dates.published) node.datePublished = dates.published;
+  if (dates.modified) node.dateModified = dates.modified;
+  if (mainEntityId) node.mainEntity = { "@id": mainEntityId };
+  return node;
+}
 
 /**
  * A Book node for use inside an ItemList.
@@ -115,7 +154,11 @@ export function bookJsonLd(book: Book | null, slug?: string): Record<string, unk
     ],
   };
 
-  return [mainEntity, breadcrumbs];
+  return [
+    mainEntity,
+    breadcrumbs,
+    webPageNode({ url: bookUrl, name: book.title, row: book, mainEntityId: `${bookUrl}#book` }),
+  ];
 }
 
 export function personJsonLd(person: Person | null): Record<string, unknown>[] {
@@ -160,7 +203,11 @@ export function personJsonLd(person: Person | null): Record<string, unknown>[] {
     ],
   };
 
-  return [mainEntity, breadcrumbs];
+  return [
+    mainEntity,
+    breadcrumbs,
+    webPageNode({ url: personUrl, name: person.name, row: person, mainEntityId: `${personUrl}#person` }),
+  ];
 }
 
 export function itemListJsonLd(
@@ -173,6 +220,7 @@ export function itemListJsonLd(
   const mainEntity: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "ItemList",
+    "@id": `${listUrl}#list`,
     name: list.title,
     description: list.description || undefined,
     url: listUrl,
@@ -194,7 +242,11 @@ export function itemListJsonLd(
     ],
   };
 
-  return [mainEntity, breadcrumbs];
+  return [
+    mainEntity,
+    breadcrumbs,
+    webPageNode({ url: listUrl, name: list.title, type: "CollectionPage", row: list, mainEntityId: `${listUrl}#list` }),
+  ];
 }
 
 /** FAQPage node for a page's visible Q&A section. Null when there is none. */
@@ -223,6 +275,7 @@ export function seriesJsonLd(
   const mainEntity: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "ItemList",
+    "@id": `${seriesUrl}#list`,
     name,
     description: series.description || undefined,
     url: seriesUrl,
@@ -244,7 +297,11 @@ export function seriesJsonLd(
     ],
   };
 
-  return [mainEntity, breadcrumbs];
+  return [
+    mainEntity,
+    breadcrumbs,
+    webPageNode({ url: seriesUrl, name, type: "CollectionPage", row: series, mainEntityId: `${seriesUrl}#list` }),
+  ];
 }
 
 export function websiteJsonLd(): Record<string, unknown> {

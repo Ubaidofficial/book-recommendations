@@ -44,6 +44,91 @@ const NOFOLLOW_HOST_RE =
   /(^|\.)(twitter\.com|x\.com|t\.co|instagram\.com|facebook\.com|fb\.com|tiktok\.com|linkedin\.com|lnkd\.in|reddit\.com|quora\.com|pinterest\.com|goodreads\.com|bit\.ly|tinyurl\.com|ow\.ly|buff\.ly)$/;
 
 /**
+ * The 10-character Amazon product id (ASIN) in a /dp/ or /gp/product/ URL,
+ * upper-cased, or null when the URL has none.
+ *
+ * Applies the same repair as normalizeAmazonUrl: many stored URLs carry a
+ * valid 10-character id followed by 12 junk characters (".../dp/0307743667444aa9cd52d5"),
+ * and the page link is built from the first 10. The id compared here has to be
+ * the one the link actually opens, or those rows slip past the shared-product
+ * check.
+ */
+export function amazonAsin(url: string | null | undefined): string | null {
+  if (!url || typeof url !== "string") return null;
+  const m = url.match(/\/(?:dp|gp\/product)\/([^/?#]+)/);
+  if (!m) return null;
+  const candidate = m[1];
+  if (/^[A-Za-z0-9]{10}$/.test(candidate)) return candidate.toUpperCase();
+  if (candidate.length === 22 && /^[A-Za-z0-9]{10}/.test(candidate)) return candidate.slice(0, 10).toUpperCase();
+  return null;
+}
+
+function workKey(title: string | null | undefined): string {
+  return String(title || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+/**
+ * Whether two titles name the same work. Equal once punctuation is stripped,
+ * or one is the other plus a subtitle ("Zero to One" / "Zero to One Notes on
+ * Startups"). Very short keys must match exactly so "It" does not swallow
+ * every title that starts with it.
+ */
+export function sameWork(a: string | null | undefined, b: string | null | undefined): boolean {
+  const x = workKey(a);
+  const y = workKey(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  return Math.min(x.length, y.length) >= 4 && (x.startsWith(y) || y.startsWith(x));
+}
+
+/**
+ * Amazon products used by more than one different book in this set.
+ *
+ * A product page is one specific book. Many imported rows carry the product
+ * id of a different book in the same series (one author page's first result
+ * pasted onto every title: 74 of the 76 "View on Amazon" links on a 38-book
+ * series page pointed at one product, and a 675-book series used a single
+ * id). When two different titles share a product, at most one link is right
+ * and there is no way to tell which, so none of them can be trusted.
+ */
+export function sharedAmazonAsins(
+  books: ReadonlyArray<{ title?: string | null; amazon_url?: string | null }>
+): Set<string> {
+  const titlesByAsin = new Map<string, string[]>();
+  for (const b of books) {
+    const asin = amazonAsin(b.amazon_url);
+    if (!asin) continue;
+    const list = titlesByAsin.get(asin) || [];
+    list.push(b.title || "");
+    titlesByAsin.set(asin, list);
+  }
+  const shared = new Set<string>();
+  for (const [asin, titles] of titlesByAsin) {
+    if (titles.some((t) => !sameWork(titles[0], t))) shared.add(asin);
+  }
+  return shared;
+}
+
+/**
+ * Clears `amazon_url` on every book whose Amazon product is shared with a
+ * different title in the same set, so no page shows a "View on Amazon" button
+ * that opens the wrong book. Mutates and returns the rows, like the other
+ * normalisers. Stored data is not changed. A link that is withheld is better
+ * than one that sends a reader to a different book.
+ */
+export function dropSharedAmazonUrls<T extends { title?: string | null; amazon_url?: string | null }>(
+  books: T[]
+): T[] {
+  const shared = sharedAmazonAsins(books);
+  if (shared.size === 0) return books;
+  for (const b of books) {
+    const asin = amazonAsin(b.amazon_url);
+    if (asin && shared.has(asin)) b.amazon_url = null;
+  }
+  return books;
+}
+
+/**
  * Returns the `rel` attribute value to use on an outbound `<a>` tag.
  *
  * - Amazon links: `nofollow sponsored` (affiliate-compliant).
@@ -68,6 +153,35 @@ export function outboundLinkRel(url: string | null | undefined): string {
   }
   if (!host || NOFOLLOW_HOST_RE.test(host)) return "noopener noreferrer nofollow";
   return "noopener noreferrer";
+}
+
+/**
+ * The Amazon destination for a book's "View on Amazon" button.
+ *
+ * - A verified product link (the stored `amazon_url`, repaired and tagged) when
+ *   the book has one. A product link is only stored when it is that book's own
+ *   ISBN-10; links that several different books shared have been cleared.
+ * - Otherwise an Amazon search for the title and author, tagged the same way.
+ *   A search can show several editions but cannot open the wrong book, so a
+ *   missing product link costs a click, not accuracy, and the button is never
+ *   dropped.
+ * - null only when there is no title to search for.
+ */
+export function amazonCtaUrl(book: {
+  title?: string | null;
+  author?: string | null;
+  author_name?: string | null;
+  amazon_url?: string | null;
+}): string | null {
+  const product = normalizeAmazonUrl(book.amazon_url);
+  if (product) return product;
+  const title = String(book.title || "").trim();
+  if (!title) return null;
+  const author = String(book.author || book.author_name || "").trim();
+  const u = new URL("https://www.amazon.com/s");
+  u.searchParams.set("k", `${title} ${author}`.trim().slice(0, 150));
+  u.searchParams.set("i", "stripbooks");
+  return withAmazonAssociateTag(u);
 }
 
 function getAmazonAssociateTag(): string {

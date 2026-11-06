@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { supabase as getSupabase } from "./supabase";
-import { isProfilelessSurnameAlias, repairEncoding } from "./dataQuality";
+import { isProfilelessSurnameAlias, repairEncoding, dropSharedAmazonUrls, amazonAsin, sameWork } from "./dataQuality";
 
 /**
  * People rows reach the UI straight off the table, so a stored `_x00NN_`
@@ -62,6 +62,8 @@ export interface Book {
   meta_title: string | null;
   meta_description: string | null;
   created_at: string;
+  published_at?: string | null;
+  updated_at?: string | null;
   // AI editorial fields — present in the production schema since the editorial pipeline.
   // `select("*")` already returns them; declaring here lets the UI render without casts.
   editorial_summary?: string | null;
@@ -116,6 +118,8 @@ export interface BookList {
   curator: string | null;
   index_status: string;
   created_at: string;
+  published_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface RecommendationProof {
@@ -134,6 +138,8 @@ export interface Series {
   book_count: number;
   index_status: string;
   created_at: string;
+  published_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface PaginatedResult<T> {
@@ -165,6 +171,9 @@ function normalizeBookRow<T extends Partial<Book>>(row: T | null | undefined): T
 function normalizeBookRows<T extends Partial<Book>>(rows: T[] | null | undefined): T[] {
   if (!rows) return [];
   for (const r of rows) normalizeBookRow(r);
+  // Withhold an Amazon link that several different titles in this set share:
+  // it can only be right for one of them (see sharedAmazonAsins).
+  dropSharedAmazonUrls(rows);
   return rows;
 }
 
@@ -371,10 +380,40 @@ export async function getBookBySlug(slug: string): Promise<Book | null> {
       .single();
 
     if (error) { logQueryError("getBookBySlug", error); return null; }
-    return normalizeBookRow(data as Book | null);
+    const book = normalizeBookRow(data as Book | null);
+    if (book && (await amazonProductSharedElsewhere(book))) book.amazon_url = null;
+    return book;
   } catch (e) {
     logQueryError("getBookBySlug", e);
     return null;
+  }
+}
+
+/**
+ * True when another, different book in the catalogue uses this book's Amazon
+ * product. A single book page cannot see its neighbours, so the check goes to
+ * the database. Fails open: if the lookup errors, the stored link is kept
+ * rather than hiding a link that may be right.
+ */
+async function amazonProductSharedElsewhere(book: Book): Promise<boolean> {
+  const asin = amazonAsin(book.amazon_url);
+  if (!asin) return false;
+  try {
+    const { data, error } = await getSupabase()
+      .from("books")
+      .select("title")
+      // Prefix match on the canonical stored form. A "contains" match scans the
+      // whole table (about 3x slower, and it timed out under crawl load); the
+      // prefix form is as fast as a keyed lookup and also catches the variants
+      // with junk after the product id. URLs stored in other shapes are missed.
+      .like("amazon_url", `https://www.amazon.com/dp/${asin}%`)
+      .neq("id", book.id)
+      .limit(25);
+    if (error) { logQueryError("amazonProductSharedElsewhere", error); return false; }
+    return (data || []).some((r: { title: string | null }) => !sameWork(book.title, r.title));
+  } catch (e) {
+    logQueryError("amazonProductSharedElsewhere", e);
+    return false;
   }
 }
 
@@ -434,8 +473,11 @@ export async function getBooksBySeriesOrdered(
     const out: Array<Book & { series_position: number | null }> = [];
     for (const r of (rows || []) as unknown as Array<{ position: number | null; books: Book | null }>) {
       if (!r.books || !r.books.id) continue;
-      out.push({ ...normalizeBookRows([r.books])[0], series_position: r.position ?? null });
+      out.push({ ...(normalizeBookRow(r.books) as Book), series_position: r.position ?? null });
     }
+    // Check the whole series at once: normalising one row at a time cannot see
+    // that dozens of titles share a single Amazon product.
+    dropSharedAmazonUrls(out);
     return out;
   } catch (e) {
     logQueryError("getBooksBySeriesOrdered", e);
@@ -1097,7 +1139,7 @@ export async function getBooksForListByRecommendations(listId: string, limit = 4
     });
 
     const result = allBooks.slice(0, limit);
-    return result;
+    return normalizeBookRows(result);
   } catch (e) {
     logQueryError("getBooksForListByRecommendations", e);
     return [];
@@ -1138,7 +1180,10 @@ export async function getBooksForList(listId: string, limit = 48): Promise<Book[
       const b = byId.get(id);
       if (b) ordered.push(b);
     }
-    return ordered;
+    // Fill `author` from `author_name`, as every other book fetcher does.
+    // Without this the list page rendered no author on any book and the
+    // ItemList JSON-LD had none, because rows from "*" only carry author_name.
+    return normalizeBookRows(ordered);
   } catch (e) {
     logQueryError("getBooksForList", e);
     return [];

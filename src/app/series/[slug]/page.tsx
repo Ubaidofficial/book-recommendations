@@ -2,11 +2,11 @@ import { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import { getSeriesBySlugCached, getBooksBySeriesOrderedCached, getRelatedSeries, seriesHasPositionsCached } from "@/lib/data";
-import { pageMetadata, robotsDirective } from "@/lib/seo";
+import { pageMetadata, robotsDirective, contentDates } from "@/lib/seo";
 import { displayTitle } from "@/lib/display";
 import { seriesJsonLd, faqPageJsonLd } from "@/lib/jsonld";
 import { orderSeriesBooks, seriesBaseName, seriesFaq, seriesPageTitle } from "@/lib/seriesOrder";
-import { BookCard, Breadcrumbs, EmptyState } from "@/components";
+import { BookCard, Breadcrumbs, EmptyState, LastUpdated } from "@/components";
 
 // ISR, matching books/[slug] and people/[slug] — this page reads only
 // `params`, never searchParams/cookies/headers, so it's eligible for the
@@ -116,6 +116,7 @@ export default async function SeriesDetailPage({ params }: Props) {
             </span>
           )}
         </div>
+        <LastUpdated modified={contentDates(series).modified} className="text-xs text-muted mb-3" />
         {hasDescription ? (
           <p className="text-base text-muted max-w-2xl leading-relaxed">{series.description}</p>
         ) : (

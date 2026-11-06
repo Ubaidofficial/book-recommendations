@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { SafeImage } from "./SafeImage";
-import { isValidHttpUrl, isValidRating, formatRating, normalizeAmazonUrl, coverAltText } from "@/lib/dataQuality";
+import { isValidHttpUrl, isValidRating, formatRating, amazonCtaUrl, coverAltText } from "@/lib/dataQuality";
 
 // Cleaner missing-cover placeholder: subtle book-stack icon, readable title,
 // no oversized purple text, "No cover" affordance so the absence reads intentional.
@@ -44,7 +44,7 @@ export function BookCard({
 }: BookCardProps) {
   const showCover = isValidHttpUrl(coverUrl);
   const showRating = isValidRating(rating);
-  const ctaUrl = normalizeAmazonUrl(amazonUrl);
+  const ctaUrl = amazonCtaUrl({ title, author, amazon_url: amazonUrl });
 
   return (
     <div

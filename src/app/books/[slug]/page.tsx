@@ -15,7 +15,7 @@ import {
   type BookRecommenderSummary,
   type RecommendationProof,
 } from "@/lib/data";
-import { pageMetadata, robotsDirective, bookPageTitle } from "@/lib/seo";
+import { pageMetadata, robotsDirective, bookPageTitle, contentDates } from "@/lib/seo";
 import { bookJsonLd, faqPageJsonLd } from "@/lib/jsonld";
 import { displayTitle, displayListTitle, listKindFromSlug, displayBookTitle } from "@/lib/display";
 import {
@@ -30,13 +30,13 @@ import {
   parseEditorialList,
   sanitizeEditorialText,
   outboundLinkRel,
-  normalizeAmazonUrl,
+  amazonCtaUrl,
   normalizeOutboundUrl,
   getProofDisplaySafety,
   coverAltText,
   cleanQuoteText,
 } from "@/lib/dataQuality";
-import { Avatar, BookCard, Breadcrumbs, SafeImage } from "@/components";
+import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
 
 // Detail-page cover fallback — calmer than the previous oversized-purple version.
 // Subtle neutral gradient, small icon, readable but non-dominant title, "Cover unavailable" caption.
@@ -123,7 +123,7 @@ export default async function BookDetailPage({ params }: Props) {
   // truncates the corrupt suffix; it also returns null for non-Amazon hosts
   // (8 rows in DB) so the CTAs are simply suppressed for those books. No
   // affiliate tag is appended. Render-time only — DB is not modified.
-  const normalizedAmazonUrl = normalizeAmazonUrl(book.amazon_url);
+  const normalizedAmazonUrl = amazonCtaUrl(book);
 
   const [personId, seriesId] = await Promise.all([
     book.author_slug ? getPersonIdBySlug(book.author_slug) : Promise.resolve(null),
@@ -698,6 +698,7 @@ export default async function BookDetailPage({ params }: Props) {
                 by <span className="text-accent font-semibold">{book.author}</span>
               </p>
             )}
+            <LastUpdated modified={contentDates(book).modified} className="text-xs text-muted -mt-2 mb-4" />
 
             {socialProofRow}
 
@@ -1628,7 +1629,7 @@ export default async function BookDetailPage({ params }: Props) {
                   // book's Amazon link only after normalizing it, so a broken
                   // /dp/<22-char-ASIN> alternative also renders cleanly (or
                   // is suppressed if the alternative's URL is non-Amazon).
-                  const altUrl = normalizeAmazonUrl(alternativeCandidate.amazon_url);
+                  const altUrl = amazonCtaUrl(alternativeCandidate);
                   if (!altUrl) return null;
                   return (
                     <a
