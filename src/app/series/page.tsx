@@ -1,9 +1,9 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { getSeriesPaginatedCached, searchSeries } from "@/lib/data";
+import { getSeriesPaginatedCached, searchSeries, getRecentlyPublishedSeriesCached } from "@/lib/data";
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
-import { SeriesCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
+import { SeriesCard, SearchBar, Breadcrumbs, EmptyState, NewlyPublished } from "@/components";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +52,8 @@ export default async function SeriesPage({ searchParams }: Props) {
   }
 
   const { data: seriesList, total } = seriesResult;
+  // Only on the first, unfiltered page: the block is a crawl path to new releases.
+  const recentSeries = !q && page === 1 ? await getRecentlyPublishedSeriesCached(10) : [];
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const prevHref = page > 1 ? (page === 2 ? "/series" : `/series?page=${page - 1}`) : "";
   const nextHref = page < totalPages ? `/series?page=${page + 1}` : "";
@@ -100,6 +102,7 @@ export default async function SeriesPage({ searchParams }: Props) {
       <div className="mb-8">
         <SearchBar placeholder="Search series by title…" />
       </div>
+      <NewlyPublished series={recentSeries} className="mb-10" />
       <div className="flex items-center justify-between mb-6 text-sm">
         <span className="text-muted">{total} series</span>
         <select className="border border-border rounded-lg px-3 py-1.5 bg-surface text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/20">

@@ -6,8 +6,10 @@ import {
   getFeaturedSeriesCached,
   getPersonRecommendedCount,
   getPersonWrittenCount,
+  getRecentlyPublishedListsCached,
+  getRecentlyPublishedSeriesCached,
 } from "@/lib/data";
-import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual } from "@/components";
+import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual, NewlyPublished } from "@/components";
 
 // noStore() used to sit in the component body and silently defeated this
 // declaration; the featured reads are cached explicitly instead.
@@ -23,14 +25,18 @@ export default async function HomePage() {
   let featuredPeople: Awaited<ReturnType<typeof getFeaturedPeopleCached>> = [];
   let featuredLists: Awaited<ReturnType<typeof getFeaturedListsCached>> = [];
   let featuredSeries: Awaited<ReturnType<typeof getFeaturedSeriesCached>> = [];
+  let recentLists: Awaited<ReturnType<typeof getRecentlyPublishedListsCached>> = [];
+  let recentSeries: Awaited<ReturnType<typeof getRecentlyPublishedSeriesCached>> = [];
 
   try {
-    [featuredBooks, featuredPeople, featuredLists, featuredSeries] =
+    [featuredBooks, featuredPeople, featuredLists, featuredSeries, recentLists, recentSeries] =
       await Promise.all([
         getFeaturedBooksCached(CARD_COUNT),
         getFeaturedPeopleCached(CARD_COUNT),
         getFeaturedListsCached(CARD_COUNT),
         getFeaturedSeriesCached(CARD_COUNT),
+        getRecentlyPublishedListsCached(8),
+        getRecentlyPublishedSeriesCached(8),
       ]);
   } catch (e) {
     console.error("[homepage] QUERY_ERROR: Supabase fetch threw exception:", e);
@@ -156,6 +162,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Newly published: gives each daily release a link from the homepage */}
+      <NewlyPublished lists={recentLists} series={recentSeries} />
 
       {/* Start Exploring / Discovery Cards */}
       <section className="py-16 px-4 bg-surface">

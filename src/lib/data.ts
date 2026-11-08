@@ -2631,6 +2631,51 @@ export const getFeaturedListsCached = (n: number) =>
     tags: ["lists", "featured"],
   })();
 
+/**
+ * Most recently published lists / series, newest first. Feeds the "Newly
+ * published" blocks on the homepage and the lists and series hubs, so every
+ * daily release gets an internal link from pages that are crawled often.
+ * Indexable rows only, and only rows that have a published_at date.
+ */
+export interface RecentlyPublishedItem {
+  id: string;
+  slug: string;
+  title: string;
+  book_count: number;
+  published_at: string;
+}
+
+async function getRecentlyPublished(table: "lists" | "series", count: number): Promise<RecentlyPublishedItem[]> {
+  try {
+    const { data, error } = await getSupabase()
+      .from(table)
+      .select("id,slug,title,book_count,published_at")
+      .in("index_status", BOOK_INDEXABLE_STATUSES)
+      .not("published_at", "is", null)
+      .not("slug", "is", null)
+      .neq("slug", "")
+      .order("published_at", { ascending: false })
+      .limit(count);
+    if (error) { logQueryError(`getRecentlyPublished(${table})`, error); return []; }
+    return ((data || []) as RecentlyPublishedItem[]).filter((r) => r.slug && r.title);
+  } catch (e) {
+    logQueryError(`getRecentlyPublished(${table})`, e);
+    return [];
+  }
+}
+
+export const getRecentlyPublishedListsCached = (n: number) =>
+  unstable_cache(() => getRecentlyPublished("lists", n), ["recent-lists", String(n)], {
+    revalidate: 300,
+    tags: ["lists", "recent"],
+  })();
+
+export const getRecentlyPublishedSeriesCached = (n: number) =>
+  unstable_cache(() => getRecentlyPublished("series", n), ["recent-series", String(n)], {
+    revalidate: 300,
+    tags: ["series", "recent"],
+  })();
+
 export const getFeaturedSeriesCached = (n: number) =>
   unstable_cache(() => getFeaturedSeries(n), ["featured-series", String(n)], {
     revalidate: 60,

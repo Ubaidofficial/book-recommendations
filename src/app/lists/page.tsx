@@ -6,11 +6,12 @@ import {
   getBroadCategoryListsCached,
   getTopicListsCached,
   getListBySlug,
+  getRecentlyPublishedListsCached,
   type BookList,
 } from "@/lib/data";
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
-import { ListCard, SearchBar, Breadcrumbs, EmptyState } from "@/components";
+import { ListCard, SearchBar, Breadcrumbs, EmptyState, NewlyPublished } from "@/components";
 
 export const dynamic = "force-dynamic";
 
@@ -263,7 +264,8 @@ export default async function ListsPage({ searchParams }: Props) {
 
   // ── Default: sectioned discovery hub ──────────────────────────
   // Overfetch fiction/nonfiction so we can dedupe IDs already shown in "Popular".
-  const [broad, popular, fictionAll, nonfictionAll, meta, ...allRecommendersRaw] = await Promise.all([
+  const [recentLists, broad, popular, fictionAll, nonfictionAll, meta, ...allRecommendersRaw] = await Promise.all([
+    getRecentlyPublishedListsCached(10),
     getBroadCategoryListsCached(12),
     getTopicListsCached({ limit: 12, sort: "book_count" }),
     getTopicListsCached({ limit: 24, filter: "fiction" }),
@@ -324,6 +326,8 @@ export default async function ListsPage({ searchParams }: Props) {
       <div className="mb-10">
         <SearchBar placeholder="Search lists by title or topic…" />
       </div>
+
+      <NewlyPublished lists={recentLists} className="mb-12" />
 
       <Section
         title="Main Categories"
