@@ -1390,9 +1390,9 @@ export default async function BookDetailPage({ params }: Props) {
       {normalizedAmazonUrl && (
         <div className="my-8 p-6 rounded-2xl border border-amber-200/60 bg-amber-50/15 shadow-[0_8px_30px_rgba(245,158,11,0.02)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="space-y-1 flex-1">
-            <h4 className="text-sm font-bold text-ink">
+            <h3 className="text-sm font-bold text-ink">
               Ready to read {displayBookTitle(book.title)}?
-            </h4>
+            </h3>
             <p className="text-xs text-muted">
               Check formats, pricing, and availability options directly on Amazon.
             </p>
