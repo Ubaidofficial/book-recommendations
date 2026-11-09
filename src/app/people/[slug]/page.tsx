@@ -3,11 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   getPersonBySlugCached,
-  getBooksByAuthor,
+  getBooksByAuthorCached,
   getPersonRecommendationProofCached,
-  getPersonRecommendedCount,
-  getPersonWrittenCount,
-  getQualityPeople,
+  getPersonRecommendedCountCached,
+  getPersonWrittenCountCached,
+  getQualityPeopleCached,
 } from "@/lib/data";
 import { pageMetadata, robotsDirective, contentDates } from "@/lib/seo";
 import { personJsonLd } from "@/lib/jsonld";
@@ -65,24 +65,24 @@ export default async function PersonDetailPage({ params }: Props) {
   const person = await getPersonBySlugCached(slug);
   if (!person) notFound();
 
-  let writtenBooks: Awaited<ReturnType<typeof getBooksByAuthor>> = [];
+  let writtenBooks: Awaited<ReturnType<typeof getBooksByAuthorCached>> = [];
   let rawProof: Awaited<ReturnType<typeof getPersonRecommendationProofCached>> = [];
   let recommendedCount = 0;
   let writtenCount = 0;
-  let otherPeople: Awaited<ReturnType<typeof getQualityPeople>> = [];
+  let otherPeople: Awaited<ReturnType<typeof getQualityPeopleCached>> = [];
 
   try {
     // Person pages linked to books and to nothing else — zero person->person
     // links across the whole site. That strands every profile as a dead end
     // for a crawler walking the graph, and leaves the deeper profiles with no
     // internal path to them at all.
-    let qualityPeople: Awaited<ReturnType<typeof getQualityPeople>>;
+    let qualityPeople: Awaited<ReturnType<typeof getQualityPeopleCached>>;
     [writtenBooks, rawProof, recommendedCount, writtenCount, qualityPeople] = await Promise.all([
-      getBooksByAuthor(person.id, 24),
+      getBooksByAuthorCached(person.id, 24),
       getPersonRecommendationProofCached(person.id, 24),
-      getPersonRecommendedCount(person.id),
-      getPersonWrittenCount(person.id),
-      getQualityPeople(40),
+      getPersonRecommendedCountCached(person.id),
+      getPersonWrittenCountCached(person.id),
+      getQualityPeopleCached(40),
     ]);
     otherPeople = qualityPeople
       .filter((p) => p && p.slug && p.slug !== person.slug && p.name)

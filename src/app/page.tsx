@@ -123,7 +123,7 @@ export default async function HomePage() {
               </svg>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-ink">Public recommendations</h3>
+              <h2 className="text-sm font-semibold text-ink">Public recommendations</h2>
               <p className="text-xs text-muted mt-0.5">Sourced from public interviews & lists</p>
             </div>
           </div>
@@ -134,7 +134,7 @@ export default async function HomePage() {
               </svg>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-ink">Source links</h3>
+              <h2 className="text-sm font-semibold text-ink">Source links</h2>
               <p className="text-xs text-muted mt-0.5">Original source linked wherever we have one</p>
             </div>
           </div>
@@ -145,7 +145,7 @@ export default async function HomePage() {
               </svg>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-ink">Notable recommenders</h3>
+              <h2 className="text-sm font-semibold text-ink">Notable recommenders</h2>
               <p className="text-xs text-muted mt-0.5">Founders, authors, and industry experts</p>
             </div>
           </div>
@@ -156,7 +156,7 @@ export default async function HomePage() {
               </svg>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-ink">Fast book discovery</h3>
+              <h2 className="text-sm font-semibold text-ink">Fast book discovery</h2>
               <p className="text-xs text-muted mt-0.5">Lightning fast browse & search interface</p>
             </div>
           </div>
