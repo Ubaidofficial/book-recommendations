@@ -396,13 +396,13 @@ export default async function BooksPage({ searchParams }: Props) {
 
       <div className="flex items-center justify-between gap-3 mb-6 text-sm flex-wrap">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-muted">
+          <h2 className="text-sm font-normal text-muted">
             {total > 0
               ? `${mode === "search" ? "~" : ""}${total.toLocaleString()} ${total === 1 ? "book" : "books"}${
                   mode === "search" ? "" : mode === "category" ? ` in ${activeChip.label}` : scope === "all" ? " (full catalogue)" : ""
                 }`
               : "No matching books"}
-          </span>
+          </h2>
           {/* Scope toggle — only shown on the all-books mode. Category and search
               modes have their own implicit quality filter (list membership / hit
               relevance). */}
