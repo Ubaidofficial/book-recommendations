@@ -430,27 +430,43 @@ export async function getBookBySlug(slug: string): Promise<Book | null> {
  * product. A single book page cannot see its neighbours, so the check goes to
  * the database. Fails open: if the lookup errors, the stored link is kept
  * rather than hiding a link that may be right.
+ *
+ * Cached for a day per book and product: it ran on every book page render
+ * (every 5 minutes per page under the page's own cache) and, without the
+ * text_pattern_ops index of migrations/005, read the whole books table each
+ * time. That was ~88% of the Data API's failures and drained the project's
+ * Disk IO budget (2026-11-09). Which books share a product changes only when
+ * the catalogue is edited, so a day-old answer is fine.
  */
 async function amazonProductSharedElsewhere(book: Book): Promise<boolean> {
   const asin = amazonAsin(book.amazon_url);
   if (!asin) return false;
   try {
-    const { data, error } = await getSupabase()
-      .from("books")
-      .select("title")
-      // Prefix match on the canonical stored form. A "contains" match scans the
-      // whole table (about 3x slower, and it timed out under crawl load); the
-      // prefix form is as fast as a keyed lookup and also catches the variants
-      // with junk after the product id. URLs stored in other shapes are missed.
-      .like("amazon_url", `https://www.amazon.com/dp/${asin}%`)
-      .neq("id", book.id)
-      .limit(25);
-    if (error) { logQueryError("amazonProductSharedElsewhere", error); return false; }
-    return (data || []).some((r: { title: string | null }) => !sameWork(book.title, r.title));
+    return await unstable_cache(
+      () => amazonProductSharedElsewhereUncached(asin, book.id, book.title),
+      ["amazon-shared-elsewhere", asin, book.id, book.title ?? ""],
+      { revalidate: 86400, tags: ["books"] },
+    )();
   } catch (e) {
     logQueryError("amazonProductSharedElsewhere", e);
     return false;
   }
+}
+
+/** Throws on a database error, so unstable_cache never stores a failed lookup as "not shared". */
+async function amazonProductSharedElsewhereUncached(asin: string, bookId: string, title: string | null): Promise<boolean> {
+  const { data, error } = await getSupabase()
+    .from("books")
+    .select("title")
+    // Prefix match on the canonical stored form, served by
+    // idx_books_amazon_url_prefix (migrations/005). A "contains" match scans
+    // the whole table; the prefix form also catches the variants with junk
+    // after the product id. URLs stored in other shapes are missed.
+    .like("amazon_url", `https://www.amazon.com/dp/${asin}%`)
+    .neq("id", bookId)
+    .limit(25);
+  if (error) throw error;
+  return (data || []).some((r: { title: string | null }) => !sameWork(title, r.title));
 }
 
 export async function getBooksByAuthor(personId: string, limit = 12): Promise<Book[]> {
