@@ -153,6 +153,84 @@ export interface PaginatedResult<T> {
 // Catches Supabase errors and returns a fallback so no public page ever throws.
 function logQueryError(label: string, error: unknown) {
   console.error(`[data] Supabase error in ${label}:`, error);
+  queryErrorCount++;
+}
+
+// --- Cached reads that never cache a failure ---
+//
+// Almost every read here catches a Supabase error and returns a fallback ([],
+// 0, null) so no public page throws. That is right for an uncached call, but
+// under unstable_cache the fallback is stored like a real answer: one statement
+// timeout pins an empty rail, a "0 recommended" count or a missing series book
+// list for the whole revalidate window, for every visitor.
+//
+// cachedRead is unstable_cache with the same call shape, except that a read
+// which hit a database error is kept out of the cache. unstable_cache never
+// stores a thrown error, so the cached function throws once the read has
+// degraded; the wrapper catches that and still hands the caller the degraded
+// result (the never-throw contract holds, and there is no second round trip to a
+// database that just failed). The same trick `getBooksPaginatedCached` uses.
+//
+// "Did this read degrade?" is answered by a counter that logQueryError bumps:
+// if it moved while the read ran, something failed. A concurrent request's
+// error can move it too, which only means a good result is occasionally left
+// uncached while the database is already misbehaving. It is a counter rather
+// than AsyncLocalStorage because this module is also bundled into a client
+// component (GlobalSearch imports the search helpers), which cannot load
+// node:async_hooks. Nested cachedReads need no special handling: the inner
+// failure moves the counter inside the outer read's window as well.
+//
+// Not caching a failure means the next request retries the query, and a
+// struggling database is the last place to send a retry from every request. A
+// short in-process memory of recent failures bounds that: after a failure, the
+// same key is served the degraded result for FAILURE_MEMORY_MS without querying.
+let queryErrorCount = 0;
+
+class FailedReadResult extends Error {
+  constructor(readonly result: unknown) {
+    super("read hit a database error — not cached");
+  }
+}
+
+const FAILURE_MEMORY_MS = 10_000;
+const FAILURE_MEMORY_MAX_KEYS = 500;
+const recentFailures = new Map<string, { until: number; result: unknown }>();
+
+function cachedRead<T>(
+  fn: () => Promise<T>,
+  keyParts: string[],
+  options: { revalidate: number; tags: string[] },
+): () => Promise<T> {
+  const memoryKey = keyParts.join("\u0000");
+  const cached = unstable_cache(
+    async () => {
+      const errorsBefore = queryErrorCount;
+      const result = await fn();
+      if (queryErrorCount !== errorsBefore) throw new FailedReadResult(result);
+      return result;
+    },
+    keyParts,
+    options,
+  );
+  return async () => {
+    const now = Date.now();
+    const remembered = recentFailures.get(memoryKey);
+    if (remembered && remembered.until > now) {
+      queryErrorCount++; // keep an enclosing cachedRead from caching this
+      return remembered.result as T;
+    }
+    try {
+      return await cached();
+    } catch (e) {
+      if (!(e instanceof FailedReadResult)) throw e;
+      if (recentFailures.size >= FAILURE_MEMORY_MAX_KEYS) {
+        for (const [k, v] of recentFailures) if (v.until <= now) recentFailures.delete(k);
+        if (recentFailures.size >= FAILURE_MEMORY_MAX_KEYS) recentFailures.clear();
+      }
+      recentFailures.set(memoryKey, { until: now + FAILURE_MEMORY_MS, result: e.result });
+      return e.result as T;
+    }
+  };
 }
 
 // --- Row normalization ---
@@ -543,13 +621,13 @@ export async function seriesHasPositions(seriesId: string): Promise<boolean> {
 }
 
 export const getBooksBySeriesOrderedCached = (seriesId: string, limit = 48) =>
-  unstable_cache(() => getBooksBySeriesOrdered(seriesId, limit), ["series-books-ordered", seriesId, String(limit)], {
+  cachedRead(() => getBooksBySeriesOrdered(seriesId, limit), ["series-books-ordered", seriesId, String(limit)], {
     revalidate: 300,
     tags: ["series"],
   })();
 
 export const seriesHasPositionsCached = (seriesId: string) =>
-  unstable_cache(() => seriesHasPositions(seriesId), ["series-has-positions", seriesId], {
+  cachedRead(() => seriesHasPositions(seriesId), ["series-has-positions", seriesId], {
     revalidate: 300,
     tags: ["series"],
   })();
@@ -2421,13 +2499,13 @@ export async function getAuthorCatalogIndex(limit = 100): Promise<AuthorIndexIte
  * generateMetadata + page double-call for the same slug is a clear win.
  */
 export const getBooksByAuthorSlugCached = (slug: string, limit = 48) =>
-  unstable_cache(() => getBooksByAuthorSlug(slug, limit), ["books-by-author-slug", slug, String(limit)], {
+  cachedRead(() => getBooksByAuthorSlug(slug, limit), ["books-by-author-slug", slug, String(limit)], {
     revalidate: 3600,
     tags: ["books", "authors"],
   })();
 
 export const getAuthorCatalogIndexCached = (limit = 100) =>
-  unstable_cache(() => getAuthorCatalogIndex(limit), ["author-catalog-index", String(limit)], {
+  cachedRead(() => getAuthorCatalogIndex(limit), ["author-catalog-index", String(limit)], {
     revalidate: 3600,
     tags: ["books", "authors"],
   })();
@@ -2572,46 +2650,46 @@ export async function getRecommenderRefsForBooks(bookIds: string[]): Promise<Boo
  * Five minutes, tagged so a write path can revalidate precisely later.
  */
 export const getBooksForListCached = (listId: string, limit: number) =>
-  unstable_cache(() => getBooksForList(listId, limit), ["books-for-list", listId, String(limit)], {
+  cachedRead(() => getBooksForList(listId, limit), ["books-for-list", listId, String(limit)], {
     revalidate: 300,
     tags: ["lists", `list:${listId}`],
   })();
 
 export const getBooksForListByRecommendationsCached = (listId: string, limit: number) =>
-  unstable_cache(
+  cachedRead(
     () => getBooksForListByRecommendations(listId, limit),
     ["books-for-list-rec", listId, String(limit)],
     { revalidate: 300, tags: ["lists", `list:${listId}`] },
   )();
 
 export const getRelatedListsCached = (listId: string, limit: number) =>
-  unstable_cache(() => getRelatedLists(listId, limit), ["related-lists", listId, String(limit)], {
+  cachedRead(() => getRelatedLists(listId, limit), ["related-lists", listId, String(limit)], {
     revalidate: 900,
     tags: ["lists"],
   })();
 
 export const getRecommendersForBooksCached = (bookIds: string[], limit: number) =>
-  unstable_cache(
+  cachedRead(
     () => getRecommendersForBooks(bookIds, limit),
     ["recommenders-for-books", bookIds.slice(0, 40).join(",").slice(0, 400), String(limit)],
     { revalidate: 900, tags: ["recommendations"] },
   )();
 
 export const getRecommenderRefsForBooksCached = (bookIds: string[]) =>
-  unstable_cache(
+  cachedRead(
     () => getRecommenderRefsForBooks(bookIds),
     ["recommender-refs-for-books", bookIds.slice(0, 40).join(",").slice(0, 400), String(bookIds.length)],
     { revalidate: 900, tags: ["recommendations"] },
   )();
 
 export const getBookRecommendersCached = (bookId: string, limit: number) =>
-  unstable_cache(() => getBookRecommenders(bookId, limit), ["book-recommenders", bookId, String(limit)], {
+  cachedRead(() => getBookRecommenders(bookId, limit), ["book-recommenders", bookId, String(limit)], {
     revalidate: 300,
     tags: ["recommendations", `book:${bookId}`],
   })();
 
 export const getPersonRecommendationProofCached = (personId: string, limit: number) =>
-  unstable_cache(
+  cachedRead(
     () => getPersonRecommendationProof(personId, limit),
     ["person-proof", personId, String(limit)],
     { revalidate: 300, tags: ["recommendations", `person:${personId}`] },
@@ -2622,21 +2700,21 @@ export const getPersonRecommendationProofCached = (personId: string, limit: numb
 // getBookBySlugCached) and person pages measured 1.3-2s to first byte, with
 // some requests taking over 30s, so its `revalidate = 300` never took effect.
 export const getBooksByAuthorCached = (personId: string, limit: number) =>
-  unstable_cache(
+  cachedRead(
     () => getBooksByAuthor(personId, limit),
     ["books-by-author", personId, String(limit)],
     { revalidate: 300, tags: ["books", `person:${personId}`] },
   )();
 
 export const getPersonRecommendedCountCached = (personId: string) =>
-  unstable_cache(
+  cachedRead(
     () => getPersonRecommendedCount(personId),
     ["person-recommended-count", personId],
     { revalidate: 300, tags: ["recommendations", `person:${personId}`] },
   )();
 
 export const getPersonWrittenCountCached = (personId: string) =>
-  unstable_cache(
+  cachedRead(
     () => getPersonWrittenCount(personId),
     ["person-written-count", personId],
     { revalidate: 300, tags: ["books", `person:${personId}`] },
@@ -2645,7 +2723,7 @@ export const getPersonWrittenCountCached = (personId: string) =>
 // The same "other people" list for every person page: one cached read shared
 // by all of them instead of one query per page view.
 export const getQualityPeopleCached = (batch: number) =>
-  unstable_cache(() => getQualityPeople(batch), ["quality-people", String(batch)], {
+  cachedRead(() => getQualityPeople(batch), ["quality-people", String(batch)], {
     revalidate: 300,
     tags: ["people"],
   })();
@@ -2662,19 +2740,19 @@ export const getQualityPeopleCached = (batch: number) =>
  * these are editorial selections, not live data.
  */
 export const getFeaturedBooksCached = (n: number) =>
-  unstable_cache(() => getFeaturedBooks(n), ["featured-books", String(n)], {
+  cachedRead(() => getFeaturedBooks(n), ["featured-books", String(n)], {
     revalidate: 60,
     tags: ["books", "featured"],
   })();
 
 export const getFeaturedPeopleCached = (n: number) =>
-  unstable_cache(() => getFeaturedPeople(n), ["featured-people", String(n)], {
+  cachedRead(() => getFeaturedPeople(n), ["featured-people", String(n)], {
     revalidate: 60,
     tags: ["people", "featured"],
   })();
 
 export const getFeaturedListsCached = (n: number) =>
-  unstable_cache(() => getFeaturedLists(n), ["featured-lists", String(n)], {
+  cachedRead(() => getFeaturedLists(n), ["featured-lists", String(n)], {
     revalidate: 60,
     tags: ["lists", "featured"],
   })();
@@ -2713,19 +2791,19 @@ async function getRecentlyPublished(table: "lists" | "series", count: number): P
 }
 
 export const getRecentlyPublishedListsCached = (n: number) =>
-  unstable_cache(() => getRecentlyPublished("lists", n), ["recent-lists", String(n)], {
+  cachedRead(() => getRecentlyPublished("lists", n), ["recent-lists", String(n)], {
     revalidate: 300,
     tags: ["lists", "recent"],
   })();
 
 export const getRecentlyPublishedSeriesCached = (n: number) =>
-  unstable_cache(() => getRecentlyPublished("series", n), ["recent-series", String(n)], {
+  cachedRead(() => getRecentlyPublished("series", n), ["recent-series", String(n)], {
     revalidate: 300,
     tags: ["series", "recent"],
   })();
 
 export const getFeaturedSeriesCached = (n: number) =>
-  unstable_cache(() => getFeaturedSeries(n), ["featured-series", String(n)], {
+  cachedRead(() => getFeaturedSeries(n), ["featured-series", String(n)], {
     revalidate: 60,
     tags: ["series", "featured"],
   })();
@@ -2748,20 +2826,20 @@ export const getFeaturedSeriesCached = (n: number) =>
  * result — see that function for why.
  */
 export const getTopRecommendedPeopleCached = (topN: number) =>
-  unstable_cache(() => getTopRecommendedPeople(topN), ["top-recommended-people", String(topN)], {
+  cachedRead(() => getTopRecommendedPeople(topN), ["top-recommended-people", String(topN)], {
     revalidate: 60,
     tags: ["people"],
   })();
 
 export const getListsPaginatedCached = (page: number, pageSize: number, sort: "book_count" | "title") =>
-  unstable_cache(
+  cachedRead(
     () => getListsPaginated(page, pageSize, sort),
     ["lists-paginated", String(page), String(pageSize), sort],
     { revalidate: 60, tags: ["lists"] }
   )();
 
 export const getBroadCategoryListsCached = (limit: number) =>
-  unstable_cache(() => getBroadCategoryLists(limit), ["broad-category-lists", String(limit)], {
+  cachedRead(() => getBroadCategoryLists(limit), ["broad-category-lists", String(limit)], {
     revalidate: 60,
     tags: ["lists"],
   })();
@@ -2771,14 +2849,14 @@ export const getTopicListsCached = (opts: {
   sort?: "book_count" | "title";
   filter?: "all" | "fiction" | "nonfiction";
 }) =>
-  unstable_cache(
+  cachedRead(
     () => getTopicLists(opts),
     ["topic-lists", String(opts.limit ?? 24), String(opts.offset ?? 0), opts.sort ?? "book_count", opts.filter ?? "all"],
     { revalidate: 60, tags: ["lists"] }
   )();
 
 export const getSeriesPaginatedCached = (page: number, pageSize: number) =>
-  unstable_cache(() => getSeriesPaginated(page, pageSize), ["series-paginated", String(page), String(pageSize)], {
+  cachedRead(() => getSeriesPaginated(page, pageSize), ["series-paginated", String(page), String(pageSize)], {
     revalidate: 60,
     tags: ["series"],
   })();
