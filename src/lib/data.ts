@@ -2617,6 +2617,39 @@ export const getPersonRecommendationProofCached = (personId: string, limit: numb
     { revalidate: 300, tags: ["recommendations", `person:${personId}`] },
   )();
 
+// The person page's other reads, cached the same way. While any of them ran
+// uncached, the whole route rendered per request (see the note above
+// getBookBySlugCached) and person pages measured 1.3-2s to first byte, with
+// some requests taking over 30s, so its `revalidate = 300` never took effect.
+export const getBooksByAuthorCached = (personId: string, limit: number) =>
+  unstable_cache(
+    () => getBooksByAuthor(personId, limit),
+    ["books-by-author", personId, String(limit)],
+    { revalidate: 300, tags: ["books", `person:${personId}`] },
+  )();
+
+export const getPersonRecommendedCountCached = (personId: string) =>
+  unstable_cache(
+    () => getPersonRecommendedCount(personId),
+    ["person-recommended-count", personId],
+    { revalidate: 300, tags: ["recommendations", `person:${personId}`] },
+  )();
+
+export const getPersonWrittenCountCached = (personId: string) =>
+  unstable_cache(
+    () => getPersonWrittenCount(personId),
+    ["person-written-count", personId],
+    { revalidate: 300, tags: ["books", `person:${personId}`] },
+  )();
+
+// The same "other people" list for every person page: one cached read shared
+// by all of them instead of one query per page view.
+export const getQualityPeopleCached = (batch: number) =>
+  unstable_cache(() => getQualityPeople(batch), ["quality-people", String(batch)], {
+    revalidate: 300,
+    tags: ["people"],
+  })();
+
 /**
  * Homepage featured rails.
  *
