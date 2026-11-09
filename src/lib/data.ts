@@ -344,13 +344,13 @@ export async function getFeaturedBooks(count = 6): Promise<Book[]> {
  * instead of waiting out the window.
  */
 export const getBookBySlugCached = (slug: string) =>
-  unstable_cache(() => getBookBySlug(slug), ["book-by-slug", slug], {
+  unstable_cache(() => fetchBookBySlug(slug), ["book-by-slug", slug], {
     revalidate: 300,
     tags: ["books", `book:${slug}`],
   })();
 
 export const getPersonBySlugCached = (slug: string) =>
-  unstable_cache(() => getPersonBySlug(slug), ["person-by-slug", slug], {
+  unstable_cache(() => fetchPersonBySlug(slug), ["person-by-slug", slug], {
     revalidate: 300,
     tags: ["people", `person:${slug}`],
   })();
@@ -360,29 +360,65 @@ export const getPersonBySlugCached = (slug: string) =>
 // trips for the same row on every view. Caching closes that gap the same
 // way it does for books/people above, on top of unblocking ISR.
 export const getListBySlugCached = (slug: string) =>
-  unstable_cache(() => getListBySlug(slug), ["list-by-slug", slug], {
+  unstable_cache(() => fetchListBySlug(slug), ["list-by-slug", slug], {
     revalidate: 300,
     tags: ["lists", `list:${slug}`],
   })();
 
 export const getSeriesBySlugCached = (slug: string) =>
-  unstable_cache(() => getSeriesBySlug(slug), ["series-by-slug", slug], {
+  unstable_cache(() => fetchSeriesBySlug(slug), ["series-by-slug", slug], {
     revalidate: 300,
     tags: ["series", `series:${slug}`],
   })();
 
+/**
+ * Look up one detail-page row by slug, telling "no such row" apart from "the
+ * database failed".
+ *
+ * Returns null ONLY when the query succeeded and found nothing. A failed query
+ * (statement timeout, upstream timeout, network) throws.
+ *
+ * Why this matters: the cached lookups above sit under unstable_cache, which
+ * stores whatever the function returns for 300s. When a timeout was folded into
+ * `null`, the page called notFound() and the 404 was then served from cache to
+ * everyone — Googlebot included — for five minutes, for a page that exists.
+ * unstable_cache does not store a thrown error, and the render fails with a 5xx
+ * (which crawlers retry) instead of a 404 (which they treat as "gone").
+ *
+ * The uncached getXBySlug wrappers below keep the old never-throw contract.
+ */
+async function lookupRowBySlug<T>(table: string, slug: string): Promise<T | null> {
+  const { data, error } = await getSupabase()
+    .from(table)
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as T | null) ?? null;
+}
+
+async function fetchBookBySlug(slug: string): Promise<Book | null> {
+  const book = normalizeBookRow(await lookupRowBySlug<Book>("books", slug));
+  if (book && (await amazonProductSharedElsewhere(book))) book.amazon_url = null;
+  return book;
+}
+
+async function fetchPersonBySlug(slug: string): Promise<Person | null> {
+  const data = await lookupRowBySlug<Person>("people", slug);
+  return data ? normalizePerson(data) : null;
+}
+
+function fetchListBySlug(slug: string): Promise<BookList | null> {
+  return lookupRowBySlug<BookList>("lists", slug);
+}
+
+function fetchSeriesBySlug(slug: string): Promise<Series | null> {
+  return lookupRowBySlug<Series>("series", slug);
+}
+
 export async function getBookBySlug(slug: string): Promise<Book | null> {
   try {
-    const { data, error } = await getSupabase()
-      .from("books")
-      .select("*")
-      .eq("slug", slug)
-      .single();
-
-    if (error) { logQueryError("getBookBySlug", error); return null; }
-    const book = normalizeBookRow(data as Book | null);
-    if (book && (await amazonProductSharedElsewhere(book))) book.amazon_url = null;
-    return book;
+    return await fetchBookBySlug(slug);
   } catch (e) {
     logQueryError("getBookBySlug", e);
     return null;
@@ -746,14 +782,7 @@ export async function getTopRecommendedPeople(topN = 150): Promise<Array<Person 
 
 export async function getPersonBySlug(slug: string): Promise<Person | null> {
   try {
-    const { data, error } = await getSupabase()
-      .from("people")
-      .select("*")
-      .eq("slug", slug)
-      .single();
-
-    if (error) { logQueryError("getPersonBySlug", error); return null; }
-    return data ? normalizePerson(data) : null;
+    return await fetchPersonBySlug(slug);
   } catch (e) {
     logQueryError("getPersonBySlug", e);
     return null;
@@ -1059,14 +1088,7 @@ export async function getFeaturedLists(count = 3): Promise<BookList[]> {
 
 export async function getListBySlug(slug: string): Promise<BookList | null> {
   try {
-    const { data, error } = await getSupabase()
-      .from("lists")
-      .select("*")
-      .eq("slug", slug)
-      .single();
-
-    if (error) { logQueryError("getListBySlug", error); return null; }
-    return data;
+    return await fetchListBySlug(slug);
   } catch (e) {
     logQueryError("getListBySlug", e);
     return null;
@@ -1509,14 +1531,7 @@ export async function getFeaturedSeries(count = 3): Promise<Series[]> {
 
 export async function getSeriesBySlug(slug: string): Promise<Series | null> {
   try {
-    const { data, error } = await getSupabase()
-      .from("series")
-      .select("*")
-      .eq("slug", slug)
-      .single();
-
-    if (error) { logQueryError("getSeriesBySlug", error); return null; }
-    return data;
+    return await fetchSeriesBySlug(slug);
   } catch (e) {
     logQueryError("getSeriesBySlug", e);
     return null;
