@@ -8,12 +8,12 @@ export default function BookDetailLoading() {
         <div className="h-4 w-64 bg-skeleton rounded animate-pulse mb-6" />
         <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-8 lg:gap-12 items-start mt-6">
           <div className="hidden lg:flex lg:flex-col gap-5">
-            <div className="w-[300px] mx-auto rounded-2xl bg-skeleton animate-pulse aspect-[2/3]" />
+            <div className="w-[280px] mx-auto mt-2 mb-6 rounded-md bg-skeleton animate-pulse aspect-[2/3]" />
             <div className="w-[300px] mx-auto h-24 rounded-2xl bg-skeleton animate-pulse" />
           </div>
           <div className="min-w-0 space-y-4">
-            <div className="mb-6 flex justify-center lg:hidden">
-              <div className="w-[200px] rounded-2xl bg-skeleton animate-pulse aspect-[2/3]" />
+            <div className="mb-10 flex justify-center lg:hidden">
+              <div className="w-[190px] rounded-md bg-skeleton animate-pulse aspect-[2/3]" />
             </div>
             <div className="h-6 w-40 bg-skeleton rounded-full animate-pulse" />
             <div className="h-10 w-3/4 bg-skeleton rounded animate-pulse" />

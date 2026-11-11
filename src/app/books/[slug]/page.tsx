@@ -36,7 +36,7 @@ import {
   coverAltText,
   cleanQuoteText,
 } from "@/lib/dataQuality";
-import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
+import { Avatar, Book3D, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
 
 // Detail-page cover fallback — calmer than the previous oversized-purple version.
 // Subtle neutral gradient, small icon, readable but non-dominant title, "Cover unavailable" caption.
@@ -586,21 +586,22 @@ export default async function BookDetailPage({ params }: Props) {
           
           {/* Left sticky rail (desktop only) */}
           <aside className="hidden lg:flex lg:flex-col lg:sticky lg:top-24 lg:self-start lg:w-[320px] gap-5 shrink-0">
-            <div className="w-[300px] max-w-[300px] mx-auto rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] bg-subtle aspect-[2/3] ring-1 ring-ink/10 transition-transform duration-300 hover:scale-[1.02]">
-              {hasCover ? (
-                <SafeImage
-                  src={book.cover_image_url}
-                  alt={coverAltText(book.title, book.author)}
-                  className="w-full h-full object-cover"
-                  // The book's own cover is this page's largest contentful
-                  // paint. SafeImage is lazy by default for grids; the hero
-                  // is the one image that must not wait.
-                  loading="eager"
-                  fallback={<DetailCoverFallback title={displayBookTitle(book.title)} />}
-                />
-              ) : (
-                <DetailCoverFallback title={displayBookTitle(book.title)} />
-              )}
+            {/* The cover as a 3D object. Book3D keeps a real <img> with the
+                same alt on its front face, so LCP and image search see exactly
+                what the flat cover gave them. Extra bottom margin leaves room
+                for the contact shadow under the book. */}
+            <div className="mx-auto mt-2 mb-6">
+              <Book3D
+                src={hasCover ? book.cover_image_url : ""}
+                alt={coverAltText(book.title, book.author)}
+                width={280}
+                pageCount={book.page_count}
+                // The book's own cover is this page's largest contentful
+                // paint. Covers are lazy by default for grids; the hero is the
+                // one image that must not wait.
+                loading="eager"
+                fallback={<DetailCoverFallback title={displayBookTitle(book.title)} />}
+              />
             </div>
             {normalizedAmazonUrl && (
               <div className="w-[300px] mx-auto text-center p-4.5 rounded-2xl border border-amber-200/60 bg-amber-50/15 shadow-[0_8px_30px_rgba(245,158,11,0.04)]">
@@ -653,19 +654,14 @@ export default async function BookDetailPage({ params }: Props) {
           {/* Right scrolling column */}
           <div className="min-w-0">
             {/* Mobile/Tablet Cover (hidden on desktop) */}
-            <div className="mb-6 flex justify-center lg:hidden">
-              <div className="w-[200px] max-w-[200px] rounded-2xl overflow-hidden shadow-[0_15px_35px_rgba(0,0,0,0.2)] bg-subtle aspect-[2/3] ring-1 ring-ink/10">
-                {hasCover ? (
-                  <SafeImage
-                    src={book.cover_image_url}
-                    alt={coverAltText(book.title, book.author)}
-                    className="w-full h-full object-cover"
-                    fallback={<DetailCoverFallback title={displayBookTitle(book.title)} />}
-                  />
-                ) : (
-                  <DetailCoverFallback title={displayBookTitle(book.title)} />
-                )}
-              </div>
+            <div className="mb-10 flex justify-center lg:hidden">
+              <Book3D
+                src={hasCover ? book.cover_image_url : ""}
+                alt={coverAltText(book.title, book.author)}
+                width={190}
+                pageCount={book.page_count}
+                fallback={<DetailCoverFallback title={displayBookTitle(book.title)} />}
+              />
             </div>
 
             <div className="flex flex-wrap items-center gap-2 mb-3">

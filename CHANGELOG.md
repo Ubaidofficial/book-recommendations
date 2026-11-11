@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-11-11 — 3D book covers on book detail pages
+
+### What changed
+- New `Book3D` component (`src/components/Book3D.tsx`): the book page's hero cover is now drawn as a physical book (front cover, spine, page block, top and bottom page edges, back cover, and a contact shadow underneath) using CSS 3D transforms. It adds no dependency and no WebGL.
+- Spine thickness follows `page_count`. The 0.06–0.22 × width range is clamped, and books with an unknown page count get a mid-size spine.
+- The spine is painted with the cover image's own left edge, so its colour matches the book without client-side canvas sampling, which remote covers would block via CORS.
+- Mouse: the book turns toward the pointer (left shows the spine, right shows the page block) and a light sweep follows. Touch: a horizontal drag turns it and vertical scrolling is untouched (`touch-action: pan-y`). Motion is eased in a rAF loop that writes CSS custom properties, so React never re-renders on move.
+- Entrance turn-in and an idle float. Under `prefers-reduced-motion` all motion is off and the book sits still in its angled pose.
+- Grid covers (`BookCard`): a spine-crease shading on every cover, plus a slight turn-on-spine and light sweep on hover. This is CSS only.
+- `books/[slug]/loading.tsx` skeleton resized to the new cover sizes (280px desktop and 190px mobile, down from 300px and 200px) so the swap doesn't jump.
+
+### What did not change
+- The cover is still a real `<img>` with the same alt text and `loading="eager"` + `fetchpriority="high"` on desktop, so LCP, image search and JSON-LD see the same image as before.
+
+### Research behind it
+- Studied GithubAnant/bookshelf (a fork of mintdotgg/bookshelf). It's a three.js scene of roughly 400 KB+ that loads lazily, and it has no license file, so it was used for ideas only and no code was copied. Also studied scastiel/3d-book-image-css-generator (MIT), elishacoad/3d-bookshelf (MIT), mawise/bookshelf (MIT) and gcuddy/3d-bookshelf. For a single book, CSS 3D gives the same effect at near-zero bundle cost.
+
 ## 2026-06-01 — GPT-5 mini post-cover fresh500 promote (415 → 736 drafts)
 
 ### Fresh500 candidate build
