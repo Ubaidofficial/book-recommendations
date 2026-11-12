@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-11-12 — Mega menus, link-rich footer, consensus shelf, thin-page floor
+
+### Header mega menus
+- Books, People and Lists in the header are now menus. Books shows the 8 most-recommended books (small cover, author, recommendation count) and the broad topics. People shows the 12 published people with the most recommendations (photo or initials, book count). Lists shows the 12 "Books recommended by …" lists and the 12 largest "Best … books" lists. Each has an "All …" link.
+- The panels are rendered in the server HTML and only shown or hidden, so every link is a real, crawlable `<a href>` with the book title, person name or list title as its text. Nothing is fetched when a menu opens.
+- Opens on hover with a mouse and on click or Enter. Escape closes it and returns focus to its button, as do a click outside and tabbing out of the panel. Buttons carry `aria-expanded` and `aria-controls`.
+- Below 1024px the menu button opens the existing mobile menu, now with Books, People and Lists as collapsible groups holding the same links.
+- Covers are shown only when the URL is valid and is not one of the Google Books images that turned out not to be a cover: the "image not available" placeholder, a blank grey cover, or a scanned title or praise page (Principles, How to Win Friends and Influence People, The Psychology of Money, Steve Jobs, Thinking, Fast and Slow). Those books get a plain coloured stand-in.
+
+### Footer
+- New link columns: Most recommended books (8), People (8) and Topics (8), above the existing Discover, Info, Legal and Help links. Two columns on phones.
+
+### Homepage: "The books most people agree on"
+- A shelf of the 18 most-recommended books, placed right after the hero. Each spine's height is the book's recommendation count, scaled between the shelf's lowest and highest count. Its thickness follows the page count, and it shows the title along the spine and the count at the top. Spine colours come from a fixed palette chosen by slug, with no image processing.
+- Picking a spine (click, or arrow keys then Enter) shows the book in 3D (`Book3D`) with its count, title, author and a link to its page. The shelf is one tab stop. It scrolls sideways inside its case on small screens, never the page, and has no motion under reduced motion.
+- A "Show this shelf as a list" disclosure gives the same 18 books as a text list, for screen readers and crawlers.
+- Existing homepage sections are unchanged. The hero is a little shorter so the shelf sits higher.
+
+### Shared data and fallbacks
+- `src/lib/siteNav.ts` reads the menu, footer and shelf data in three cached queries (15 minutes), each with `.limit()`. A failed read is never cached. Each section falls back to a dated static snapshot (`src/lib/siteNavFallback.ts`, no covers), so the header, footer and shelf render real links even with the database down. The build passes with the database unreachable.
+
+### Thin-page floor for indexing
+- New pure rules in `src/lib/indexing.ts`, used by the person and book page `robots` metadata and by `sitemap.ts`. A page whose `index_status` is published is still served `noindex, follow` and left out of the sitemap when it is thin:
+  - Person: fewer than 5 recommended books AND no recommendation with a source we would show (`getProofDisplaySafety().showSource`).
+  - Book: no recommenders AND no useful description AND no editorial summary.
+- When the database can't be read, the check fails open and the page keeps its `index_status`, so an outage never de-indexes anything.
+- Measured before shipping with read-only queries: **0** of 52 published people and **0** of 54 published books are affected today. The thinnest published person has 28 recommended books, and the least-recommended published book has 20 recommenders. The rule would catch 775 of the 2,307 unpublished people (for example julie-plec with 1 book, marie-forleo with 2, john-gruber with 4) and at least 73,799 of the 98,846 noindex books, so it guards future publishing. Lists (191) and series (102) are unchanged: none is empty, and the smallest have 15 and 4 books.
+
+### Internal links (unique, server HTML)
+- Homepage: 55 → 105. Person page (Naval Ravikant): 42 → 98. Book page (Zero to One): 41 → 88.
+
 ## 2026-11-12 — Data repairs: covers and misattributed tweet sources
 
 ### Covers (352 books)
