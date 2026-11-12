@@ -38,3 +38,6 @@ scripts/generate_book_editorial_enrichment_v*.py
 
 # QA audit output (regenerate with the scripts in scripts/qa/)
 scripts/qa/output/
+
+# Claude Code agent worktrees (temporary checkouts, never committed)
+.claude/worktrees/
