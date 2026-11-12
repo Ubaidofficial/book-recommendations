@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-11-12 — Book page v4: "Should you read it?"
+
+### What changed on /books/[slug]
+- **Hero.** The 3D book sits beside the title, with a row of facts underneath: how many people recommend it, how many sources we traced, pages, and difficulty. A fact is left out when its value is zero or unknown. The editorial summary follows when the book has one, with the label "Draft reader notes, written with AI help and not yet reviewed by an editor". The Amazon CTA (still `above-fold`) sits next to a "See who said it, and where" button. The sticky left rail is gone: one `Book3D` now serves both layouts (`mobileWidth`), so on phones the hero cover is the eager LCP image as well.
+- **Is it for you?** has two cards, "Read it if you are…" (`best_for`) and "Skip it if…" (`not_for`), plus `key_themes` chips. It always carries the draft label, and it hides when neither list parses. It replaces the old Reading Profile strip, the "Should I read this?" card, the "Read this if / Skip this if" boxes, Before You Buy and Key themes, which repeated the same fields.
+- **Who said it, and where** replaces "Recommendation Signals". Each recommender whose source passes `getProofDisplaySafety` (unchanged) gets a row with a source type (Tweet, Podcast episode, YouTube, Their own website, Interview, Article, Reference page, Other). An "Own source" note appears when the account or site is demonstrably theirs: their own handle, a handle that matches their slug, a hand-checked owned domain, or their name in the host. Each row links "Open source ↗" (`rel="noopener noreferrer nofollow"`). Everyone else appears in a "Source not confirmed yet" list, by name only and with no link.
+- **Who recommends it, by profession.** Bars per profession bucket, from `people.role` and a conservative keyword classifier (`src/lib/roles.ts`). The section also says how many recommenders have no role on file, and it hides when fewer than 3 people are classified.
+- **An unlikely pair.** Among the published recommenders with at least 15 picks, the pair whose shelves overlap least (Jaccard), with the real counts. On Sapiens: Keith Rabois and Richard Branson, 100 and 87 picks, and Sapiens is the only book they share.
+- **Read next.** The books most often recommended by the same people, with "N shared recommenders". Other editions of the same work are skipped, and so are books without a valid cover or slug.
+- The face grid no longer links sources (they were not gated). The "+N more" popover now shows a quote or source only when the gate allows it.
+- Section headings use a serif. The methodology note now says sources are linked only when they can be tied to the person.
+
+### 3D book (`src/components/Book3D.tsx`)
+- Its height follows the cover's real aspect ratio, from the image's natural size or an `aspectRatio` prop, clamped to 1.36–1.62. The stage keeps its 2:3 box and the book stands on its floor, so a ratio that arrives late never shifts the layout. A taller cover rises above the box.
+- Every `Book3D` turns over by default, including the homepage consensus shelf and person-page panels. Pass `flippable={false}` to turn that off.
+- Click without dragging turns the book to its back cover and back again. Press and drag past 6px turns it freely, and on release it settles on the nearer cover. Enter and Space turn it when it has focus, and Escape returns to the front. It has `role="button"`, with `aria-pressed` set to show the back.
+- There's now a back cover with the title, author and "Recommended by N people" (the optional `backTitle`, `backAuthor` and `backNote` props), on a blurred, darkened wash of the cover art.
+- Paper grain on the boards and a warmer, brown contact shadow. The spine is now the cover's left edge blurred into a colour, so the cover lettering no longer shows on it.
+- Motion is still a single rAF loop writing CSS variables, with no React re-render per frame. Under `prefers-reduced-motion` there is no tilt, drag, float or entrance, and a click shows the back without animating. Existing props are unchanged. The front face keeps the real `<img>` with its alt text.
+- New CSS is in a `/* book page v4 */` block at the end of `globals.css`.
+
+### Data (`src/lib/bookInsights.ts`)
+- `getBookInsights(bookId, title)` makes three bounded reads: the book's recommendation rows (≤300), the shelves of up to 120 recommenders (paged, ≤6×1,000 rows), and ≤40 candidate books. It computes everything else in JS. Profileless surname stubs ("Ek", "Kloss") are excluded so nobody is counted twice. Results are cached for 15 minutes. A failed query throws inside the cache, so it is never stored, and the page gets empty sections instead.
+- `src/lib/sourceKind.ts` labels source URLs. It does not decide visibility, which stays with `getProofDisplaySafety`. Its owned-domain map mirrors `DOMAIN_MAP` in `scripts/reattribute_quotes.js`.
+- Self-checks for the role and source classifiers: `node --experimental-strip-types scripts/selfcheck_book_v4.mjs` (55 checks; no test framework added).
+
+### Data caveats
+- Most recommendation rows on popular books still carry a pipe-joined aggregate source. Those fail the gate and are listed as "not confirmed" (67 of 72 on Sapiens).
+- A few `people` rows are not people (for example "Book Recommendations (43 Books)"). They appear in the unconfirmed names list until the data is cleaned.
+
 ## 2026-11-12 — One Amazon button per book card on person pages
 
 - Person pages showed two "View on Amazon" buttons on every recommended book: BookCard's own button, plus a second one the page appended below the card. The extra button is gone. BookCard now gets the book's `amazon_url`, so its single button links to the product page (an Amazon search is the fallback), and it keeps the person page's `people-detail-rec` analytics label through a new optional `trackSection` prop.

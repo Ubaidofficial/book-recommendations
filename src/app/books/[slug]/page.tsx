@@ -5,7 +5,6 @@ import {
   getBookBySlugCached,
   getBooksByAuthor,
   getBooksBySeries,
-  getRecommendationProof,
   getBookRecommenders,
   getListsForBook,
   getSimilarBooksByLists,
@@ -13,8 +12,8 @@ import {
   getSeriesIdBySlug,
   type Book,
   type BookRecommenderSummary,
-  type RecommendationProof,
 } from "@/lib/data";
+import { getBookInsights, EMPTY_INSIGHTS, type BookInsights } from "@/lib/bookInsights";
 import { pageMetadata, bookPageTitle, contentDates } from "@/lib/seo";
 import { detailRobotsDirective } from "@/lib/indexing";
 import { isBookPageThin } from "@/lib/thinPages";
@@ -24,21 +23,22 @@ import {
   isValidHttpUrl,
   isValidRating,
   formatRating,
-  formatConfidence,
   isUsefulDescription,
   cleanDescription,
-  uniqueByNormalizedText,
   parseSourceUrls,
   parseEditorialList,
   sanitizeEditorialText,
-  outboundLinkRel,
   amazonCtaUrl,
-  normalizeOutboundUrl,
   getProofDisplaySafety,
   coverAltText,
-  cleanQuoteText,
 } from "@/lib/dataQuality";
 import { Avatar, Book3D, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
+import { BookSectionHeading, DraftNotesLabel, FactsRow, type Fact } from "@/components/book/primitives";
+import { ReaderFit } from "@/components/book/ReaderFit";
+import { ProfessionBars } from "@/components/book/ProfessionBars";
+import { UnlikelyPair } from "@/components/book/UnlikelyPair";
+import { SourceEvidence } from "@/components/book/SourceEvidence";
+import { ReadNext } from "@/components/book/ReadNext";
 
 // Detail-page cover fallback — calmer than the previous oversized-purple version.
 // Subtle neutral gradient, small icon, readable but non-dominant title, "Cover unavailable" caption.
@@ -135,19 +135,21 @@ export default async function BookDetailPage({ params }: Props) {
 
   let authorBooks: Awaited<ReturnType<typeof getBooksByAuthor>> = [];
   let seriesBooks: Awaited<ReturnType<typeof getBooksBySeries>> = [];
-  let rawProof: Awaited<ReturnType<typeof getRecommendationProof>> = [];
   let lists: Awaited<ReturnType<typeof getListsForBook>> = [];
   let listSimilarBooks: Awaited<ReturnType<typeof getSimilarBooksByLists>> = [];
   let notableRecommenders: BookRecommenderSummary[] = [];
+  let insights: BookInsights = EMPTY_INSIGHTS;
 
   try {
-    [authorBooks, seriesBooks, rawProof, lists, listSimilarBooks, notableRecommenders] = await Promise.all([
+    [authorBooks, seriesBooks, lists, listSimilarBooks, notableRecommenders, insights] = await Promise.all([
       personId ? getBooksByAuthor(personId, 6) : Promise.resolve([]),
       seriesId ? getBooksBySeries(seriesId, 100) : Promise.resolve([]),
-      getRecommendationProof(book.id, 6),
       getListsForBook(book.id, 8),
       getSimilarBooksByLists(book.id, 12),
       getBookRecommenders(book.id, 12),
+      // Source evidence, professions, unlikely pair and read-next. Never
+      // throws; empty sections hide themselves.
+      getBookInsights(book.id, book.title),
     ]);
   } catch (e) {
     console.error("[book-detail] Relation queries failed:", e);
@@ -156,75 +158,10 @@ export default async function BookDetailPage({ params }: Props) {
   // Sanitize junction data — filter out nulls from failed foreign-key joins
   const safeSeriesBooks = seriesBooks.filter((b: Book | null | undefined) => b != null && b.id);
   const safeAuthorBooks = authorBooks.filter((b: Book | null | undefined) => b != null && b.id);
-  const safeProof = rawProof.filter((p: RecommendationProof | null | undefined) => p != null && p.person != null && p.person.id);
 
-  // Trust-signal badge text for the primary (above-fold) Amazon CTA.
-  // Reuses the already-fetched notableRecommenders array (Phase 3 data, sorted
-  // by person-wide rec count desc, top 12). No new DB queries. Returns null
-  // when there are no valid recommender names — in that case the badge
-  // simply does not render.
-  //   1 name  -> "Recommended by <X>"
-  //   2 names -> "Recommended by <X> and <Y>"
-  //   3+      -> "Recommended by <N> notable people, including <X> and <Y>"
-  const notableBadgeText = (() => {
-    const validNames = (notableRecommenders || [])
-      .map((r) => (r && typeof r.person_name === "string" ? r.person_name.trim() : ""))
-      .filter((n) => n.length > 0);
-    if (validNames.length === 0) return null;
-    if (validNames.length === 1) return `Recommended by ${validNames[0]}`;
-    if (validNames.length === 2) return `Recommended by ${validNames[0]} and ${validNames[1]}`;
-    return `Recommended by ${validNames.length} notable people, including ${validNames[0]} and ${validNames[1]}`;
-  })();
-
-  // Apply safety to proof items first
-  const proofWithSafety = safeProof.map((p) => {
-    const safety = getProofDisplaySafety(p, p.person);
-    return { p, safety };
-  });
-
-  // Deduplicate by the actual displayable quote (which is null if not safe).
-  // Only deduplicate if displayQuote is non-null.
-  const dedupedProofWithSafety: typeof proofWithSafety = [];
-  const seenQuotes = new Set<string>();
-  for (const item of proofWithSafety) {
-    const dq = item.safety.displayQuote;
-    if (dq) {
-      const normalized = dq.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (seenQuotes.has(normalized)) {
-        continue;
-      }
-      seenQuotes.add(normalized);
-    }
-    dedupedProofWithSafety.push(item);
-  }
-
-  // Re-rank: prefer quote-backed + source-backed cards. Then cap weak (no-quote, no-source)
-  // entries so the section doesn't look like 6 equally weighty signals when only generic ones exist.
-  const proofScored = dedupedProofWithSafety.map((item) => {
-    const { p, safety } = item;
-    const hasQuote = safety.showQuote;
-    const hasSource = safety.showSource;
-    const conf = typeof p.confidence_score === "number" ? p.confidence_score : 0;
-    const strength = (hasQuote ? 3 : 0) + (hasSource ? 2 : 0);
-    return { p, safety, strength, hasQuote, hasSource, conf };
-  }).sort((a, b) => {
-    if (a.strength !== b.strength) return b.strength - a.strength;
-    return (b.conf || 0) - (a.conf || 0);
-  });
-
-  const strongCount = proofScored.filter((x) => x.strength > 0).length;
-  // Display cap: when 3+ strong signals exist, show up to 6. When 1–2 strong, allow
-  // a few weak as filler (max 4 total). When zero strong, show at most 3 weak.
-  const proofCap = strongCount >= 3 ? 6 : strongCount > 0 ? 4 : 3;
-  const proofItems = proofScored.slice(0, proofCap);
-  const proof = proofItems.map((x) => x.p);
-
-  // Determine proof quality
-  const hasProof = proof.length > 0;
-  const proofWithSource = proofItems.filter((item) => item.safety.showSource);
-  const showVerifiedBadge = proofWithSource.length >= 2;
-  // Conservative labels until DB source quality is audited
-  const proofHeading = "Recommendation Signals";
+  // Sources that passed getProofDisplaySafety (see lib/bookInsights.ts).
+  const confirmedSources = insights.confirmed.length;
+  const showVerifiedBadge = confirmedSources >= 2;
   const bottomBoxTitle = "How recommendation signals are reviewed";
 
   const hasCover = isValidHttpUrl(book.cover_image_url);
@@ -284,27 +221,14 @@ export default async function BookDetailPage({ params }: Props) {
     return candidates[0].b;
   })();
 
-  // Reading-fit strip: parsed up-front so we can decide whether to render the strip.
-  // Themes come from key_themes via the same parser used in the Editorial section,
-  // capped at 2 here to act as a "main vibe" preview (full list still appears below).
-  const fitStripThemes = parseEditorialList(book.key_themes, { maxItems: 2, minLen: 3 })
-    .map((s) => sanitizeEditorialText(s))
-    .filter((s) => s && s.length <= 50);
-  const fitStripDifficulty = (book.difficulty_level || "").trim();
-  // Length bucket: Short (<250) / Medium (250–450) / Long (>450). Renders only when
-  // `book.page_count` is a positive integer. Population is sparse in production
-  // (~113 / 98,845 rows at time of writing) so the badge hides on most pages — that's
-  // expected, not a bug.
+  // Reading facts. page_count is sparse in production, so the pages fact
+  // simply hides on most books; difficulty only exists where the editorial
+  // pipeline ran.
+  const difficulty = (book.difficulty_level || "").trim();
   const rawPageCount =
     typeof book.page_count === "number" && Number.isFinite(book.page_count) && book.page_count > 0
       ? Math.round(book.page_count)
       : null;
-  const lengthBucket: "Short" | "Medium" | "Long" | null = rawPageCount == null
-    ? null
-    : rawPageCount < 250 ? "Short"
-      : rawPageCount > 450 ? "Long"
-        : "Medium";
-  const showFitStrip = !!fitStripDifficulty || fitStripThemes.length > 0 || lengthBucket != null;
 
   // "Why recommended" deterministic summary — no AI, no DB. Uses the existing
   // pre-ranked lists from getListsForBook (topic > narrow > meta > broad) and
@@ -331,9 +255,11 @@ export default async function BookDetailPage({ params }: Props) {
   }
   const whyRecSentence = whyRecParts.length > 0 ? whyRecParts.join(" and ") + "." : null;
 
-  // Editorial parameters parsed up-front for top placements
+  // Editorial (AI-written reader notes). Shown for draft/needs_review/approved
+  // rows; always with a provenance label (DraftNotesLabel).
   const aiStatus = (book.ai_quality_status || "").toLowerCase();
-  const showEditorial = aiStatus && aiStatus !== "rejected" && aiStatus !== "pending";
+  const showEditorial = !!aiStatus && aiStatus !== "rejected" && aiStatus !== "pending";
+  const editorialReviewed = aiStatus === "approved";
 
   const editorialSummary = showEditorial
     ? sanitizeEditorialText((book.editorial_summary || "").trim())
@@ -345,7 +271,7 @@ export default async function BookDetailPage({ params }: Props) {
     ? parseEditorialList(book.not_for, { maxItems: 4, minLen: 8 }).map((s) => sanitizeEditorialText(s)).filter((s): s is string => !!s)
     : [];
   const themesRaw = showEditorial
-    ? parseEditorialList(book.key_themes, { maxItems: 6, minLen: 3 })
+    ? parseEditorialList(book.key_themes, { maxItems: 6, minLen: 3 }).map((s) => sanitizeEditorialText(s)).filter((s) => !!s)
     : [];
 
   // Month + year is enough to date the editorial without implying a precision
@@ -358,17 +284,7 @@ export default async function BookDetailPage({ params }: Props) {
       : d.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   })();
 
-  const summaryHook = editorialSummary || whyRecSentence || "";
-
-  // Before You Buy visibility rules based on at least 2 useful signal groups:
-  // 1) Reading specifications (difficulty level or page count)
-  // 2) Themes group (key themes length > 0)
-  // 3) Audience fit group (best_for or not_for has items)
-  const hasReadingSpecs = !!(fitStripDifficulty || rawPageCount);
-  const hasThemes = themesRaw.length > 0;
   const hasAudienceFit = bestForItems.length > 0 || notForItems.length > 0;
-  const showBeforeYouBuy = ((hasReadingSpecs ? 1 : 0) + (hasThemes ? 1 : 0) + (hasAudienceFit ? 1 : 0)) >= 2;
-  const hasInlineEditorialCtas = (bestForItems.length > 0 || notForItems.length > 0) || showBeforeYouBuy;
 
   const jsonld = bookJsonLd(book, book.slug);
 
@@ -397,6 +313,31 @@ export default async function BookDetailPage({ params }: Props) {
   ].filter((x): x is { q: string; a: string } => !!x);
   const faqJsonLd = faqPageJsonLd(faq);
 
+  // Facts under the title. Zero/unknown values are dropped, never shown as 0.
+  const facts: Fact[] = [
+    recCount > 0 && { value: recCount.toLocaleString(), label: recCount === 1 ? "Person recommends it" : "People recommend it" },
+    confirmedSources > 0 && { value: confirmedSources.toLocaleString(), label: confirmedSources === 1 ? "Source we traced" : "Sources we traced" },
+    rawPageCount != null && { value: rawPageCount.toLocaleString(), label: "Pages" },
+    difficulty && { value: difficulty.charAt(0).toUpperCase() + difficulty.slice(1).toLowerCase(), label: "Difficulty" },
+  ].filter((f): f is Fact => !!f);
+
+  // Long titles step down a size so the H1 never dominates the hero.
+  const h1Size =
+    bookTitle.length > 60
+      ? "text-3xl md:text-4xl"
+      : bookTitle.length > 28
+        ? "text-4xl md:text-5xl"
+        : "text-[44px] md:text-6xl lg:text-[68px]";
+
+  const personLink = (slug: string | null | undefined, name: string, cls = "font-semibold text-ink hover:text-accent hover:underline") =>
+    slug ? (
+      <Link href={`/people/${slug}`} className={cls}>
+        {name}
+      </Link>
+    ) : (
+      <span className="font-semibold text-ink">{name}</span>
+    );
+
   // Social Proof Summary Row
   const socialProofRow = (() => {
     const validRecs = (notableRecommenders || [])
@@ -407,7 +348,7 @@ export default async function BookDetailPage({ params }: Props) {
     const remainingCount = validRecs.length - 2;
 
     return (
-      <div className="flex items-center gap-3 mb-4 flex-wrap text-xs md:text-sm text-muted">
+      <div className="flex items-center gap-3 flex-wrap text-xs md:text-sm text-muted">
         <div className="flex -space-x-2 shrink-0">
           {cluster.map((r, idx) => {
             const hasAvatar = isValidHttpUrl(r.avatar_url);
@@ -445,64 +386,38 @@ export default async function BookDetailPage({ params }: Props) {
 
         <span className="leading-relaxed">
           Recommended by{" "}
-          {validRecs.length === 1 && (
-            validRecs[0].person_slug ? (
-              <Link href={`/people/${validRecs[0].person_slug}`} className="font-semibold text-ink hover:text-accent hover:underline">
-                {validRecs[0].person_name}
-              </Link>
-            ) : (
-              <span className="font-semibold text-ink">{validRecs[0].person_name}</span>
-            )
-          )}
+          {validRecs.length === 1 && personLink(validRecs[0].person_slug, validRecs[0].person_name)}
           {validRecs.length === 2 && (
             <>
-              {validRecs[0].person_slug ? (
-                <Link href={`/people/${validRecs[0].person_slug}`} className="font-semibold text-ink hover:text-accent hover:underline">
-                  {validRecs[0].person_name}
-                </Link>
-              ) : (
-                <span className="font-semibold text-ink">{validRecs[0].person_name}</span>
-              )}
+              {personLink(validRecs[0].person_slug, validRecs[0].person_name)}
               {" and "}
-              {validRecs[1].person_slug ? (
-                <Link href={`/people/${validRecs[1].person_slug}`} className="font-semibold text-ink hover:text-accent hover:underline">
-                  {validRecs[1].person_name}
-                </Link>
-              ) : (
-                <span className="font-semibold text-ink">{validRecs[1].person_name}</span>
-              )}
+              {personLink(validRecs[1].person_slug, validRecs[1].person_name)}
             </>
           )}
           {validRecs.length >= 3 && (
             <>
-              {validRecs[0].person_slug ? (
-                <Link href={`/people/${validRecs[0].person_slug}`} className="font-semibold text-ink hover:text-accent hover:underline">
-                  {validRecs[0].person_name}
-                </Link>
-              ) : (
-                <span className="font-semibold text-ink">{validRecs[0].person_name}</span>
-              )}
+              {personLink(validRecs[0].person_slug, validRecs[0].person_name)}
               {", "}
-              {validRecs[1].person_slug ? (
-                <Link href={`/people/${validRecs[1].person_slug}`} className="font-semibold text-ink hover:text-accent hover:underline">
-                  {validRecs[1].person_name}
-                </Link>
-              ) : (
-                <span className="font-semibold text-ink">{validRecs[1].person_name}</span>
-              )}
+              {personLink(validRecs[1].person_slug, validRecs[1].person_name)}
               {" + "}
               <details className="relative inline group/popover recommenders-popover">
                 <summary className="list-none inline cursor-pointer font-semibold text-accent hover:text-accent-hover hover:underline focus:outline-none select-none [&::-webkit-details-marker]:hidden">
                   {remainingCount} more
                 </summary>
                 <div className="absolute left-1/2 -translate-x-1/2 md:translate-x-0 md:left-0 top-full mt-2 z-30 w-80 max-w-[90vw] rounded-xl border border-border bg-surface shadow-xl p-3 space-y-2.5 text-left font-normal text-xs md:text-sm text-ink">
-                  <p className="font-bold text-ink border-b border-border pb-1.5 mb-1.5">More Recommenders</p>
+                  <p className="font-bold text-ink border-b border-border pb-1.5 mb-1.5">More recommenders</p>
                   <div className="max-h-60 overflow-y-auto space-y-3 pr-1">
                     {validRecs.slice(2).map((r, idx) => {
                       const initials = (r.person_name || "?").charAt(0);
                       const hasAvatar = isValidHttpUrl(r.avatar_url);
-                      // Do not use aggregate URLs or metadata links in popover
-                      const firstSource = r.source_url && !r.source_url.includes("|") ? parseSourceUrls(r.source_url)[0] : null;
+                      // Same gate as "Who said it, and where": a quote or
+                      // source only appears when getProofDisplaySafety allows
+                      // it (no aggregates, no other people's tweets).
+                      const safety = getProofDisplaySafety(
+                        { quote: r.quote, source_url: r.source_url, confidence_score: r.confidence_score },
+                        { slug: r.person_slug, name: r.person_name, twitter_handle: r.twitter_handle },
+                      );
+                      const firstSource = safety.showSource ? parseSourceUrls(r.source_url)[0] : null;
                       return (
                         <div key={idx} className="flex gap-2.5 items-start">
                           <div className="w-7 h-7 rounded-full bg-subtle shrink-0 border border-border overflow-hidden flex items-center justify-center">
@@ -526,19 +441,19 @@ export default async function BookDetailPage({ params }: Props) {
                               )}
                             </div>
                             {r.role && <p className="text-[10px] text-muted truncate mt-0.5">{r.role}</p>}
-                            {r.quote && !r.quote.includes("|") && (
+                            {safety.displayQuote && (
                               <p className="text-[11px] text-muted/80 leading-relaxed italic border-l border-accent/20 pl-2 mt-1 line-clamp-2">
-                                &ldquo;{cleanQuoteText(r.quote)}&rdquo;
+                                &ldquo;{safety.displayQuote}&rdquo;
                               </p>
                             )}
                             {firstSource && (
                               <a
                                 href={firstSource}
                                 target="_blank"
-                                rel={outboundLinkRel(firstSource)}
+                                rel="noopener noreferrer nofollow"
                                 className="text-[10px] text-accent hover:underline inline-block mt-1 font-semibold"
                               >
-                                Source →
+                                Source ↗
                               </a>
                             )}
                           </div>
@@ -547,11 +462,8 @@ export default async function BookDetailPage({ params }: Props) {
                     })}
                   </div>
                   <div className="border-t border-border pt-2 text-center">
-                    <a
-                      href="#proof-signals"
-                      className="text-xs text-accent font-semibold hover:underline"
-                    >
-                      View full proof ({validRecs.length} signals) ↓
+                    <a href="#evidence" className="text-xs text-accent font-semibold hover:underline">
+                      See who said it, and where ↓
                     </a>
                   </div>
                 </div>
@@ -563,11 +475,76 @@ export default async function BookDetailPage({ params }: Props) {
     );
   })();
 
+  const amazonIcon = (
+    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+    </svg>
+  );
+
+  const seriesNav = hasSeries && safeSeriesBooks.length > 0 ? (() => {
+    const currentIndex = safeSeriesBooks.findIndex((b) => b.id === book.id);
+    if (currentIndex === -1) return null;
+    const position = currentIndex + 1;
+    const total = safeSeriesBooks.length;
+    const prevBook = currentIndex > 0 ? safeSeriesBooks[currentIndex - 1] : null;
+    const nextBook = currentIndex < total - 1 ? safeSeriesBooks[currentIndex + 1] : null;
+    const firstBook = safeSeriesBooks[0];
+    const isNotFirst = currentIndex > 0;
+    const navItem = (b: Book, dir: "prev" | "next") => {
+      const label = dir === "prev" ? "← Previous book" : "Next book →";
+      const align = dir === "prev" ? "text-left" : "text-right";
+      const inner = (
+        <>
+          <span className={`text-muted font-medium ${dir === "next" ? "justify-end" : ""} flex items-center gap-1 group-hover:text-accent`}>{label}</span>
+          <span className="font-semibold text-ink truncate max-w-full block">{displayBookTitle(b.title)}</span>
+        </>
+      );
+      return isValidSlug(b.slug) ? (
+        <Link href={`/books/${b.slug}`} className={`group flex flex-col gap-0.5 ${align} hover:opacity-85 min-w-0`}>
+          {inner}
+        </Link>
+      ) : (
+        <div className={`group flex flex-col gap-0.5 ${align} min-w-0`}>{inner}</div>
+      );
+    };
+
+    return (
+      <div className="flex flex-col gap-3 p-4 rounded-xl border border-border bg-surface/70 max-w-xl">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-ink">
+            Book {position} of {total} in{" "}
+            {isValidSlug(book.series_slug) ? (
+              <Link href={`/series/${book.series_slug}`} className="text-accent hover:underline">
+                {displayTitle(book.series!)}
+              </Link>
+            ) : (
+              <span className="text-accent font-semibold">{displayTitle(book.series!)}</span>
+            )}
+          </span>
+          {isNotFirst && firstBook && isValidSlug(firstBook.slug) && (
+            <Link
+              href={`/books/${firstBook.slug}`}
+              className="text-xs font-bold text-accent hover:text-accent/80 bg-accent-light px-2 py-1 rounded"
+            >
+              Start series here
+            </Link>
+          )}
+        </div>
+        {(prevBook || nextBook) && (
+          <div className="grid grid-cols-2 gap-4 border-t border-border/40 pt-3 text-xs">
+            {prevBook ? navItem(prevBook, "prev") : <div />}
+            {nextBook ? navItem(nextBook, "next") : <div />}
+          </div>
+        )}
+      </div>
+    );
+  })() : null;
+
   return (
-    <div className="relative w-full py-8 pb-28 lg:pb-8">
+    <div className="relative w-full py-8 pb-28 lg:pb-8 overflow-x-clip">
       {/* Full-width blurred cover-art band behind hero */}
       {hasCover && (
-        <div className="absolute inset-x-0 top-0 h-[280px] lg:h-[420px] -z-10 pointer-events-none select-none overflow-hidden" aria-hidden="true">
+        <div className="absolute inset-x-0 top-0 h-[320px] lg:h-[480px] -z-10 pointer-events-none select-none overflow-hidden" aria-hidden="true">
           <img
             src={book.cover_image_url}
             alt=""
@@ -578,247 +555,80 @@ export default async function BookDetailPage({ params }: Props) {
         </div>
       )}
 
-      {/* Main page content wrapper */}
-      <div className="max-w-7xl mx-auto px-4 md:px-6">
+      <div className="max-w-6xl mx-auto px-4 md:px-6">
         {jsonld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />}
         {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />}
-        <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Books", href: "/books" }, { label: displayBookTitle(book.title) }]} />
+        <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Books", href: "/books" }, { label: bookTitle }]} />
 
-        {/* Full-page sticky sidebar grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-8 lg:gap-12 items-start mt-6">
-          
-          {/* Left sticky rail (desktop only) */}
-          <aside className="hidden lg:flex lg:flex-col lg:sticky lg:top-24 lg:self-start lg:w-[320px] gap-5 shrink-0">
+        {/* ── Hero: the book as an object, then "should you read it?" ── */}
+        <section className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 lg:gap-14 items-center mt-4 lg:mt-8 mb-16">
+          <div className="flex flex-col items-center pt-6">
             {/* The cover as a 3D object. Book3D keeps a real <img> with the
-                same alt on its front face, so LCP and image search see exactly
-                what the flat cover gave them. Extra bottom margin leaves room
-                for the contact shadow under the book. */}
-            <div className="mx-auto mt-2 mb-6">
-              <Book3D
-                src={hasCover ? book.cover_image_url : ""}
-                alt={coverAltText(book.title, book.author)}
-                width={280}
-                pageCount={book.page_count}
-                // The book's own cover is this page's largest contentful
-                // paint. Covers are lazy by default for grids; the hero is the
-                // one image that must not wait.
-                loading="eager"
-                fallback={<DetailCoverFallback title={displayBookTitle(book.title)} />}
-              />
-            </div>
-            {normalizedAmazonUrl && (
-              <div className="w-[300px] mx-auto text-center p-4.5 rounded-2xl border border-amber-200/60 bg-amber-50/15 shadow-[0_8px_30px_rgba(245,158,11,0.04)]">
-                <a
-                  href={normalizedAmazonUrl}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow sponsored"
-                  data-track-slug={book.slug}
-                  data-track-section="above-fold"
-                  data-track-label="Check price on Amazon"
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold shadow-sm motion-btn-cta"
-                >
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                  Check price on Amazon
-                </a>
-                {book.recommendation_count > 0 && (
-                  <p className="mt-3 text-xs font-bold text-accent" data-track-context="above-fold-trust-badge">
-                    Recommended by {book.recommendation_count.toLocaleString()} sources
-                  </p>
-                )}
-                {proofWithSource.length > 0 ? (
-                  <p className="mt-1.5 text-[11px] text-muted font-medium leading-normal">
-                    Proof-backed recommendation
-                  </p>
-                ) : book.recommendation_count > 0 ? (
-                  <p className="mt-1.5 text-[11px] text-muted font-medium leading-normal">
-                    Recommended by public sources
-                  </p>
-                ) : null}
-                <p className="mt-0.5 text-[11px] text-muted font-medium leading-normal">
-                  Amazon availability
-                </p>
-                <a
-                  href={normalizedAmazonUrl}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow sponsored"
-                  data-track-slug={book.slug}
-                  data-track-section="above-fold"
-                  data-track-label="See customer reviews on Amazon"
-                  className="mt-3 inline-flex items-center gap-1 text-[11px] font-semibold text-accent hover:text-accent-hover hover:underline"
-                >
-                  See customer reviews on Amazon →
-                </a>
-              </div>
-            )}
-          </aside>
+                same alt on its front face, so LCP and image search see the same
+                image a flat cover gave them. One instance serves both layouts
+                (mobileWidth), so the hero image is eager on phones too. */}
+            <Book3D
+              src={hasCover ? book.cover_image_url : ""}
+              alt={coverAltText(book.title, book.author)}
+              width={240}
+              mobileWidth={176}
+              pageCount={book.page_count}
+              loading="eager"
+              fallback={<DetailCoverFallback title={bookTitle} />}
+              backTitle={bookTitle}
+              backAuthor={hasAuthor ? book.author : undefined}
+              backNote={recCount > 0 ? `Recommended by ${recCount.toLocaleString()} ${recCount === 1 ? "person" : "people"}` : undefined}
+            />
+            <p className="mt-9 text-xs text-muted select-none">Drag to turn it · click for the back cover</p>
+          </div>
 
-          {/* Right scrolling column */}
-          <div className="min-w-0">
-            {/* Mobile/Tablet Cover (hidden on desktop) */}
-            <div className="mb-10 flex justify-center lg:hidden">
-              <Book3D
-                src={hasCover ? book.cover_image_url : ""}
-                alt={coverAltText(book.title, book.author)}
-                width={190}
-                pageCount={book.page_count}
-                fallback={<DetailCoverFallback title={displayBookTitle(book.title)} />}
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="min-w-0 flex flex-col gap-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-accent">Should you read it?</span>
               {showRating && (
                 <span
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold"
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-accent-light text-accent text-xs font-semibold"
                   title="BookMentions recommendation score — not an Amazon or Goodreads rating"
                 >
                   {formatRating(book.rating)} rec. score
                 </span>
               )}
-              {book.recommendation_count > 0 && (
-                <span className="text-sm text-muted">{book.recommendation_count.toLocaleString()} recommendations</span>
-              )}
               {showVerifiedBadge && (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-subtle border border-border text-xs text-muted font-medium">
-                  <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface border border-border text-xs text-muted font-medium">
+                  <svg className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
-                  Verified
+                  Sources linked
                 </span>
               )}
             </div>
 
-            <h1 className="text-2xl md:text-4xl font-bold text-ink mb-2 tracking-tight">{displayBookTitle(book.title)}</h1>
-            {book.subtitle && <p className="text-base text-muted mb-2">{book.subtitle}</p>}
+            <div>
+              <h1 className={`font-serif font-medium text-ink tracking-tight leading-[1.05] break-words ${h1Size}`}>{bookTitle}</h1>
+              {book.subtitle && <p className="mt-3 text-base md:text-lg text-muted">{book.subtitle}</p>}
+              {hasAuthor && (
+                <p className="mt-3 text-base md:text-lg text-muted">
+                  by <span className="text-ink font-medium">{book.author}</span>
+                </p>
+              )}
+              <LastUpdated modified={contentDates(book).modified} className="text-xs text-muted mt-2" />
+            </div>
 
-            {hasAuthor && (
-              <p className="text-base text-muted mb-4">
-                by <span className="text-accent font-semibold">{book.author}</span>
-              </p>
-            )}
-            <LastUpdated modified={contentDates(book).modified} className="text-xs text-muted -mt-2 mb-4" />
+            <FactsRow facts={facts} />
+
+            {editorialSummary ? (
+              <div className="flex flex-col gap-3">
+                <p className="text-[15px] md:text-base text-ink/90 leading-relaxed max-w-2xl">{editorialSummary}</p>
+                <DraftNotesLabel reviewed={editorialReviewed} />
+              </div>
+            ) : whyRecSentence ? (
+              <p className="text-[15px] md:text-base text-ink/90 leading-relaxed max-w-2xl">{whyRecSentence}</p>
+            ) : null}
 
             {socialProofRow}
 
-            {hasSeries && safeSeriesBooks.length > 0 && (() => {
-              const currentIndex = safeSeriesBooks.findIndex((b) => b.id === book.id);
-              if (currentIndex === -1) return null;
-              const position = currentIndex + 1;
-              const total = safeSeriesBooks.length;
-              const prevBook = currentIndex > 0 ? safeSeriesBooks[currentIndex - 1] : null;
-              const nextBook = currentIndex < total - 1 ? safeSeriesBooks[currentIndex + 1] : null;
-              const firstBook = safeSeriesBooks[0];
-              const isNotFirst = currentIndex > 0;
-
-              return (
-                <div className="flex flex-col gap-3 p-4 rounded-xl border border-border bg-subtle/25 mb-5 max-w-xl">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-accent shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                      </svg>
-                      <span className="text-sm font-semibold text-ink">
-                        Book {position} of {total} in{" "}
-                        {isValidSlug(book.series_slug) ? (
-                          <Link href={`/series/${book.series_slug}`} className="text-accent hover:underline">
-                            {displayTitle(book.series!)}
-                          </Link>
-                        ) : (
-                          <span className="text-accent font-semibold">{displayTitle(book.series!)}</span>
-                        )}
-                      </span>
-                    </div>
-                    {isNotFirst && firstBook && isValidSlug(firstBook.slug) && (
-                      <Link
-                        href={`/books/${firstBook.slug}`}
-                        className="text-xs font-bold text-accent hover:text-accent/80 flex items-center gap-1 bg-accent-light px-2 py-1 rounded"
-                      >
-                        Start series here
-                      </Link>
-                    )}
-                  </div>
-
-                  {(prevBook || nextBook) && (
-                    <div className="grid grid-cols-2 gap-4 border-t border-border/40 pt-3 text-xs">
-                      {prevBook ? (
-                        isValidSlug(prevBook.slug) ? (
-                          <Link
-                            href={`/books/${prevBook.slug}`}
-                            className="group flex flex-col gap-0.5 text-left hover:opacity-85"
-                          >
-                            <span className="text-muted font-medium flex items-center gap-1 group-hover:text-accent">
-                              ← Previous Book
-                            </span>
-                            <span className="font-semibold text-ink truncate max-w-full">
-                              {displayBookTitle(prevBook.title)}
-                            </span>
-                          </Link>
-                        ) : (
-                          <div className="group flex flex-col gap-0.5 text-left">
-                            <span className="text-muted font-medium flex items-center gap-1">
-                              ← Previous Book
-                            </span>
-                            <span className="font-semibold text-ink truncate max-w-full">
-                              {displayBookTitle(prevBook.title)}
-                            </span>
-                          </div>
-                        )
-                      ) : (
-                        <div />
-                      )}
-
-                      {nextBook ? (
-                        isValidSlug(nextBook.slug) ? (
-                          <Link
-                            href={`/books/${nextBook.slug}`}
-                            className="group flex flex-col gap-0.5 text-right hover:opacity-85"
-                          >
-                            <span className="text-muted font-medium flex items-center justify-end gap-1 group-hover:text-accent">
-                              Next Book →
-                            </span>
-                            <span className="font-semibold text-ink truncate max-w-full block">
-                              {displayBookTitle(nextBook.title)}
-                            </span>
-                          </Link>
-                        ) : (
-                          <div className="group flex flex-col gap-0.5 text-right">
-                            <span className="text-muted font-medium flex items-center justify-end gap-1">
-                              Next Book →
-                            </span>
-                            <span className="font-semibold text-ink truncate max-w-full block">
-                              {displayBookTitle(nextBook.title)}
-                            </span>
-                          </div>
-                        )
-                      ) : (
-                        <div />
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-
-            {normalizedAmazonUrl && (
-              <div className="mb-6 lg:hidden">
-                {notableBadgeText && (
-                  <p
-                    className="mb-2 text-xs font-medium text-ink/80 flex items-start gap-1.5"
-                    data-track-context="above-fold-trust-badge"
-                  >
-                    <svg
-                      className="w-3.5 h-3.5 shrink-0 mt-0.5 text-accent"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>{notableBadgeText}</span>
-                  </p>
-                )}
+            <div className="flex flex-wrap items-center gap-3">
+              {normalizedAmazonUrl && (
                 <a
                   href={normalizedAmazonUrl}
                   target="_blank"
@@ -826,25 +636,29 @@ export default async function BookDetailPage({ params }: Props) {
                   data-track-slug={book.slug}
                   data-track-section="above-fold"
                   data-track-label="Check price on Amazon"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold shadow-sm motion-btn-cta"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold shadow-sm motion-btn-cta"
                 >
-                  <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
+                  {amazonIcon}
                   Check price on Amazon
                 </a>
-                {proofWithSource.length > 0 ? (
-                  <p className="mt-2 text-[11px] text-muted font-medium leading-normal">
-                    Proof-backed recommendation
-                  </p>
-                ) : book.recommendation_count > 0 ? (
-                  <p className="mt-2 text-[11px] text-muted font-medium leading-normal">
-                    Recommended by public sources
-                  </p>
-                ) : null}
-                <p className="mt-0.5 text-[11px] text-muted font-medium leading-normal">
-                  Amazon availability
-                </p>
+              )}
+              {(insights.confirmed.length > 0 || insights.unconfirmed.length > 0) && (
+                <a
+                  href="#evidence"
+                  className="inline-flex items-center justify-center px-5 py-3 rounded-xl border border-border bg-surface text-sm font-semibold text-ink hover:border-accent/40 hover:text-accent transition-colors"
+                >
+                  See who said it, and where
+                </a>
+              )}
+            </div>
+            {normalizedAmazonUrl && (
+              <p className="-mt-2 text-[11px] text-muted leading-normal" data-track-context="above-fold-trust-badge">
+                {confirmedSources > 0
+                  ? `${confirmedSources.toLocaleString()} recommendation source${confirmedSources === 1 ? "" : "s"} linked below`
+                  : recCount > 0
+                    ? "Recommended by public sources"
+                    : "Amazon availability"}
+                {" · "}
                 <a
                   href={normalizedAmazonUrl}
                   target="_blank"
@@ -852,545 +666,126 @@ export default async function BookDetailPage({ params }: Props) {
                   data-track-slug={book.slug}
                   data-track-section="above-fold"
                   data-track-label="See customer reviews on Amazon"
-                  className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-semibold text-accent hover:text-accent-hover hover:underline"
+                  className="font-semibold text-accent hover:text-accent-hover hover:underline"
                 >
                   See customer reviews on Amazon →
                 </a>
-              </div>
+              </p>
             )}
 
-
-          {/* Reading Profile Widget */}
-          {showFitStrip && (() => {
-            const diffVal = (fitStripDifficulty || "").toLowerCase();
-            const diffBars = diffVal === "easy" ? 1 : diffVal === "medium" ? 2 : diffVal === "hard" || diffVal === "advanced" || diffVal === "complex" ? 3 : 0;
-            return (
-              <div className="rounded-xl border border-border bg-subtle/35 p-4 mb-6">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-muted mb-3">Reading Profile</h2>
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
-                  {fitStripDifficulty && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-muted text-xs">Difficulty:</span>
-                      <span className="font-semibold text-ink capitalize">{fitStripDifficulty}</span>
-                      <div className="flex gap-0.5 items-center select-none" aria-hidden="true">
-                        <span className={`w-2.5 h-1.5 rounded-sm ${diffBars >= 1 ? "bg-accent" : "bg-border"}`} />
-                        <span className={`w-2.5 h-1.5 rounded-sm ${diffBars >= 2 ? "bg-accent" : "bg-border"}`} />
-                        <span className={`w-2.5 h-1.5 rounded-sm ${diffBars >= 3 ? "bg-accent" : "bg-border"}`} />
-                      </div>
-                    </div>
-                  )}
-                  {lengthBucket && rawPageCount != null && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-muted text-xs">Length:</span>
-                      <span className="font-semibold text-ink">{lengthBucket}</span>
-                      <span className="text-muted text-xs">({rawPageCount.toLocaleString()} pages)</span>
-                    </div>
-                  )}
-                  {fitStripThemes.length > 0 && (
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-muted text-xs mr-0.5">Themes:</span>
-                      {fitStripThemes.map((theme, i) => (
-                        <span
-                          key={i}
-                          className="px-2 py-0.5 rounded-full bg-accent-light text-accent text-xs font-semibold"
-                        >
-                          {theme}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Should I read this summary card */}
-          {summaryHook && (
-            <div className="rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50/60 to-white p-4 mb-6 shadow-sm">
-              <h2 className="text-xs font-bold text-amber-900 mb-2 uppercase tracking-wider flex items-center gap-1.5">
-                <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
-                </svg>
-                Should I read this?
-              </h2>
-              <p className="text-sm md:text-base text-ink leading-relaxed font-medium">
-                {summaryHook}
-              </p>
-            </div>
-          )}
-
-          {/* Read this if / Skip this if */}
-          {(bestForItems.length > 0 || notForItems.length > 0) && (
-            <div className="mb-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                {bestForItems.length > 0 && (
-                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/20 p-4">
-                    <h2 className="text-xs font-bold text-emerald-900 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
-                      <svg className="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Read this if...
-                    </h2>
-                    <ul className="space-y-1.5">
-                      {bestForItems.map((item, i) => (
-                        <li key={i} className="text-xs md:text-sm text-ink/85 leading-relaxed flex gap-2">
-                          <span className="text-emerald-500 shrink-0 select-none">•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {notForItems.length > 0 && (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50/30 p-4">
-                    <h2 className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-1.5 uppercase tracking-wider">
-                      <svg className="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                      Skip this if...
-                    </h2>
-                    <ul className="space-y-1.5">
-                      {notForItems.map((item, i) => (
-                        <li key={i} className="text-xs md:text-sm text-muted leading-relaxed flex gap-2">
-                          <span className="text-muted/40 shrink-0 select-none">•</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-
-              {/*
-                Provenance disclosure.
-
-                This editorial is machine-generated and carries
-                ai_quality_status "draft" — accurate, because no human has
-                signed it off. The records read well and check out factually
-                on inspection, but publishing them silently asks the reader to
-                assume an editor stood behind them. Saying so plainly is the
-                honest position and the one Google's guidance asks for: the
-                test is whether content is helpful and its origin is not
-                misrepresented, not whether a machine wrote it.
-
-                Rendered only where that editorial actually appears, so pages
-                without it make no claim either way.
-              */}
-              <p className="text-xs text-muted/70 leading-relaxed">
-                {`This summary and audience guidance are AI-generated from the book's description and its recommendation history${
-                  aiGeneratedLabel ? `, last updated ${aiGeneratedLabel}` : ""
-                }. Recommendations, quotes and sources elsewhere on this page come from published material and are not generated.`}
-              </p>
-
-              {normalizedAmazonUrl && (
-                <div className="flex justify-start">
-                  <a
-                    href={normalizedAmazonUrl}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow sponsored"
-                    data-track-slug={book.slug}
-                    data-track-section="audience-fit"
-                    // data-track-label intentionally preserved as the
-                    // original "Check formats on Amazon" string so the
-                    // existing analytics CTR series stays continuous
-                    // across this copy-only refresh. Visible button text
-                    // below is the new intent-driven copy.
-                    data-track-label="Check formats on Amazon"
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold motion-btn-cta"
-                  >
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                    </svg>
-                    See formats and current price on Amazon
-                  </a>
-                </div>
-              )}
-            </div>
-          )}
-
-          {showDescription && (
-            <div className="prose prose-base text-muted max-w-none leading-relaxed">
-              <p>{descriptionText}</p>
-            </div>
-          )}
-
-          {/* Mid-page fallback CTA for books with missing editorial inline sections */}
-          {!hasInlineEditorialCtas && normalizedAmazonUrl && (
-            <div className="my-8 p-6 rounded-2xl border border-amber-200/60 bg-amber-50/15 shadow-[0_8px_30px_rgba(245,158,11,0.02)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="space-y-1">
-                <h2 className="text-sm font-bold text-ink">
-                  Looking for Kindle, hardcover, paperback, or audiobook editions?
-                </h2>
-                <p className="text-xs text-muted">
-                  Check formats, pricing, and current availability directly.
-                </p>
-              </div>
-              <a
-                href={normalizedAmazonUrl}
-                target="_blank"
-                rel="noopener noreferrer nofollow sponsored"
-                data-track-slug={book.slug}
-                data-track-section="book-fallback"
-                data-track-label="Check availability on Amazon"
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-semibold shrink-0 motion-btn-cta"
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-                Check availability on Amazon
-              </a>
-            </div>
-          )}
-
-      {/* Before you buy section */}
-      {showBeforeYouBuy && (
-        <section className="mb-14 rounded-2xl border border-border bg-surface p-6 md:p-8">
-          <h2 className="text-xl font-bold text-ink mb-6 tracking-tight flex items-center gap-2">
-            <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            Before You Buy
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              {/* Quick Profile Indicators */}
-              {(fitStripDifficulty || rawPageCount || themesRaw.length > 0) && (
-                <div className="space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted">Reading Specifications</h3>
-                  <div className="space-y-2 text-sm">
-                    {fitStripDifficulty && (
-                      <p className="flex items-center gap-2 text-ink">
-                        <span className="text-muted w-20 shrink-0">Difficulty:</span>
-                        <span className="font-semibold capitalize">{fitStripDifficulty}</span>
-                      </p>
-                    )}
-                    {rawPageCount && (
-                      <p className="flex items-center gap-2 text-ink">
-                        <span className="text-muted w-20 shrink-0">Length:</span>
-                        <span className="font-semibold">{rawPageCount.toLocaleString()} pages ({lengthBucket})</span>
-                      </p>
-                    )}
-                    {themesRaw.length > 0 && (
-                      <div className="flex items-start gap-2 text-ink">
-                        <span className="text-muted w-20 shrink-0">Themes:</span>
-                        <div className="flex flex-wrap gap-1">
-                          {themesRaw.slice(0, 3).map((t, idx) => (
-                            <span key={idx} className="bg-subtle text-ink text-xs px-2 py-0.5 rounded">
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              {/* Read this if / Skip this if list if exists */}
-              {(bestForItems.length > 0 || notForItems.length > 0) && (
-                <div className="space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted">Audience Fit</h3>
-                  <div className="space-y-2.5">
-                    {bestForItems.length > 0 && (
-                      <div>
-                        <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block mb-1">Recommended for:</span>
-                        <ul className="text-xs text-ink/90 space-y-1 pl-4 list-disc">
-                          {bestForItems.slice(0, 3).map((item, i) => (
-                            <li key={i}>{item}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {notForItems.length > 0 && (
-                      <div>
-                        <span className="text-[10px] font-bold text-gray-700 uppercase tracking-wider block mb-1">Not ideal if you want:</span>
-                        <ul className="text-xs text-muted space-y-1 pl-4 list-disc">
-                          {notForItems.slice(0, 3).map((item, i) => (
-                            <li key={i}>{item}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            {seriesNav}
           </div>
+        </section>
 
-          {normalizedAmazonUrl && (
-            <div className="mt-6 pt-6 border-t border-border/60 flex flex-wrap items-center justify-between gap-4">
-              <p className="text-xs text-muted max-w-md">
-                Check formats, pricing, and availability options for Kindle, physical print, or audiobooks directly.
-              </p>
+        <ReaderFit
+          bestFor={bestForItems}
+          notFor={notForItems}
+          themes={themesRaw}
+          reviewed={editorialReviewed}
+          dated={aiGeneratedLabel ? `generated ${aiGeneratedLabel}` : undefined}
+          cta={
+            normalizedAmazonUrl ? (
               <a
                 href={normalizedAmazonUrl}
                 target="_blank"
                 rel="noopener noreferrer nofollow sponsored"
                 data-track-slug={book.slug}
-                data-track-section="before-you-buy"
+                data-track-section="audience-fit"
                 // data-track-label intentionally preserved as the original
-                // "Check price on Amazon" string so analytics CTR series
-                // stays continuous across this copy-only refresh. Visible
-                // button text below differentiates from the primary
-                // above-fold CTA (which still says "Check price on
-                // Amazon") so the two don't look like duplicates.
-                data-track-label="Check price on Amazon"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold shadow-sm motion-btn-cta"
+                // "Check formats on Amazon" string so the analytics CTR
+                // series stays continuous across copy changes.
+                data-track-label="Check formats on Amazon"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold motion-btn-cta"
               >
-                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-                View available editions on Amazon
+                {amazonIcon}
+                See formats and current price on Amazon
               </a>
+            ) : undefined
+          }
+        />
+
+        {showDescription && (
+          <section className="mb-16 max-w-3xl" aria-labelledby="about-book">
+            <h2 id="about-book" className="font-serif text-[22px] md:text-2xl font-medium text-ink tracking-tight mb-3">About the book</h2>
+            <p className="text-[15px] text-muted leading-relaxed">{descriptionText}</p>
+          </section>
+        )}
+
+        {/* Mid-page fallback CTA for books without reader notes */}
+        {!hasAudienceFit && normalizedAmazonUrl && (
+          <div className="mb-16 p-6 rounded-2xl border border-amber-200/60 bg-amber-50/15 shadow-[0_8px_30px_rgba(245,158,11,0.02)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="space-y-1">
+              <h2 className="text-sm font-bold text-ink">
+                Looking for Kindle, hardcover, paperback, or audiobook editions?
+              </h2>
+              <p className="text-xs text-muted">
+                Check formats, pricing, and current availability directly.
+              </p>
             </div>
-          )}
-        </section>
-      )}
-
-      {/* Editorial Themes — relocated summary and lists to the top to improve quick fit evaluation */}
-      {showEditorial && themesRaw.length > 0 && (
-        <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-3 tracking-tight">Key themes</h2>
-          <div className="flex flex-wrap gap-1.5">
-            {themesRaw.map((full, i) => {
-              const MAX_CHIP_CHARS = 50;
-              const truncated = full.length > MAX_CHIP_CHARS;
-              const shown = truncated ? full.slice(0, MAX_CHIP_CHARS - 1).trimEnd() + "…" : full;
-              return (
-                <span
-                  key={i}
-                  className="inline-flex items-center px-2.5 py-1 rounded-full bg-subtle text-ink text-xs"
-                  title={truncated ? full : undefined}
-                >
-                  {shown}
-                </span>
-              );
-            })}
+            <a
+              href={normalizedAmazonUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow sponsored"
+              data-track-slug={book.slug}
+              data-track-section="book-fallback"
+              data-track-label="Check availability on Amazon"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-semibold shrink-0 motion-btn-cta"
+            >
+              {amazonIcon}
+              Check availability on Amazon
+            </a>
           </div>
-        </section>
-      )}
+        )}
 
-      {/* Why recommended — deterministic one-sentence summary built from existing
-          signals: recommendation_count + the top 3 list memberships from
-          getListsForBook (already ranked: topic > narrow > meta > broad).
-          No AI, no DB writes. Hidden when neither signal is present. */}
-      {whyRecSentence && (
-        <section className="mb-10">
-          <div className="rounded-xl border border-border bg-surface p-4 md:p-5 max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">Why recommended</p>
-            <p className="text-sm md:text-base text-ink leading-relaxed">{whyRecSentence}</p>
-          </div>
-        </section>
-      )}
-
-      {/* Recommended by notable people — compact scannable face grid.
-          Distinct from the rich Recommendation Signals section below, which
-          renders the same data with quotes + sources. This grid primes the
-          user with recognisable recommenders before the quote evidence.
-          Hidden entirely when no recommenders exist; no empty state. */}
+      {/* Recommended by notable people — compact scannable face grid. Sources
+          and quotes live in "Who said it, and where" below, behind the
+          attribution gate; this grid only names people. */}
       {notableRecommenders.length > 0 && (
-        <section className="mb-10">
-          <h2 className="text-xl font-bold text-ink mb-2 tracking-tight">Who recommended {displayBookTitle(book.title)}?</h2>
-          <p className="text-sm text-muted mb-5">People and public figures who have recommended this book.</p>
+        <section className="mb-12" aria-labelledby="who-recommended">
+          <BookSectionHeading
+            id="who-recommended"
+            title={`Who recommended ${bookTitle}?`}
+            dek="People and public figures who have recommended this book."
+          />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {notableRecommenders.map((r) => (
-              <div
+              <Link
                 key={r.person_slug}
-                className="rounded-xl border border-border bg-surface p-3 flex items-center gap-3"
+                href={`/people/${r.person_slug}`}
+                className="group rounded-xl border border-border bg-surface p-3 flex items-center gap-3 min-w-0 hover:border-accent/30 transition-colors"
               >
-                <Link
-                  href={`/people/${r.person_slug}`}
-                  className="group flex items-center gap-3 min-w-0 flex-1"
-                >
-                  <Avatar
-                    name={r.person_name}
-                    slug={r.person_slug}
-                    avatarUrl={r.avatar_url}
-                    sizeClass="w-10 h-10"
-                    textClass="text-sm"
-                    className="ring-1 ring-border"
-                  />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink truncate group-hover:text-accent transition-colors">
-                      {r.person_name}
-                    </p>
-                    {r.role && (
-                      <p className="text-xs text-muted truncate">{r.role}</p>
-                    )}
-                  </div>
-                </Link>
-                {(() => {
-                  // r.source_url may be a pipe-concatenated string of multiple
-                  // URLs (true for ~64% of non-null source_url rows in
-                  // production). Parse first, then render only the primary
-                  // (first) parsed URL so the <a href> is a single valid URL
-                  // and `rel` is computed against the URL that the click
-                  // actually navigates to. The deeper "Recommendation Proof /
-                  // Signals" section below the face grid already surfaces all
-                  // parsed URLs via its <details> dropdown, so the compact
-                  // face card only needs the first URL.
-                  const first = r.source_url && !r.source_url.includes("|") ? parseSourceUrls(r.source_url)[0] : null;
-                  if (!first) return null;
-                  return (
-                    <a
-                      href={first}
-                      target="_blank"
-                      rel={outboundLinkRel(first)}
-                      className="text-[10px] uppercase tracking-wider text-muted hover:text-accent hover:underline shrink-0 font-semibold"
-                    >
-                      Source
-                    </a>
-                  );
-                })()}
-              </div>
+                <Avatar
+                  name={r.person_name}
+                  slug={r.person_slug}
+                  avatarUrl={r.avatar_url}
+                  sizeClass="w-10 h-10"
+                  textClass="text-sm"
+                  className="ring-1 ring-border"
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink truncate group-hover:text-accent transition-colors">
+                    {r.person_name}
+                  </p>
+                  {r.role && <p className="text-xs text-muted truncate">{r.role}</p>}
+                </div>
+              </Link>
             ))}
           </div>
         </section>
       )}
 
-      {/* Recommendation Proof / Signals */}
-      <section className="mb-14">
-        <h2 className="text-xl font-bold text-ink mb-1 tracking-tight">{proofHeading}</h2>
-        {/* Compact trust/methodology note — mirrors the wording shipped on
-            /people/[slug] and frames the proof drawer that follows. Sits
-            tight under the section H2 (h2 mb-1 + this paragraph mb-5 =
-            same total rhythm as the previous mb-5). Always renders; does
-            not crowd the Amazon CTA which lives above this section. */}
-        <p className="text-xs text-muted/70 leading-relaxed mb-5">
-          Recommendation proof is sourced from public posts, interviews, reading lists, and cited references.
-        </p>
-        {hasProof ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {proofItems.map((item, i) => {
-              const { p, safety } = item;
-              const sourceUrls = parseSourceUrls(p.source_url);
-              const hasSource = safety.showSource;
-              const hasQuote = safety.showQuote;
-              const conf = formatConfidence(p.confidence_score);
+      <ProfessionBars roles={insights.roles} />
 
-              return (
-                <div
-                  key={`${p.person.id}-${i}`}
-                  className="rounded-xl border border-border bg-surface p-4"
-                >
-                  {isValidSlug(p.person.slug) ? (
-                    <Link
-                      href={`/people/${p.person.slug}`}
-                      className="flex items-center gap-3 mb-3 hover:opacity-80 transition-opacity"
-                    >
-                      <Avatar
-                        name={p.person.name}
-                        slug={p.person.slug}
-                        avatarUrl={p.person.avatar_url}
-                        sizeClass="w-10 h-10"
-                        textClass="text-sm"
-                        className="ring-1 ring-border"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-ink truncate">{p.person.name}</p>
-                        <p className="text-xs text-muted">{p.person.role}</p>
-                      </div>
-                    </Link>
-                  ) : (
-                    <div className="flex items-center gap-3 mb-3">
-                      <Avatar
-                        name={p.person.name}
-                        slug={p.person.slug}
-                        avatarUrl={p.person.avatar_url}
-                        sizeClass="w-10 h-10"
-                        textClass="text-sm"
-                        className="ring-1 ring-border"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-ink truncate">{p.person.name}</p>
-                        <p className="text-xs text-muted">{p.person.role}</p>
-                      </div>
-                    </div>
-                  )}
+      <UnlikelyPair pair={insights.unlikelyPair} />
 
-                  {hasQuote ? (
-                    <blockquote className="text-sm text-muted italic border-l-2 border-accent/20 pl-3 mb-2 line-clamp-3">
-                      &ldquo;{safety.displayQuote}&rdquo;
-                    </blockquote>
-                  ) : (
-                    <p className="text-xs text-muted/50">Recommended this book</p>
-                  )}
+      <SourceEvidence bookTitle={bookTitle} confirmed={insights.confirmed} unconfirmed={insights.unconfirmed} />
 
-                  {hasSource ? (
-                    sourceUrls.length === 1 ? (
-                      <div className="flex items-center justify-between gap-2 text-xs mt-2">
-                        <a
-                          href={normalizeOutboundUrl(sourceUrls[0]) ?? sourceUrls[0]}
-                          target="_blank"
-                          rel={outboundLinkRel(sourceUrls[0])}
-                          className="text-accent hover:underline font-medium"
-                        >
-                          View source →
-                        </a>
-                        {conf && (
-                          <span className="text-muted/40 tabular-nums">{conf}</span>
-                        )}
-                      </div>
-                    ) : (
-                      <details className="w-full mt-2 mb-1.5">
-                        <summary className="list-none cursor-pointer flex items-center justify-between gap-2 text-xs select-none [&::-webkit-details-marker]:hidden">
-                          <span className="text-accent hover:underline font-medium">View sources ({sourceUrls.length}) ▾</span>
-                          {conf && <span className="text-muted/40 tabular-nums">{conf}</span>}
-                        </summary>
-                        <div className="mt-2 w-full rounded-lg border border-border bg-subtle/50 p-2 space-y-1 text-xs">
-                          {sourceUrls.map((u, j) => {
-                            let host = u;
-                            try { host = new URL(u).hostname.replace(/^www\./, ""); } catch { /* ignore */ }
-                            return (
-                              <a
-                                key={j}
-                                href={normalizeOutboundUrl(u) ?? u}
-                                target="_blank"
-                                rel={outboundLinkRel(u)}
-                                className="block text-xs text-accent hover:underline truncate"
-                                title={normalizeOutboundUrl(u) ?? u}
-                              >
-                                {j + 1}. {host}
-                              </a>
-                            );
-                          })}
-                        </div>
-                      </details>
-                    )
-                  ) : (
-                    <div className="flex items-center justify-between gap-2 text-xs mt-2">
-                      {p.source_name ? (
-                        <span className="text-muted">{p.source_name}</span>
-                      ) : <span />}
-                      {conf && (
-                        <span className="text-muted/40 tabular-nums">{conf}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border bg-surface p-6 text-center">
-            <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-subtle flex items-center justify-center">
-              <svg className="w-5 h-5 text-muted/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
-              </svg>
-            </div>
-            <p className="text-sm text-muted">No verified recommendation proof available yet.</p>
-          </div>
-        )}
-      </section>
-
-      {/* Concluding Amazon CTA below proof section */}
+      {/* Concluding Amazon CTA below the evidence */}
       {normalizedAmazonUrl && (
-        <div className="my-8 p-6 rounded-2xl border border-amber-200/60 bg-amber-50/15 shadow-[0_8px_30px_rgba(245,158,11,0.02)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="mb-16 p-6 rounded-2xl border border-amber-200/60 bg-amber-50/15 shadow-[0_8px_30px_rgba(245,158,11,0.02)] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="space-y-1 flex-1">
             <h3 className="text-sm font-bold text-ink">
-              Ready to read {displayBookTitle(book.title)}?
+              Ready to read {bookTitle}?
             </h3>
             <p className="text-xs text-muted">
               Check formats, pricing, and availability options directly on Amazon.
@@ -1405,14 +800,25 @@ export default async function BookDetailPage({ params }: Props) {
             data-track-label="View on Amazon"
             className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-semibold shrink-0 motion-btn-cta"
           >
-            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-            </svg>
+            {amazonIcon}
             View on Amazon
           </a>
         </div>
       )}
 
+      <ReadNext bookTitle={bookTitle} books={insights.readNext} />
+
+      {/* Why recommended — deterministic one-sentence summary (rec count + top
+          lists). Shown here only when the hero used the editorial summary;
+          otherwise the hero already says it. */}
+      {whyRecSentence && editorialSummary && (
+        <section className="mb-10">
+          <div className="rounded-xl border border-border bg-surface p-4 md:p-5 max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted mb-1.5">Why recommended</p>
+            <p className="text-sm md:text-base text-ink leading-relaxed">{whyRecSentence}</p>
+          </div>
+        </section>
+      )}
       {/* Appears in Lists — single-pass dedupe across ALL kinds by normalized display label,
           keeping the higher-priority entry (topic > meta > other > category); same priority
           ties broken by lower pre-rank index, then smaller book_count. Broad parents
@@ -1508,7 +914,7 @@ export default async function BookDetailPage({ params }: Props) {
         };
         return (
           <section className="mb-14">
-            <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Appears In</h2>
+            <h2 className="font-serif text-2xl md:text-[28px] leading-tight font-medium text-ink mb-5 tracking-tight">Appears in</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {finalList.map(({ l, kind, displayName }) => {
                 const content = (
@@ -1560,7 +966,7 @@ export default async function BookDetailPage({ params }: Props) {
 
         return (
           <section className="mb-14">
-            <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">More from {displayTitle(book.series!)}</h2>
+            <h2 className="font-serif text-2xl md:text-[28px] leading-tight font-medium text-ink mb-5 tracking-tight">More from {displayTitle(book.series!)}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
               {bottomSeriesBooks.map((b) => (
                 <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} amazonUrl={b.amazon_url} />
@@ -1573,7 +979,7 @@ export default async function BookDetailPage({ params }: Props) {
       {/* Also By Author */}
       {safeAuthorBooks.filter((b) => b.id !== book.id).length > 0 && (
         <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Also by {book.author}</h2>
+          <h2 className="font-serif text-2xl md:text-[28px] leading-tight font-medium text-ink mb-5 tracking-tight">Also by {book.author}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {safeAuthorBooks.filter((b) => b.id !== book.id).map((b) => (
               <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} amazonUrl={b.amazon_url} />
@@ -1652,7 +1058,7 @@ export default async function BookDetailPage({ params }: Props) {
 
       {similarBooks.length > 0 && (
         <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Books like {displayBookTitle(book.title)}</h2>
+          <h2 className="font-serif text-2xl md:text-[28px] leading-tight font-medium text-ink mb-5 tracking-tight">Books like {displayBookTitle(book.title)}</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {similarBooks.map((b) => (
               <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} amazonUrl={b.amazon_url} />
@@ -1663,7 +1069,7 @@ export default async function BookDetailPage({ params }: Props) {
 
       {faq.length > 0 && (
         <section className="mb-14" aria-labelledby="faq">
-          <h2 id="faq" className="text-lg font-bold text-ink mb-4 tracking-tight">{bookTitle}: common questions</h2>
+          <h2 id="faq" className="font-serif text-2xl leading-tight font-medium text-ink mb-4 tracking-tight">{bookTitle}: common questions</h2>
           <dl className="space-y-4">
             {faq.map((f) => (
               <div key={f.q}>
@@ -1679,13 +1085,12 @@ export default async function BookDetailPage({ params }: Props) {
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
         <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">{bottomBoxTitle}</h2>
         <p className="text-sm text-muted leading-relaxed">
-          Each recommendation is collected from a public source — interviews, articles, or curated lists —
-          and linked to its original URL. Books with many verifiable recommendations from respected
-          people rank higher.
+          Each recommendation is collected from a public source — interviews, articles, or curated lists.
+          We link the original source only when we can tie it to the person who recommended the book;
+          where we cannot yet, the page says so. Books with many verifiable recommendations from
+          respected people rank higher.
         </p>
       </section>
-          </div> {/* min-w-0 right column closed */}
-        </div> {/* lg:grid closed */}
       </div> {/* max-w-7xl content wrapper closed */}
       <script
         dangerouslySetInnerHTML={{
