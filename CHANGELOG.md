@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-12 — "New" badge and relative times in Newly published
+
+- The "Newly published" block (homepage, /lists, /series) now shows a **New** badge on lists and series published in the last 7 days, with a relative time: "Just now", "12 minutes ago", "4 hours ago", "Yesterday", "3 days ago". Anything older than a week keeps its date (e.g. "2 November 2026").
+- New client component `src/components/RecentTime.tsx`. The server still renders the absolute date, and the visitor's browser swaps in the relative phrase after hydration, refreshing every minute. Because these pages are cached (the homepage revalidates every 60s), a server-rendered "2 hours ago" would otherwise go stale. Crawlers and no-JS visitors see the date, and `<time dateTime>` carries the exact timestamp, with the full date as a tooltip.
+
 ## 2026-11-11 — 3D book covers on book detail pages
 
 ### What changed
