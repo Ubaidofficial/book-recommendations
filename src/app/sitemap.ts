@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { BASE_URL, INDEXABLE_STATUSES } from "@/lib/seo";
 import { createClient } from "@supabase/supabase-js";
+import { getThinDetailSlugs } from "@/lib/thinPages";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -71,12 +72,18 @@ function newestOf(entries: IndexableEntry[]): Date | undefined {
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // One round-trip per table instead of four in series — this route is
   // force-dynamic, so every crawler hit pays the full cost.
-  const [people, lists, books, series] = await Promise.all([
+  const [allPeople, lists, allBooks, series, thin] = await Promise.all([
     getIndexableEntries("people"),
     getIndexableEntries("lists"),
     getIndexableEntries("books"),
     getIndexableEntries("series"),
+    getThinDetailSlugs(createClient(SUPABASE_URL, SUPABASE_ANON_KEY)),
   ]);
+  // Thin-page floor (src/lib/indexing.ts): published person/book pages with
+  // almost nothing on them are noindex, so they stay out of the sitemap too.
+  // A failed check returns empty sets, which removes nothing.
+  const people = allPeople.filter((e) => !thin.people.has(e.slug));
+  const books = allBooks.filter((e) => !thin.books.has(e.slug));
 
   const entriesFor = (
     prefix: string,

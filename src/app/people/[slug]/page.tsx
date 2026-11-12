@@ -9,7 +9,9 @@ import {
   getPersonWrittenCountCached,
   getQualityPeopleCached,
 } from "@/lib/data";
-import { pageMetadata, robotsDirective, contentDates } from "@/lib/seo";
+import { pageMetadata, contentDates } from "@/lib/seo";
+import { detailRobotsDirective } from "@/lib/indexing";
+import { isPersonPageThin } from "@/lib/thinPages";
 import { personJsonLd } from "@/lib/jsonld";
 import {
   isValidHttpUrl,
@@ -56,7 +58,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: desc || "",
     path: `/people/${person.slug}`,
     image: isValidHttpUrl(person.avatar_url) ? person.avatar_url : undefined,
-    robots: robotsDirective(person),
+    // index_status, plus the thin-page floor (src/lib/indexing.ts).
+    robots: detailRobotsDirective(person, await isPersonPageThin(person)),
   });
 }
 

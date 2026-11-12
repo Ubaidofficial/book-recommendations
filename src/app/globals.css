@@ -375,3 +375,241 @@
     transform: none !important;
   }
 }
+
+/* chrome+home v4 */
+/* ─────────────────────────────────────────────────────────────────────────────
+   Header mega menus, mobile menu groups, and the homepage consensus shelf.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Panels sit in the server HTML and are toggled with the hidden attribute;
+   no display utility may override it. */
+.mega-panel[hidden] {
+  display: none !important;
+}
+.mega-mini-cover {
+  display: block;
+  width: 34px;
+  height: 50px;
+  border-radius: 2px 3px 3px 2px;
+  box-shadow: inset 3px 0 0 rgba(0, 0, 0, 0.15), 0 4px 8px -3px rgba(58, 40, 28, 0.45);
+}
+.mobile-group[open] > summary {
+  color: var(--color-ink);
+}
+.mobile-group[open] .mobile-group-chev {
+  transform: rotate(180deg);
+}
+.mobile-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Consensus shelf */
+.cs-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  align-items: stretch;
+}
+@media (max-width: 1023px) {
+  .cs-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.cs-case {
+  position: relative;
+  min-width: 0;
+  border-radius: 20px;
+  border: 1px solid var(--color-border);
+  background: linear-gradient(180deg, color-mix(in srgb, #e9e4dc 45%, var(--color-bg)), #e9e4dc);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+/* The shelf scrolls inside its case on narrow screens; the page never does.
+   Top padding leaves room for a picked spine to rise without clipping. */
+.cs-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding: 56px 22px 0;
+}
+.cs-row {
+  --h-min: 120px;
+  --h-max: 300px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  width: max-content;
+  min-width: 100%;
+  justify-content: center;
+}
+@media (min-width: 1024px) {
+  .cs-row {
+    --h-max: 330px;
+  }
+}
+@media (max-width: 640px) {
+  .cs-row {
+    --h-min: 96px;
+    --h-max: 228px;
+    justify-content: flex-start;
+  }
+}
+.cs-spine {
+  position: relative;
+  flex: none;
+  width: var(--w, 34px);
+  height: calc(var(--h-min) + var(--t, 0.5) * (var(--h-max) - var(--h-min)));
+  padding: 0;
+  border: 0;
+  border-radius: 3px 3px 1px 1px;
+  /* cloth, with a gilt band near the foot */
+  background:
+    linear-gradient(color-mix(in srgb, var(--ink) 38%, transparent), color-mix(in srgb, var(--ink) 38%, transparent))
+      left 0 bottom 9px / 100% 2px no-repeat,
+    var(--cloth);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 10px 14px -12px rgba(58, 40, 28, 0.6);
+  transition: transform 0.4s cubic-bezier(0.2, 0.9, 0.25, 1), box-shadow 0.4s;
+}
+/* rounded spine: shade at both edges, a highlight just off-centre */
+.cs-spine::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.36),
+    rgba(0, 0, 0, 0.04) 22%,
+    rgba(255, 255, 255, 0.18) 45%,
+    rgba(0, 0, 0, 0.04) 70%,
+    rgba(0, 0, 0, 0.32)
+  );
+}
+/* gilt band near the head */
+.cs-spine::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 9px;
+  height: 2px;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--ink) 38%, transparent);
+}
+.cs-count {
+  position: relative;
+  margin-top: 17px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.cs-title {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 8px 0 16px;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (hover: hover) {
+  .cs-spine:hover {
+    transform: translateY(-8px);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 20px 18px -14px rgba(58, 40, 28, 0.55);
+  }
+}
+.cs-spine:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
+  outline-offset: 2px;
+  transform: translateY(-8px);
+}
+.cs-spine[aria-pressed="true"] {
+  transform: translateY(-22px);
+  box-shadow: 0 0 0 2px var(--color-accent), 0 24px 20px -14px rgba(58, 40, 28, 0.55);
+}
+.cs-plank {
+  position: relative;
+  height: 16px;
+  background: linear-gradient(180deg, #d8d1c5, color-mix(in srgb, #d8d1c5 76%, #000));
+  box-shadow: 0 14px 18px -12px rgba(58, 40, 28, 0.5);
+}
+.cs-axis {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 18px 12px;
+  font-size: 11px;
+  color: var(--color-muted);
+}
+.cs-detail {
+  min-width: 0;
+  border-radius: 18px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 24px 20px 22px;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  text-align: center;
+  gap: 14px;
+}
+.cs-detail-book {
+  padding: 4px 0 14px;
+}
+@media (max-width: 1023px) {
+  .cs-detail {
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-items: start;
+    text-align: left;
+    align-items: center;
+    column-gap: 22px;
+  }
+  .cs-detail-book {
+    grid-row: span 3;
+  }
+}
+@media (max-width: 420px) {
+  .cs-detail {
+    padding: 18px 14px 18px 20px;
+    column-gap: 12px;
+  }
+}
+.cs-list > summary {
+  list-style: none;
+}
+.cs-list > summary::-webkit-details-marker {
+  display: none;
+}
+.cs-list > summary::before {
+  content: "▸ ";
+}
+.cs-list[open] > summary::before {
+  content: "▾ ";
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-spine,
+  .cs-spine:hover,
+  .cs-spine:focus-visible {
+    transition: none !important;
+  }
+  .cs-spine:hover {
+    transform: none;
+  }
+}

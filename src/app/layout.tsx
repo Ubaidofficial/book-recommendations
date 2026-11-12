@@ -3,6 +3,7 @@ import Script from "next/script";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { websiteJsonLd, organizationJsonLd } from "@/lib/jsonld";
+import { getSiteNav } from "@/lib/siteNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -43,9 +44,12 @@ export const viewport: Viewport = {
   themeColor: "#5b4fcf",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const websiteSchema = websiteJsonLd();
   const orgSchema = organizationJsonLd();
+  // Mega-menu and footer links: one cached read shared by every page, with a
+  // static snapshot when the database is unreachable. Never throws.
+  const nav = await getSiteNav();
 
   return (
     <html lang="en">
@@ -86,9 +90,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             style={{ display: "none", visibility: "hidden" }}
           />
         </noscript>
-        <Header />
+        <Header nav={nav} />
         <main className="flex-1">{children}</main>
-        <Footer />
+        <Footer nav={nav} />
       </body>
     </html>
   );

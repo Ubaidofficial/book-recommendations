@@ -15,7 +15,9 @@ import {
   type BookRecommenderSummary,
   type RecommendationProof,
 } from "@/lib/data";
-import { pageMetadata, robotsDirective, bookPageTitle, contentDates } from "@/lib/seo";
+import { pageMetadata, bookPageTitle, contentDates } from "@/lib/seo";
+import { detailRobotsDirective } from "@/lib/indexing";
+import { isBookPageThin } from "@/lib/thinPages";
 import { bookJsonLd, faqPageJsonLd } from "@/lib/jsonld";
 import { displayTitle, displayListTitle, listKindFromSlug, displayBookTitle } from "@/lib/display";
 import {
@@ -108,7 +110,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     path: `/books/${book.slug}`,
     image: isValidHttpUrl(book.cover_image_url) ? book.cover_image_url : undefined,
     type: "book",
-    robots: robotsDirective(book),
+    // index_status, plus the thin-page floor (src/lib/indexing.ts).
+    robots: detailRobotsDirective(book, await isBookPageThin(book)),
   });
 }
 
