@@ -7,7 +7,7 @@
 - Census of the 17,199 shown books before this pass: 6,529 ok, 9,956 bare filename, 347 empty, 177 placeholder, 90 Google, 68 foreign (39 Amazon, 29 OL), 32 title-page scans.
 - Written to production, all high confidence and backed up in `public.bak_books_cover_20261112b` (the restore SQL is in the table comment): **2,237 covers**. That is 2,131 missing, 24 placeholder, 41 foreign, 31 not-a-cover and 10 Google. The 10 Google replacements are only the ones checked by hand as wrong: a title page, praise page, grey art, contents page or print template (Principles, Thinking Fast and Slow, The Psychology of Money, Steve Jobs, How to Win Friends, The Power of Habit, Surely You're Joking, Think and Grow Rich, Endurance, Crossing the Chasm). The other 80 Google covers are real covers and were kept.
 - Hand check: 104 of 105 random high-confidence missing-cover candidates were right (right book, English, real cover). 42 of 43 foreign replacements and 32 of 32 title-page replacements were right.
-- Still to apply: 6,004 high-confidence missing/placeholder rows, as 31 guarded batch files (`reports/cover_write_batches_20261112b/`, gitignored). Each batch is idempotent and checks a checksum and the current cover value before it writes.
+- Applied the 31 remaining batches (`reports/cover_write_batches_20261112b/`, gitignored): 6,004 rows given, 5,870 written, 134 skipped because the book was deleted or its cover changed since the dry run. Every batch passed its checksum. Backup table total: 8,107 rows (7,874 missing, 151 placeholder, 41 foreign, 31 not_cover, 10 google); every surviving book has its new cover in place.
 
 ## 2026-11-12 — Book page v4: "Should you read it?"
 
