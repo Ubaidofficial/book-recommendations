@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { BASE_URL, INDEXABLE_STATUSES } from "@/lib/seo";
 import { createClient } from "@supabase/supabase-js";
 import { getThinDetailSlugs } from "@/lib/thinPages";
+import { getIndexableComparePairs, comparePath } from "@/lib/personInsights";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -114,11 +115,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // NOTE: /methodology is noindex — intentionally excluded from sitemap
   ];
 
+  // ── /compare pages (person+compare v4) ──────────────────────────────────
+  // Only pairs of published people sharing at least 8 books; every other pair
+  // renders as noindex and stays out. Never throws ([] on failure).
+  const comparePairs = await getIndexableComparePairs();
+  const compareEntries: MetadataRoute.Sitemap = comparePairs.map((p) => ({
+    url: `${BASE_URL}${comparePath(p.a, p.b)}`,
+    lastModified: p.lastModified,
+    changeFrequency: "weekly" as const,
+    priority: 0.6,
+  }));
+  // ── end /compare pages ──────────────────────────────────────────────────
+
   return [
     ...staticPages,
     ...entriesFor("people", people, 0.85),
     ...entriesFor("lists", lists, 0.8),
     ...entriesFor("books", books, 0.8),
     ...entriesFor("series", series, 0.75),
+    ...compareEntries,
   ];
 }
