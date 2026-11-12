@@ -72,6 +72,16 @@
  *         Needs SUPABASE_SECRET_KEY. Re-reads every touched row, skips any
  *         that changed since planning, writes a full JSON backup to backups/
  *         before the first update.
+ *
+ * MISATTRIBUTED TWEETS (separate dry-run report, never writes)
+ *         node scripts/reattribute_quotes.js --misattributed-tweets
+ *         Non-aggregated, single-source rows whose source is a tweet by a
+ *         DIFFERENT known person (charlie-munger citing an @paulg tweet). Same
+ *         handle→person logic as above. Writes
+ *         reports/misattributed_tweets_published.csv (+ _creates.csv for
+ *         authors with no row for the book, + _draft.csv for the rest).
+ *         Proposed: owner row → source_url/quote NULL, confidence 30; the
+ *         author's row → MOVE_SOURCE when its source is empty or aggregated.
  */
 const { createClient } = require("@supabase/supabase-js");
 const fs = require("fs");
@@ -88,6 +98,7 @@ const WRITE = ARGS.has("--write");
 const CONFIRM = ARGS.has("--confirm");
 const ALLOW_CREATE = ARGS.has("--allow-create");
 const ALLOW_ARTICLE_PATH = ARGS.has("--allow-article-path");
+const MISATTRIBUTED_TWEETS = ARGS.has("--misattributed-tweets");
 
 const PAGE = 1000;
 const MAX_PAGES = 200; // hard bound on every paginated read
@@ -566,9 +577,100 @@ function attributeUrl(idx, url, book) {
   return { slug, rule };
 }
 
+// ─── Misattributed single-source tweets (report only) ───────────────────────
+
+async function misattributedTweets({ sb, idx, recs, personById, rowByBookPerson, isAgg, keepByRow, updates }) {
+  const found = [];
+  for (const r of recs) {
+    if (isAgg(r)) continue;
+    const us = seg(r.source_url);
+    if (us.length !== 1) continue;
+    const handle = twitterStatusHandle(us[0]);
+    if (!handle) continue;
+    const hit = lookupHandle(idx, handle);
+    if (!hit) continue;
+    const owner = personById.get(r.person_id);
+    if (idx.canonOf(hit.slug) === idx.canonOf(owner.slug)) continue;
+    found.push({ r, owner, handle, hit });
+  }
+  const books = await readByIds(sb, "books", "id,slug,title", new Set(found.map((f) => f.r.book_id)));
+  const bookById = new Map(books.map((b) => [b.id, b]));
+
+  const movedTo = new Set();
+  const rows = [];
+  for (const f of found.sort((a, b) => (a.r.id < b.r.id ? -1 : 1))) {
+    const author = idx.bySlug.get(f.hit.slug);
+    const authorRow = [f.hit.slug, ...idx.aliases(f.hit.slug).filter((x) => x !== f.hit.slug)]
+      .map((slug) => rowByBookPerson.get(`${f.r.book_id}|${idx.bySlug.get(slug).id}`))
+      .find(Boolean);
+    const clean = !!authorRow && !isAgg(authorRow) && isCleanSingleSource(authorRow);
+    const replyToAuthor = new RegExp(`@${f.handle}(?![a-z0-9_])`, "i").test(f.r.quote || "");
+    let authorAction;
+    const notes = [];
+    if (!authorRow) authorAction = "CREATE_FLAGGED";
+    else if (clean) authorAction = "NONE_AUTHOR_ROW_CLEAN";
+    else if (!authorRow.source_url || isAgg(authorRow)) {
+      if (movedTo.has(authorRow.id)) { authorAction = "NONE_ALREADY_MOVED"; notes.push("another misattributed row already moves a source here"); }
+      else { authorAction = "MOVE_SOURCE"; movedTo.add(authorRow.id); }
+      if (keepByRow.has(authorRow.id)) notes.push(`conflict: quote_reattribution_plan KEEP_OWN sets this row to ${keepByRow.get(authorRow.id).url}`);
+      else if (updates.get(authorRow.id)?.action === "ORPHANED_OWNER") notes.push("quote_reattribution_plan would orphan this row; MOVE_SOURCE supersedes");
+    } else { authorAction = "REVIEW_AUTHOR_ROW"; notes.push("author row has a single non-clean (metadata) source"); }
+    if (replyToAuthor) notes.push("quote @-mentions the author: move source only, not quote");
+    rows.push({
+      row_id: f.r.id,
+      book_id: f.r.book_id,
+      book_slug: bookById.get(f.r.book_id)?.slug || "",
+      owner_person_id: f.owner.id,
+      owner_slug: f.owner.slug,
+      owner_index_status: f.owner.index_status,
+      source_url: f.r.source_url,
+      quote: f.r.quote || "",
+      shows_quote_now: showsQuote(f.r, f.owner),
+      tweet_handle: f.handle,
+      tweet_author_slug: author.slug,
+      tweet_author_person_id: author.id,
+      handle_rule: f.hit.rule,
+      author_has_row_for_book: !!authorRow,
+      author_row_id: authorRow ? authorRow.id : "",
+      author_row_is_clean: clean,
+      proposed_action: `CLEAR_OWNER_ROW(source_url=NULL,quote=NULL,confidence_score=${LOW_CONFIDENCE}); AUTHOR:${authorAction}`,
+      move_quote: authorAction === "MOVE_SOURCE" && !replyToAuthor && !!f.r.quote,
+      notes: notes.join("; "),
+    });
+  }
+
+  const cols = ["row_id", "book_id", "book_slug", "owner_person_id", "owner_slug", "source_url", "quote", "tweet_handle",
+    "tweet_author_slug", "tweet_author_person_id", "author_has_row_for_book", "author_row_id", "author_row_is_clean",
+    "proposed_action", "move_quote", "shows_quote_now", "handle_rule", "owner_index_status", "notes"];
+  const write = (file, list) => {
+    fs.writeFileSync(path.join(REPORTS, file), [cols.join(","), ...list.map((x) => cols.map((c) => csvCell(x[c])).join(","))].join("\n") + "\n");
+  };
+  fs.mkdirSync(REPORTS, { recursive: true });
+  const published = rows.filter((x) => x.owner_index_status === "published");
+  const pubMain = published.filter((x) => !x.proposed_action.endsWith("CREATE_FLAGGED"));
+  const pubCreate = published.filter((x) => x.proposed_action.endsWith("CREATE_FLAGGED"));
+  write("misattributed_tweets_published.csv", pubMain);
+  write("misattributed_tweets_published_creates.csv", pubCreate);
+  write("misattributed_tweets_other.csv", rows.filter((x) => x.owner_index_status !== "published"));
+
+  const count = (arr, f) => arr.reduce((m, x) => { const k = f(x); m[k] = (m[k] || 0) + 1; return m; }, {});
+  console.log(`\nsingle-source rows citing another known person's tweet: ${rows.length}`);
+  console.log("  by owner index_status:", JSON.stringify(count(rows, (x) => x.owner_index_status)));
+  console.log("  showing a quote today, by status:", JSON.stringify(count(rows.filter((x) => x.shows_quote_now), (x) => x.owner_index_status)));
+  console.log(`published: ${published.length} (${published.filter((x) => x.shows_quote_now).length} show a quote today)`);
+  console.log("  author action:", JSON.stringify(count(published, (x) => x.proposed_action.split("AUTHOR:")[1])));
+  console.log("  with notes:", published.filter((x) => x.notes).length);
+  console.log(`reports/misattributed_tweets_published.csv (${pubMain.length}), _published_creates.csv (${pubCreate.length}), _other.csv (${rows.length - published.length})`);
+  console.log("DRY RUN — report only.");
+}
+
 // ─── Main ───────────────────────────────────────────────────────────────────
 
 (async () => {
+  if (WRITE && MISATTRIBUTED_TWEETS) {
+    console.error("--misattributed-tweets is report-only; it cannot be combined with --write.");
+    process.exit(1);
+  }
   if (WRITE && (!process.env.SUPABASE_SECRET_KEY || !CONFIRM)) {
     console.error("--write requires SUPABASE_SECRET_KEY in the environment and --confirm.");
     process.exit(1);
@@ -743,6 +845,11 @@ function attributeUrl(idx, url, book) {
     _from_row_id: s.row.id,
     _rule: s.a.rule,
   }));
+
+  if (MISATTRIBUTED_TWEETS) {
+    await misattributedTweets({ sb, idx, recs, personById, rowByBookPerson, isAgg, keepByRow, updates });
+    return;
+  }
 
   // ── Before/after displayability
   const after = new Map(recs.map((r) => [r.id, { ...r }]));

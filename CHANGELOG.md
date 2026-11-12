@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-12 — Data repairs: covers and misattributed tweet sources
+
+### Covers (352 books)
+- Replaced 352 broken or placeholder covers with real covers found by `scripts/recover_covers.py`: 308 from Open Library and 44 from Amazon by ISBN. Before the fix, 339 had a bare filename that didn't exist in storage, 12 had Google's "image not available" image or another placeholder, and 1 was empty. Atomic Habits is one of the books fixed.
+- Only high-confidence matches were written: exact title, author surname match, and an image re-checked just before the write. Two dry-run picks were left out after a hand check: Parting the Waters (a scanned title page) and The Good Earth (a Spanish edition). The Long Goodbye was also skipped because its image failed the re-check. Medium-confidence matches weren't written (3 of 7 were wrong).
+- The backup is in `bak_books_cover_20261112` (row-level security on). Each update only applied if the row still held the value seen in the dry run.
+
+### Misattributed tweet sources (140 rows)
+- 140 recommendation rows on published people cited a tweet by a *different* known person. For example, a Charlie Munger row cited an @paulg tweet. 51 of them showed that tweet's quote on the page; the other 89 linked the wrong person's tweet as the source.
+- These rows now have `source_url` and `quote` cleared and `confidence_score` set to 30. The recommendation itself stays. In every case the tweet's author already has their own row with that tweet.
+- The backup is in `bak_recs_misattributed_tweets_20261112` (row-level security on).
+- `node scripts/reattribute_quotes.js --misattributed-tweets` reproduces the list. 657 more such rows on draft people were not changed.
+
+### New dry-run tool
+- `scripts/find_primary_sources.py` looks up unsourced recommendations on mostrecommendedbooks.com person pages to discover the *primary* source each one cites. It stores the primary URL only, never MRB's page or text, follows robots.txt, and checks that the source belongs to the person. readthistwice.com is excluded because its terms forbid automated access. Nothing has been written from this tool yet.
+
 ## 2026-11-11 — 3D book covers on book detail pages
 
 ### What changed
