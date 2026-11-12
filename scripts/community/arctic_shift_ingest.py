@@ -150,13 +150,13 @@ def month_range(since: str, until: str) -> list[tuple[int, int, str]]:
     return list(reversed(out))  # newest first
 
 
-def paginate(path: str, base: dict, start: int, end: int, pause: float) -> list:
+def paginate(path: str, base: dict, start: int, end: int, pause: float, tries: int = 14) -> list:
     """Walk a time window in ascending created_utc order, deduping by id."""
     seen: set[str] = set()
     rows: list = []
     cursor = start
     while cursor < end:
-        page = get(path, {**base, "after": cursor, "before": end, "sort": "asc", "limit": "auto"}, pause)
+        page = get(path, {**base, "after": cursor, "before": end, "sort": "asc", "limit": "auto"}, pause, tries)
         fresh = [r for r in page if r["id"] not in seen]
         for r in fresh:
             seen.add(r["id"])
@@ -233,8 +233,11 @@ def run_month(sub: str, mode: str, start: int, end: int, label: str, out: str, p
         for lo in range(start, stop, wk):
             hi = min(lo + wk, stop)
             try:
+                # few, quick tries: a week the server will not serve in bulk is
+                # cheaper to fetch thread by thread than to wait out 15 minutes
+                # of backoff
                 raw = paginate("/comments/search", {"subreddit": sub, "parent_id": "",
-                                                    "fields": COMMENT_FIELDS}, lo, hi, pause)
+                                                    "fields": COMMENT_FIELDS}, lo, hi, pause, tries=5)
             except ApiError:
                 fallback_threads += [p for p in posts if lo <= p["created_utc"] < hi]
                 log(f"  {sub} {label}: week {dt.datetime.fromtimestamp(lo, dt.timezone.utc):%m-%d} "
