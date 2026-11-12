@@ -426,6 +426,46 @@ export async function getBookBySlug(slug: string): Promise<Book | null> {
 }
 
 /**
+ * Current slug of the book a retired slug was merged into, or null.
+ *
+ * When duplicate book rows are merged, each removed row's slug is kept in
+ * `public.slugs` (entity_type 'book', entity_id = the surviving book,
+ * is_primary false; see migrations/006). Resolving through the id means a
+ * later rename or second merge of the surviving book still lands on its live
+ * slug. Only called when no book has this slug, so ordinary pages pay nothing.
+ */
+async function fetchBookRedirectSlug(slug: string): Promise<string | null> {
+  const db = getSupabase();
+  const { data: alias, error } = await db
+    .from("slugs")
+    .select("entity_id")
+    .eq("entity_type", "book")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error) throw error;
+  if (!alias?.entity_id) return null;
+  const { data: book, error: bookError } = await db
+    .from("books")
+    .select("slug")
+    .eq("id", alias.entity_id)
+    .maybeSingle();
+  if (bookError) throw bookError;
+  return book?.slug && book.slug !== slug ? book.slug : null;
+}
+
+export async function getBookRedirectSlug(slug: string): Promise<string | null> {
+  try {
+    return await unstable_cache(() => fetchBookRedirectSlug(slug), ["book-redirect-slug", slug], {
+      revalidate: 3600,
+      tags: ["books", `book:${slug}`],
+    })();
+  } catch (e) {
+    logQueryError("getBookRedirectSlug", e);
+    return null;
+  }
+}
+
+/**
  * True when another, different book in the catalogue uses this book's Amazon
  * product. A single book page cannot see its neighbours, so the check goes to
  * the database. Fails open: if the lookup errors, the stored link is kept

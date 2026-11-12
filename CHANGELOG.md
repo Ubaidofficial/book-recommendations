@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-11-12 — Duplicate books merged (738 rows), old slugs 301 to the surviving book
+
+The same book was often stored twice or more, mostly because the author name was written differently ("Letters from a Stoic" by "Lucius Annaeus Seneca" and by "Lucius Seneca", "High Output Management" by "Andrew S. Grove" and "Andrew Grove"). Recommenders and lists were split between the copies, so each page showed a lower count. A person page or list could also show the same book twice.
+
+### What was merged
+- Candidates: every group of books sharing a normalised main title (text before ":", lowercased, letters and digits only) that contains at least one book shown on the site (published, on a published list, or recommended by a published person). That gave **1,937 groups**. Shown books were also matched against books that are not shown.
+- A pair counts as the same book only with author evidence: same surname with compatible first names or initials, one name's words contained in the other's ("Chip & Dan Heath" / "Chip Heath"), a surname typo with an identical first name, or a known pen name or transliteration (Galbraith/Rowling, LeSieg/Seuss, Dostoevsky/Dostoyevsky). Without a shared Amazon product or ISBN, a pair whose first names differ goes to review.
+- A pair stays separate when anything points to a different work: subtitles that don't match ("Cravings" vs "Cravings: Hungry for More"), different volume or series numbers ("Dinosaur Training Secrets: Volume I/II"), adaptation or format words on one side only (graphic, workbook, summary, omnibus, young readers, a "Kids" author), or first-published years more than 3 years apart. Titles that are just a volume number ("Vol. 1"), 1–2 characters, or a one-word title naming the author without a full subtitle ("Trump", "Will") go to review. A merge group is accepted only if no pair inside it conflicts.
+- 38 pairs had the same Amazon product and the same full title and subtitle, but one row named a recommender as the author ("Quiet" by David Blaine, "Abundance" by Arnold Schwarzenegger). They were merged into the row with the real author, and that row is always the one kept.
+- 20 review groups were checked by hand and merged: co-authors, editors, translators, pen names and later editions (Hooked, Billion Dollar Whale, The Bhagavad Gita (Easwaran), First Break All the Rules, The Red Knight).
+- Result: **716 groups merged, 738 rows deleted**. 37 groups (76 rows) are left for review and the rest are kept separate. The plan, with a reason for every row, is in `reports/dedupe_20261112/plan.csv` (gitignored), made by `scripts/dedupe_books/plan.py`.
+- Hand check: all 716 merge groups were read. The rules were tightened until none was wrong. Two wrong merges found in early drafts were fixed: Dinosaur Training Secrets Vol. I/II, and The Travel Book adult vs Kids edition. 107 kept-separate pairs were also checked. Every different-author pair was a different book. Of the same-author pairs kept apart, about half are missed merges (e.g. "The Passage of Power" "Vol. IV" vs "Book 4"), which are left for review on purpose.
+
+### How rows were merged (one transaction per batch: a pilot of 10, then 15 batches of at most 50)
+- Kept row: the published one, then the one already shown on the site (to keep the indexed URL), then the most recommendations, a valid cover, a useful description or editorial, and the oldest. Its empty fields were filled from the duplicates and never overwritten: 38 covers, 57 descriptions (under 80 characters counts as empty), 75 subtitles, 45 first-published years, 8 editorial blocks, 8 Amazon links.
+- Links moved to the kept row: 522 recommendations, 684 list memberships, 42 series memberships and 28 author links. When one person had recommended two copies, only one recommendation was kept: the one with a clean single source, else the longer quote. That dropped **408** rows. The same book twice on one list kept the better rank, dropping 142 rows, and `lists.book_count` went down to match. Two author links were dropped as duplicates.
+- `recommendation_count`, `list_count`, `series_count` and `author_count` were recomputed for the 716 kept rows: distinct recommenders, lists, series and authors, as the import does. Kept books gained 412 recommenders in total ("The 4-Hour Workweek" now has 59, "Influence" 38).
+
+### Redirects
+- Each removed slug is stored in the existing, empty `public.slugs` table: `entity_type='book'`, `entity_id` = the kept book, `is_primary=false`. That is 738 rows. `migrations/006_book_slug_redirects.sql` adds an anon read policy (book rows only) and an index.
+- `next.config.js` serves the 738 slugs as real **HTTP 301**s from `redirects/book-merges-20261112.json`, exported from `public.slugs`. A redirect from inside the book page can't set the status, because `books/[slug]/loading.tsx` streams the response first.
+- Fallback for later merges: when no book has the slug, the book page asks `getBookRedirectSlug` (src/lib/data.ts), which reads `public.slugs` and resolves to the kept book's current slug, then calls `permanentRedirect` before `notFound()`. In a stream that is a client-side 308.
+- 13 genre-map keys in `src/lib/bookGenres.ts` pointed at removed slugs. Seven now point at the kept slug. Six were dropped because the kept slug already had the same genre.
+- The sitemap and lists no longer contain removed slugs because the rows are gone. Checked: 0 of 54 sitemap book URLs.
+
+### Backup and restore
+- `bak_books_dedupe_20261112` holds the full rows of every deleted duplicate and every kept row as it was before. `bak_book_links_dedupe_20261112` holds every recommendation, list, series and author row of both, as jsonb, plus the `lists` rows whose `book_count` changed. RLS is on for both, and a table comment explains the restore. The full restore SQL is at the bottom of `scripts/dedupe_books/merge_20261112.sql`.
+
 ## 2026-11-12 — One Amazon button per book card on person pages
 
 - Person pages showed two "View on Amazon" buttons on every recommended book: BookCard's own button, plus a second one the page appended below the card. The extra button is gone. BookCard now gets the book's `amazon_url`, so its single button links to the product page (an Amazon search is the fallback), and it keeps the person page's `people-detail-rec` analytics label through a new optional `trackSection` prop.

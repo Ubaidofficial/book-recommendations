@@ -1,8 +1,9 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import {
   getBookBySlugCached,
+  getBookRedirectSlug,
   getBooksByAuthor,
   getBooksBySeries,
   getRecommendationProof,
@@ -118,7 +119,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function BookDetailPage({ params }: Props) {
   const { slug } = await params;
   const book = await getBookBySlugCached(slug);
-  if (!book) notFound();
+  if (!book) {
+    // A duplicate merged into another book (public.slugs). The slugs merged on
+    // 2026-11-12 already get an HTTP 301 from next.config.js; this catches
+    // later merges (loading.tsx streams first, so here it is an in-page 308).
+    const mergedInto = await getBookRedirectSlug(slug);
+    if (mergedInto) permanentRedirect(`/books/${mergedInto}`);
+    notFound();
+  }
 
   // Repaired Amazon CTA href. `book.amazon_url` is malformed for ~23% of
   // rows in production (a 10-char ASIN concatenated with a 12-char hex hash,
