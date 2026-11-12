@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-12 — One Amazon button per book card on person pages
+
+- Person pages showed two "View on Amazon" buttons on every recommended book: BookCard's own button, plus a second one the page appended below the card. The extra button is gone. BookCard now gets the book's `amazon_url`, so its single button links to the product page (an Amazon search is the fallback), and it keeps the person page's `people-detail-rec` analytics label through a new optional `trackSection` prop.
+
 ## 2026-11-12 — Person page depth and shelf comparison pages
 
 ### Person pages (`/people/[slug]`)

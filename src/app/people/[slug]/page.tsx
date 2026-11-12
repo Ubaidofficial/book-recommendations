@@ -36,7 +36,6 @@ import {
   uniqueByNormalizedText,
   parseSourceUrls,
   outboundLinkRel,
-  amazonCtaUrl,
   getProofDisplaySafety,
 } from "@/lib/dataQuality";
 import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
@@ -342,12 +341,10 @@ export default async function PersonDetailPage({ params }: Props) {
               const matchedProof = proofList.find((pl) => pl.book.id === p.book.id);
               const cardCue = matchedProof ? matchedProof.safety.cardCue : "none";
               return (
-                // Wrapper around BookCard so we can append a secondary Amazon
-                // CTA below each card on the people detail page WITHOUT
-                // touching BookCard (which is shared with /books and was
-                // reverted from Phase-4 recommender experiments). The CTA is
-                // an independent sibling <a>, so BookCard's internal link to
-                // /books/<slug> stays the primary card click target.
+                // One Amazon button per card: BookCard renders it (with the
+                // book's own Amazon URL, falling back to an Amazon search).
+                // This page used to append a second "View on Amazon" below
+                // every card, so each book showed two identical buttons.
                 <div key={`${p.book.id}-${i}`} className="flex flex-col h-full justify-between">
                   <div>
                     <BookCard
@@ -358,6 +355,8 @@ export default async function PersonDetailPage({ params }: Props) {
                       coverUrl={p.book.cover_image_url}
                       rating={p.book.rating}
                       recommendationCount={p.book.recommendation_count}
+                      amazonUrl={p.book.amazon_url}
+                      trackSection="people-detail-rec"
                     />
                     {cardCue !== "none" && p.book.slug ? (
                       <div className="mt-2.5 flex flex-col items-center justify-center gap-1 text-[11px] text-center">
@@ -375,32 +374,6 @@ export default async function PersonDetailPage({ params }: Props) {
                       <div className="mt-2.5 h-[34px]" aria-hidden="true" />
                     )}
                   </div>
-                  {(() => {
-                    // normalizeAmazonUrl repairs the dominant 22-char malformed
-                    // ASIN pattern and returns null for non-Amazon hosts, so
-                    // the CTA is suppressed cleanly when the URL isn't usable.
-                    // Render-time only — DB is not modified.
-                    const ctaUrl = amazonCtaUrl(p.book);
-                    if (!ctaUrl) return null;
-                    return (
-                      <a
-                        href={ctaUrl}
-                        target="_blank"
-                        rel="noopener noreferrer nofollow sponsored"
-                        data-track-slug={p.book.slug}
-                        data-track-section="people-detail-rec"
-                        data-track-label="View on Amazon"
-                        // CTA visual upgrade only — href / target / rel /
-                        // data-track-* attributes above are UNCHANGED.
-                        // Stronger amber background and border, darker text,
-                        // larger touch target (px-3 py-2), text-xs (12px)
-                        // instead of [11px]. Same shape, more clickable.
-                        className="mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold shadow-sm motion-btn-cta"
-                      >
-                        View on Amazon →
-                      </a>
-                    );
-                  })()}
                 </div>
               );
             })}

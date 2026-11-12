@@ -30,6 +30,8 @@ interface BookCardProps {
   rating: number;
   recommendationCount: number;
   amazonUrl?: string | null;
+  /** Analytics label for the card's Amazon button (data-track-section). */
+  trackSection?: string;
 }
 
 export function BookCard({
@@ -41,6 +43,7 @@ export function BookCard({
   rating,
   recommendationCount,
   amazonUrl,
+  trackSection = "book-card",
 }: BookCardProps) {
   const showCover = isValidHttpUrl(coverUrl);
   const showRating = isValidRating(rating);
@@ -102,7 +105,7 @@ export function BookCard({
               target="_blank"
               rel="noopener noreferrer nofollow sponsored"
               data-track-slug={slug}
-              data-track-section="book-card"
+              data-track-section={trackSection}
               data-track-label="View on Amazon"
               className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-sm text-center cursor-pointer motion-btn-cta"
             >
