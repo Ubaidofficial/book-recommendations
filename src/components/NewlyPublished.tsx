@@ -2,7 +2,6 @@ import Link from "next/link";
 import { displayTitle, displayListTitleFull } from "@/lib/display";
 import { formatDateLong } from "@/lib/seo";
 import type { RecentlyPublishedItem } from "@/lib/data";
-import { RecentTime } from "./RecentTime";
 
 interface NewlyPublishedProps {
   lists?: RecentlyPublishedItem[];
@@ -42,7 +41,7 @@ function Column({
                 {label(item)}
               </span>
               <span className="shrink-0 text-xs text-muted">
-                <RecentTime iso={item.published_at} absolute={formatDateLong(item.published_at)} />
+                <time dateTime={item.published_at}>{formatDateLong(item.published_at)}</time>
               </span>
             </Link>
           </li>
