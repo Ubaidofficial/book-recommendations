@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-12 — Book covers: English editions only, second recovery pass
+
+- `scripts/recover_covers.py` now takes a cover only from an English edition. Open Library covers come from the work's editions (`editions.json`). The edition's languages must include `eng`, or it must list no language and carry only group-0/1 ISBNs, and its own title must match the book. Amazon and the book's own ISBN must be in group 0/1 (978-0/978-1). Covers that Open Library imported from an Internet Archive title-page scan are rejected. Photos of library copies (often plain cloth or leather bindings) are tried last.
+- New checks on covers that load fine: `google` (any Google Books URL), `foreign` (an Amazon ISBN outside group 0/1, or an OL cover whose edition is not English) and `maybe_not_cover` (an OL cover taken from an IA title-page scan). A text-page heuristic (low saturation, mostly white) only flags covers.
+- Census of the 17,199 shown books before this pass: 6,529 ok, 9,956 bare filename, 347 empty, 177 placeholder, 90 Google, 68 foreign (39 Amazon, 29 OL), 32 title-page scans.
+- Written to production, all high confidence and backed up in `public.bak_books_cover_20261112b` (the restore SQL is in the table comment): **2,237 covers**. That is 2,131 missing, 24 placeholder, 41 foreign, 31 not-a-cover and 10 Google. The 10 Google replacements are only the ones checked by hand as wrong: a title page, praise page, grey art, contents page or print template (Principles, Thinking Fast and Slow, The Psychology of Money, Steve Jobs, How to Win Friends, The Power of Habit, Surely You're Joking, Think and Grow Rich, Endurance, Crossing the Chasm). The other 80 Google covers are real covers and were kept.
+- Hand check: 104 of 105 random high-confidence missing-cover candidates were right (right book, English, real cover). 42 of 43 foreign replacements and 32 of 32 title-page replacements were right.
+- Still to apply: 6,004 high-confidence missing/placeholder rows, as 31 guarded batch files (`reports/cover_write_batches_20261112b/`, gitignored). Each batch is idempotent and checks a checksum and the current cover value before it writes.
+
 ## 2026-11-12 — Book page v4: "Should you read it?"
 
 ### What changed on /books/[slug]
