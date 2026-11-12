@@ -229,8 +229,24 @@ def ahash(im: "Image.Image") -> int:
     return v
 
 
+META_VERSION = 3  # bump when analyze_bytes gains features; older cache entries are re-measured
+
+
+def coming_soon_features(im: "Image.Image") -> Dict[str, Any]:
+    """Amazon's generated "COVER COMING SOON" art: a navy book shape (~#213B60) on white,
+    with the title typeset in white. The text varies per title, so an average-hash does
+    not catch it; dominant-navy share + white corners does."""
+    small = im.resize((70, 100))
+    px = list(zip(*[iter(small.tobytes())] * 3))
+    navy = sum(1 for r, g, b in px if abs(r - 31) < 22 and abs(g - 57) < 22 and abs(b - 93) < 26)
+    w, h = small.size
+    corners = [small.getpixel((1, 1)), small.getpixel((1, h - 2))]  # left edge: page block is white
+    return {"navy_frac": round(navy / len(px), 3),
+            "corners_white": all(min(c) >= 235 for c in corners)}
+
+
 def analyze_bytes(body: bytes) -> Dict[str, Any]:
-    out: Dict[str, Any] = {"bytes": len(body)}
+    out: Dict[str, Any] = {"bytes": len(body), "v": META_VERSION}
     try:
         im = Image.open(io.BytesIO(body))
         out["width"], out["height"] = im.size
@@ -239,6 +255,7 @@ def analyze_bytes(body: bytes) -> Dict[str, Any]:
         im = im.convert("RGB")
         out["ahash"] = f"{ahash(im):016x}"
         out["std"] = round(ImageStat.Stat(im.convert("L").resize((32, 32))).stddev[0], 2)
+        out.update(coming_soon_features(im))
         out["decodable"] = True
     except Exception as e:
         out["decodable"] = False
@@ -250,7 +267,7 @@ def measure_image(url: str, use_cache: bool = True) -> Dict[str, Any]:
     """Download + measure. Definitive results (2xx/4xx) are cached; transient errors are not."""
     if use_cache:
         hit = cache_get("img", url)
-        if hit is not None:
+        if hit is not None and (hit.get("v") == META_VERSION or not hit.get("decodable")):
             return hit
     f = http_get(url)
     meta: Dict[str, Any] = {"url": url, "status": f.status, "final_url": f.final_url,
@@ -282,6 +299,9 @@ def placeholder_reason(meta: Dict[str, Any]) -> Optional[str]:
         return f"strip_{w}x{h}"
     if float(meta.get("std") or 0) < UNIFORM_STD:
         return f"near_uniform (std={meta.get('std')})"
+    if ("amazon" in (meta.get("url") or "") and float(meta.get("navy_frac") or 0) >= 0.45
+            and meta.get("corners_white")):
+        return "known_placeholder:amazon_cover_coming_soon"
     ah = meta.get("ahash")
     if ah:
         v = int(ah, 16)
@@ -781,6 +801,11 @@ def do_census(args: argparse.Namespace) -> int:
     books = order_books(load_shown_books(args.fresh), True)
     log(f"shown books: {len(books)}  (classifying with {MAX_WORKERS} workers; cached under {os.path.relpath(CACHE_DIR, PROJECT)})")
     classified = classify_many(books, "census")
+    write_census(classified)
+    return 0
+
+
+def write_census(classified: List[Tuple[Dict[str, Any], str, str, Dict[str, Any]]]) -> None:
     rows = [{"book_id": b["id"], "slug": b.get("slug"), "title": b.get("title"),
              "author": b.get("author_name"), "recommendation_count": b.get("recommendation_count") or 0,
              "host": host_label(b.get("cover_image_url") or ""), "current_state": st, "detail": det,
@@ -788,8 +813,7 @@ def do_census(args: argparse.Namespace) -> int:
              "current_url": b.get("cover_image_url") or ""} for b, st, det, m in classified]
     write_csv(CENSUS_OUT, CENSUS_COLUMNS, rows)
     summarize_states(classified)
-    print(f"\ncensus CSV: {os.path.relpath(CENSUS_OUT, PROJECT)}")
-    return 0
+    print(f"\ncensus CSV: {os.path.relpath(CENSUS_OUT, PROJECT)}\n", flush=True)
 
 
 def do_dry_run(args: argparse.Namespace) -> int:
@@ -821,6 +845,8 @@ def do_dry_run(args: argparse.Namespace) -> int:
     targets = targets[args.offset:]
     if args.limit:
         targets = targets[:args.limit]
+    if not args.slug and len(classified_all) == len(books):
+        write_census(classified_all)  # everything was classified anyway; keep the census
     cs = Counter(c[1] for c in classified_all)
     print(f"candidates considered: {len(books)}  classified: {len(classified_all)} {dict(cs)}")
     print(f"targets this run: {len(targets)}  (offset={args.offset}, limit={args.limit or 'all'}, "
