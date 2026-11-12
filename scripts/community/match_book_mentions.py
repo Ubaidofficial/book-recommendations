@@ -99,7 +99,11 @@ def norm_tokens(s: str) -> list[str]:
 
 def title_key(title: str) -> tuple[str, ...]:
     # drop subtitle / (Series #1); a colon only splits when followed by a space ("4:50 From Paddington")
-    t = re.split(r"\s*:\s+|\s*[(\[]|\s+-\s+", title.strip())[0]
+    t = title.strip()
+    # a bracket in the MIDDLE of a title is dropped, not cut at: otherwise
+    # "Discworld (Reformed) Vampyre's Diary 2003" would collect every "Discworld"
+    t = re.sub(r"\s*[(\[][^)\]]*[)\]]\s*(?=\S)", " ", t)
+    t = re.split(r"\s*:\s+|\s*[(\[]|\s+-\s+", t)[0]
     toks = norm_tokens(t)
     while toks and toks[0] in ARTICLES and len(toks) > 1:
         toks = toks[1:]
