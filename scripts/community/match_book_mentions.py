@@ -120,7 +120,7 @@ def load_catalog(path: str):
     by_key: dict[tuple, list[dict]] = collections.defaultdict(list)
     for b in books:
         k = title_key(b.get("title") or "")
-        if not k or len(k) > MAX_TITLE_TOKENS:
+        if not k or len(k) > MAX_TITLE_TOKENS or all(t in SMALL for t in k):
             continue
         if " ".join(k) in GENERIC:
             # still allow with an author named; marked generic
@@ -171,6 +171,23 @@ def capitalised(orig: list[str]) -> bool:
     return caps / len(words) >= 0.75
 
 
+def isolated(raw: str, spans, first: int, after: int) -> bool:
+    """A short capitalised title must not sit inside a longer capitalised run."""
+    if after < len(spans):
+        nxt = spans[after][0]
+        gap = raw[spans[after - 1][2]:spans[after][1]]
+        if nxt[0].isupper() and nxt.lower() != "by" and not re.search(r"[.!?;:,()\n/-]", gap):
+            return False
+    if first > 0:
+        prev = spans[first - 1][0]
+        gap = raw[spans[first - 1][2]:spans[first][1]]
+        before_prev = raw[max(0, spans[first - 1][1] - 3):spans[first - 1][1]]
+        sentence_start = first - 1 == 0 or bool(re.search(r"[.!?\n]\s*$", before_prev))
+        if prev[0].isupper() and not sentence_start and not re.search(r"[.!?;:,()\n/-]", gap):
+            return False
+    return True
+
+
 def match_comment(body: str):
     groups, first = G["groups"], G["first"]
     raw = fold(body)
@@ -200,6 +217,8 @@ def match_comment(body: str):
                  and b["surname"] not in key]  # the surname must not just be part of the title
         is_cap = capitalised(orig)
         is_fmt = formatted(raw, cstart, cend)
+        if is_cap and not is_fmt and len(key) <= 2 and not isolated(raw, spans, s0, i + L):
+            is_cap = False  # "James Herriot", "Madeline Miller": part of a longer name
         if named and (len(key) >= 3 or is_cap or is_fmt) and " ".join(key) not in {"it", "us", "you", "me"}:
             b = named[0]
             rule = "author"
