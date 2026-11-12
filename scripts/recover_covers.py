@@ -31,17 +31,36 @@
 #                  image, tiny (<100px wide, e.g. Amazon's 1x1 gif), a thin
 #                  "preview unavailable" strip, a near-uniform (flat grey) image,
 #                  or Google's "image not available" (matched by average-hash)
+#   The image downloads fine, but (re-sourced; replaced only by a HIGH candidate):
+#   google           any Google Books URL. zoom=3 often serves a scanned title or
+#                    praise page or Google's grey "no cover" art. The detail column
+#                    notes the text-page heuristic below.
+#   foreign          a non-English edition: Amazon /images/P/<ISBN-10> outside
+#                    group 0/1 (2=French, 3=German, 84=Spain, 88=Italy, 7=China...),
+#                    an OL /b/isbn/ outside 978-0/978-1, or an OL /b/id/ cover whose
+#                    edition (covers.openlibrary.org/b/id/<id>.json -> olid ->
+#                    /books/<olid>.json) has languages without eng
+#   maybe_not_cover  OL cover imported from an Internet Archive title-page scan
+#                    (source_url .../page/title.jpg); with --text-page-all also
+#                    the text-page heuristic (HSV saturation < 0.03, >= 70% near-
+#                    white) on OL/storage covers. Flag only: never replaced unless a
+#                    high-confidence replacement exists.
 #
-# CANDIDATE SOURCES (in order)
+# CANDIDATE SOURCES (in order). ENGLISH EDITIONS ONLY.
 #   1. supabase_storage   bare filename that DOES exist in the book-covers bucket
-#   2. openlibrary_cover  Open Library search.json (title+author) -> cover_i ->
-#                         covers.openlibrary.org/b/id/{cover_i}-L.jpg?default=false
-#   3. amazon_isbn        English-language ISBN-10s (group 0/1) from the matched
-#                         OL doc -> Amazon large image by ISBN
-#   4. db_isbn            the book's own ISBN (OL cover by ISBN, then Amazon);
-#                         capped at medium because the title is not re-verified
-#   5. google_books       optional (--google-fallback); disabled for the rest of
-#                         the run on the first HTTP 429
+#   2. openlibrary_cover  Open Library search.json (title+author) -> work ->
+#                         /works/<key>/editions.json (50 per page, up to 3 pages) ->
+#                         covers of editions whose languages include eng (or that
+#                         list no language and carry only group-0/1 ISBNs) AND whose
+#                         own title matches the book. Editions with an English ISBN
+#                         first, then the work's own cover. Covers that OL imported
+#                         from an Internet Archive title-page scan are rejected.
+#   3. amazon_isbn        ISBN-10s in group 0/1 (978-0 / 978-1) from those English
+#                         editions, then from the matched OL doc -> Amazon large image
+#   4. db_isbn            the book's own ISBN if group 0/1 (OL cover by ISBN, then
+#                         Amazon); capped at medium because the title is not re-verified
+#   5. google_books       optional (--google-fallback); language unverified, so
+#                         medium at most; disabled for the run on the first HTTP 429
 #
 # CONFIDENCE
 #   high    exact normalized title (subtitle/punctuation/case/leading article
@@ -59,6 +78,11 @@
 #
 #   # Dry-run, most-viewed non-ok books first
 #   python3 -I scripts/recover_covers.py --priority --limit 400
+#   # Whole missing/placeholder backlog, resumable (keeps rows already in <out>.partial)
+#   python3 -I scripts/recover_covers.py --priority --no-suspect \
+#       --only-state bare_filename,empty,placeholder --out reports/cover_recovery_full.csv --resume
+#   # Re-source Google / foreign-edition / title-page-scan covers
+#   python3 -I scripts/recover_covers.py --priority --only-state google,foreign,maybe_not_cover
 #   python3 -I scripts/recover_covers.py --only-state bare_filename,empty --limit 50
 #   python3 -I scripts/recover_covers.py --slug atomic-habits-james-clear
 #
@@ -110,6 +134,7 @@ USER_AGENT = "BookMentions-CoverRecovery/1.0 (read-only cover audit; python-urll
 DEFAULT_OUT = os.path.join(PROJECT, "reports", "cover_recovery_dryrun.csv")
 CENSUS_OUT = os.path.join(PROJECT, "reports", "cover_census.csv")
 CACHE_DIR = os.path.join(PROJECT, "reports", "cover_recovery_cache")
+CENSUS_PATH = {"p": CENSUS_OUT}
 BACKUP_DIR = os.path.join(PROJECT, "backups")
 
 MAX_WORKERS = 3
@@ -118,6 +143,7 @@ MIN_RATIO, MAX_RATIO = 1.2, 1.8
 UNIFORM_STD = 3.0          # grayscale stddev on a 32x32 thumbnail
 AHASH_MAX_DIST = 6         # Hamming distance (of 64 bits) to a known placeholder
 FUZZY_MIN = 0.90
+MAX_IMAGE_TRIES = 8     # candidate image downloads per book
 
 # Average-hashes (8x8 grayscale, LANCZOS, bit=pixel>=mean) of known placeholder art.
 KNOWN_PLACEHOLDER_HASHES = {
@@ -342,6 +368,85 @@ def host_label(url: str) -> str:
     return "other"
 
 
+def page_features(url: str) -> Dict[str, Any]:
+    """Cheap "is this a scanned title/praise page rather than cover art" signals
+    (cached): mean HSV saturation, share of near-white pixels, and a text-likeness
+    score (share of dark pixels in a mostly-white image)."""
+    hit = cache_get("feat", url)
+    if hit is not None:
+        return hit
+    f = http_get(url)
+    out: Dict[str, Any] = {"status": f.status}
+    if f.status == 200 and f.body:
+        try:
+            im = Image.open(io.BytesIO(f.body))
+            im.draft("RGB", (256, 256))
+            im = im.convert("RGB").resize((100, 150))
+            hsv = list(im.convert("HSV").getdata())
+            rgb = list(im.getdata())
+            n = len(rgb)
+            out["sat"] = round(sum(p[1] for p in hsv) / n / 255, 3)
+            out["white"] = round(sum(1 for r, g, b in rgb if min(r, g, b) >= 225) / n, 3)
+            out["dark"] = round(sum(1 for r, g, b in rgb if max(r, g, b) <= 90) / n, 3)
+        except Exception as e:
+            out["error"] = f"{type(e).__name__}"
+    if not is_transient(f):
+        cache_put("feat", url, out)
+    return out
+
+
+def looks_like_text_page(feat: Dict[str, Any]) -> bool:
+    """Very low saturation + a large white area + some dark (text) pixels: a scanned
+    title page or praise page. Flag only; never replaced on this signal alone."""
+    return ("sat" in feat and feat["sat"] < 0.03 and feat["white"] >= 0.70
+            and feat["dark"] <= 0.25)
+
+
+TEXT_PAGE_ALL = {"on": False}  # --text-page-all: also run the text-page heuristic on OL/storage covers
+
+_AMZ_P = re.compile(r"/images/P/([0-9A-Za-z]{10})\.", re.I)
+_OL_ID = re.compile(r"covers\.openlibrary\.org/b/id/(\d+)", re.I)
+_OL_ISBN = re.compile(r"covers\.openlibrary\.org/b/isbn/([0-9Xx-]+)", re.I)
+_OL_OLID = re.compile(r"covers\.openlibrary\.org/b/olid/(OL\d+M)", re.I)
+
+
+def suspect_reason(url: str, check_ol: bool = True, check_text_page: bool = True) -> Tuple[str, str]:
+    """For a cover that downloads fine ("ok"): ('google'|'foreign'|'maybe_not_cover'|'', detail).
+    google           any Google Books URL (zoom=3 often serves a title/praise page or grey art)
+    foreign          Amazon ISBN-10 outside group 0/1, or an OL cover whose edition is not English
+    maybe_not_cover  heuristic text-page signal on an OL/storage cover (flag only)"""
+    host = host_label(url)
+    if host == "google":
+        det = "google books url"
+        if check_text_page:
+            ft = page_features(url)
+            if looks_like_text_page(ft):
+                det += f"; looks like text page (sat={ft['sat']} white={ft['white']})"
+        return "google", det
+    if host == "amazon":
+        m = _AMZ_P.search(url)
+        if m and isbn_is_english(m.group(1)) is False:
+            return "foreign", f"amazon isbn10 {m.group(1)} group {isbn_group(m.group(1))}"
+        return "", ""
+    if host == "openlibrary":
+        m = _OL_ISBN.search(url)
+        if m and isbn_is_english(m.group(1)) is False:
+            return "foreign", f"ol isbn {m.group(1)} group {isbn_group(m.group(1))}"
+        m = _OL_ID.search(url)
+        if m and check_ol:
+            ed = ol_cover_edition(int(m.group(1)))
+            if ed and not edition_is_english(ed) and (ed.get("langs") or ed.get("isbn")):
+                lab = ",".join(ed.get("langs") or []) or "isbn " + ",".join(isbn_group(i) for i in ed.get("isbn") or [])
+                return "foreign", f"ol cover {m.group(1)} from {ed.get('olid')} ({lab}): {str(ed.get('title'))[:40]}"
+            if ol_cover_scan_reason(int(m.group(1))):
+                return "maybe_not_cover", f"ol cover {m.group(1)} is an Internet Archive title-page scan"
+    if check_text_page and TEXT_PAGE_ALL["on"] and host in ("openlibrary", "supabase"):
+        ft = page_features(url)
+        if looks_like_text_page(ft):
+            return "maybe_not_cover", f"text-page heuristic sat={ft['sat']} white={ft['white']} dark={ft['dark']}"
+    return "", ""
+
+
 def classify(book: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]]:
     """(state, detail, image_meta)."""
     u = (book.get("cover_image_url") or "").strip()
@@ -353,7 +458,14 @@ def classify(book: Dict[str, Any]) -> Tuple[str, str, Dict[str, Any]]:
     r = placeholder_reason(meta)
     if r:
         return "placeholder", r, meta
+    if SUSPECT_CHECK["on"]:
+        st, det = suspect_reason(u)
+        if st:
+            return st, det, meta
     return "ok", "", meta
+
+
+SUSPECT_CHECK = {"on": True}  # --no-suspect turns off the google/foreign/text-page checks
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -534,6 +646,30 @@ def english_isbn10s(isbns: Iterable[str], cap: int) -> List[str]:
     return seen
 
 
+def isbn_is_english(raw: str) -> Optional[bool]:
+    """True for registration group 0/1 (ISBN-13 978-0/978-1), False for another group,
+    None when it is not a parseable ISBN (e.g. an Amazon ASIN like B00DF58I56).
+    979-8 (US, English) also counts as English."""
+    s = re.sub(r"[^0-9Xx]", "", raw or "")
+    if len(s) == 13:
+        if s.startswith("9798"):
+            return True
+        if not s.startswith("978"):
+            return False if s.startswith("979") else None
+        return s[3] in "01"
+    if len(s) == 10 and s[:9].isdigit():
+        return s[0] in "01"
+    return None
+
+
+def isbn_group(raw: str) -> str:
+    """Short registration-group label for reports (e.g. '2', '3', '84', '88', '7')."""
+    s = isbn13_to_10(raw) or ""
+    if not s:
+        return "?"
+    return s[0] if s[0] in "01234567" else s[:2]
+
+
 def amazon_url(isbn10: str) -> str:
     # The `_SX300_` variant the DB uses actually serves ~106x160; LZZZZZZZ serves the large image.
     return f"https://images-na.ssl-images-amazon.com/images/P/{isbn10}.01.LZZZZZZZ.jpg"
@@ -555,7 +691,7 @@ def ol_search(title: str, author: str) -> Optional[List[Dict[str, Any]]]:
     hit = cache_get("ol", url)
     if hit is not None:
         return hit
-    f = http_get(url, headers={"Accept": "application/json"})
+    f = http_get(url, headers={"Accept": "application/json"}, timeout=40, retries=2)
     if f.status != 200:
         return None if is_transient(f) else []
     try:
@@ -568,6 +704,160 @@ def ol_search(title: str, author: str) -> Optional[List[Dict[str, Any]]]:
             d["isbn"] = d["isbn"][:25]
     cache_put("ol", url, docs)
     return docs
+
+
+def _ol_json(url: str, kind: str) -> Optional[Dict[str, Any]]:
+    """GET an Open Library JSON document (cached). None on a transient failure,
+    {} when it does not exist."""
+    hit = cache_get(kind, url)
+    if hit is not None:
+        return hit
+    f = http_get(url, headers={"Accept": "application/json"}, retries=2)
+    if f.status != 200:
+        if is_transient(f):
+            return None
+        cache_put(kind, url, {})
+        return {}
+    try:
+        data = json.loads(f.body.decode("utf-8"))
+    except ValueError:
+        return None
+    return data
+
+
+def _slim_edition(e: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "key": e.get("key") or "",
+        "title": e.get("title") or "",
+        "langs": [str((l or {}).get("key") or "").rsplit("/", 1)[-1] for l in (e.get("languages") or [])],
+        "covers": [c for c in (e.get("covers") or []) if isinstance(c, int) and c > 0][:3],
+        "isbn": (list(e.get("isbn_10") or []) + list(e.get("isbn_13") or []))[:6],
+    }
+
+
+EDITION_PAGE = 50
+EDITION_MAX_PAGES = 3
+
+
+def ol_work_editions(work_key: str, page: int) -> Optional[List[Dict[str, Any]]]:
+    """One page (50) of a work's editions, slimmed. None on a transient failure."""
+    url = (f"https://openlibrary.org{work_key}/editions.json?limit={EDITION_PAGE}"
+           f"&offset={page * EDITION_PAGE}")
+    hit = cache_get("oled", url)
+    if hit is not None:
+        return hit
+    data = _ol_json(url, "oled_raw_unused")
+    if data is None:
+        return None
+    eds = [_slim_edition(e) for e in (data.get("entries") or [])]
+    cache_put("oled", url, eds)
+    return eds
+
+
+def edition_is_english(ed: Dict[str, Any]) -> bool:
+    """English edition: its languages include eng; or it lists no language at all and
+    every ISBN it carries is in group 0/1 (and it has at least one)."""
+    if ed.get("langs"):
+        return "eng" in ed["langs"]
+    flags = [isbn_is_english(i) for i in ed.get("isbn") or []]
+    flags = [f for f in flags if f is not None]
+    return bool(flags) and all(flags)
+
+
+def english_edition_choices(doc: Dict[str, Any], db_title: str) -> Optional[Tuple[List[Tuple[int, str]], List[str], int]]:
+    """For an OL search doc (a work): (cover ids from English editions whose own title
+    matches the book, best first, as (cover_id, edition_key)), English ISBN-10s from those
+    editions, editions scanned). None on a transient failure."""
+    wk = doc.get("key") or ""
+    if not wk.startswith("/works/"):
+        return [], [], 0
+    work_cover = doc.get("cover_i") if isinstance(doc.get("cover_i"), int) else None
+    picks: List[Tuple[Tuple, int, str]] = []
+    isbns: List[str] = []
+    scanned = 0
+    for page in range(EDITION_MAX_PAGES):
+        eds = ol_work_editions(wk, page)
+        if eds is None:
+            return None
+        scanned += len(eds)
+        for ed in eds:
+            if not edition_is_english(ed):
+                continue
+            if title_match(db_title, ed.get("title") or "")[0] == "none":
+                continue  # translated / retitled / omnibus edition
+            eng_isbn = any(isbn_is_english(i) for i in ed.get("isbn") or [])
+            for i in ed.get("isbn") or []:
+                if isbn_is_english(i):
+                    i10 = isbn13_to_10(i)
+                    if i10 and i10 not in isbns:
+                        isbns.append(i10)
+            for c in ed.get("covers") or []:
+                # Retail editions (English ISBN) first: OL's work-level cover and ISBN-less
+                # editions are often library scans of plain cloth / leather bindings.
+                rank = (0 if eng_isbn else 1, 0 if c == work_cover else 1, len(picks))
+                picks.append((rank, c, ed.get("key") or ""))
+        if picks or len(eds) < EDITION_PAGE:
+            break
+    picks.sort(key=lambda x: x[0])
+    seen: set = set()
+    out: List[Tuple[int, str]] = []
+    for _, c, k in picks:
+        if c not in seen:
+            seen.add(c)
+            out.append((c, k))
+    return out, isbns, scanned
+
+
+def ol_cover_meta(cover_id: int) -> Optional[Dict[str, Any]]:
+    """{"olid", "src"} for an OL cover id ({} if unknown; None on a transient failure).
+    src is the image the cover was imported from, e.g. an Internet Archive scan."""
+    url = f"https://covers.openlibrary.org/b/id/{cover_id}.json"
+    hit = cache_get("olcov", url)
+    if hit is not None and (not hit or "src" in hit):
+        return hit
+    f = http_get(url, headers={"Accept": "application/json"}, retries=2)
+    if f.status != 200:
+        if is_transient(f):
+            return None
+        cache_put("olcov", url, {})
+        return {}
+    try:
+        meta = json.loads(f.body.decode("utf-8"))
+    except ValueError:
+        return None
+    out = {"olid": meta.get("olid") or "", "src": meta.get("source_url") or ""}
+    cache_put("olcov", url, out)
+    return out
+
+
+def ol_cover_scan_reason(cover_id: int) -> Optional[str]:
+    """Internet Archive imports sometimes use the scanned TITLE PAGE as the cover
+    (source_url .../page/title.jpg). Reject those. None = fine (or unknown)."""
+    m = ol_cover_meta(cover_id)
+    src = (m or {}).get("src") or ""
+    if re.search(r"/page/(title|n\d+)[^/]*\.jpg", src):
+        return "ia_title_page_scan"
+    return None
+
+
+def ol_cover_edition(cover_id: int) -> Optional[Dict[str, Any]]:
+    """The edition an OL cover id was uploaded for: {"olid", "langs", "isbn", "title"} or {}
+    when unknown. None on a transient failure."""
+    meta = ol_cover_meta(cover_id)
+    if meta is None:
+        return None
+    olid = (meta or {}).get("olid") or ""
+    if not olid or not olid.endswith("M"):
+        return {}
+    url = f"https://openlibrary.org/books/{olid}.json"
+    hit = cache_get("olbook", url)
+    if hit is None:
+        data = _ol_json(url, "olbook_raw_unused")
+        if data is None:
+            return None
+        hit = _slim_edition(data) if data else {}
+        cache_put("olbook", url, hit)
+    return dict(hit, olid=olid) if hit else {}
 
 
 _google_state = {"enabled": True}
@@ -675,40 +965,65 @@ def recover_one(book: Dict[str, Any], state: str, detail: str, google_fallback: 
     scored.sort(key=lambda x: x[0])
 
     attempts = 0
+    cur_norm = cur.split("?")[0]
     for _, d, tier, score in scored[:3]:
         conf = "high" if tier == "exact" else "medium"
         mt, ma = d.get("title") or "", ", ".join(d.get("author_name") or [])
         why = f"OL {d.get('key', '')} title={tier}"
-        if isinstance(d.get("cover_i"), int) and d["cover_i"] > 0:
-            u = f"https://covers.openlibrary.org/b/id/{d['cover_i']}-L.jpg?default=false"
-            m = measure_image(u)
-            attempts += 1
-            bad = validate_candidate(m)
-            if not bad:
-                return _accept(row, u, "openlibrary_cover", m, conf, mt, ma, score, why)
-            rejections.append(f"ol_cover:{bad}")
-        for i10 in english_isbn10s(d.get("isbn") or [], cap=2):
-            if attempts >= 5:
+        # English-edition rule: the cover must belong to an English edition of the
+        # work whose own title matches the book (no translations / retitled editions).
+        choice = english_edition_choices(d, title)
+        if choice is None:
+            row["reason"] = (f"[{detail}] " if detail else "") + "openlibrary editions failed (transient); rerun"
+            return row
+        covers, eng_isbns, scanned = choice
+        if not covers and not eng_isbns:
+            rejections.append(f"no_english_edition({scanned} eds)")
+        # Candidate order: OL covers that came from a retailer/publisher image, then
+        # Amazon by English ISBN-10 (English editions' ISBNs first, then the work's
+        # other group-0/1 ISBNs), then OL covers photographed from Internet Archive
+        # library copies (often plain cloth/leather bindings) as a last resort.
+        retail: List[Tuple[str, Any, str]] = []
+        scans: List[Tuple[str, Any, str]] = []
+        for cid, ekey in covers[:4]:
+            u = f"https://covers.openlibrary.org/b/id/{cid}-L.jpg?default=false"
+            if u.split("?")[0] == cur_norm:
+                rejections.append("same_as_current")
+                continue
+            scan = ol_cover_scan_reason(cid)  # cheap JSON
+            if scan:
+                rejections.append(f"ol_cover:{scan}")
+                continue
+            src = ((ol_cover_meta(cid) or {}).get("src") or "")
+            item = ("openlibrary_cover", u, f" eng_edition={ekey.rsplit('/', 1)[-1]}")
+            (scans if "archive.org" in src else retail).append(item)
+        amz = [("amazon_isbn", amazon_url(i10), f" isbn10={i10}")
+               for i10 in (eng_isbns + english_isbn10s(d.get("isbn") or [], cap=4))[:6]]
+        for source, u, extra in retail + amz + scans:
+            if attempts >= MAX_IMAGE_TRIES:
                 break
-            u = amazon_url(i10)
+            if u == cur:
+                continue
             m = measure_image(u)
             attempts += 1
             bad = validate_candidate(m)
             if not bad:
-                return _accept(row, u, "amazon_isbn", m, conf, mt, ma, score, why + f" isbn10={i10}")
-            rejections.append(f"amazon:{bad}")
-        if attempts >= 5:
+                return _accept(row, u, source, m, conf, mt, ma, score, why + extra)
+            rejections.append(f"{source.split('_')[0]}:{bad}")
+        if attempts >= MAX_IMAGE_TRIES:
             break
 
-    # 4. The book's own ISBN (title not re-verified -> medium at most).
+    # 4. The book's own ISBN (title not re-verified -> medium at most; English group only).
     i13 = re.sub(r"[^0-9Xx]", "", book.get("isbn_13") or "")
     i10 = isbn13_to_10(book.get("isbn_10") or "") or isbn13_to_10(i13)
     db_urls = []
-    if i13 or i10:
+    if (i13 or i10) and isbn_is_english(i13 or i10):
         db_urls.append(f"https://covers.openlibrary.org/b/isbn/{i13 or i10}-L.jpg?default=false")
-    if i10:
+    if i10 and isbn_is_english(i10):
         db_urls.append(amazon_url(i10))
     for u in db_urls:
+        if u == cur:
+            continue
         m = measure_image(u)
         bad = validate_candidate(m)
         if not bad:
@@ -730,7 +1045,8 @@ def recover_one(book: Dict[str, Any], state: str, detail: str, google_fallback: 
             m = measure_image(u)
             bad = validate_candidate(m)
             if not bad:
-                return _accept(row, u, "google_books", m, "high" if tier == "exact" else "medium",
+                # language of a Google volume is not verified -> never high
+                return _accept(row, u, "google_books", m, "medium",
                                vi.get("title") or "", ", ".join(vi.get("authors") or []), score,
                                f"GB {vid} title={tier}")
             rejections.append(f"google:{bad}")
@@ -771,13 +1087,20 @@ def classify_many(books: List[Dict[str, Any]], label: str) -> List[Tuple[Dict[st
 def summarize_states(classified: List[Tuple[Dict[str, Any], str, str, Dict[str, Any]]]) -> None:
     st = Counter(c[1] for c in classified)
     print("\n== Current cover state (measured) ==")
-    for k in ("ok", "bare_filename", "empty", "placeholder"):
+    for k in ("ok", "bare_filename", "empty", "placeholder", "google", "foreign", "maybe_not_cover"):
         print(f"  {k:<14} {st.get(k, 0):>7}")
     print(f"  {'TOTAL':<14} {len(classified):>7}")
     by_host = Counter((host_label(c[0].get("cover_image_url") or ""), c[1]) for c in classified)
     print("\n  host x state:")
     for (h, s), n in sorted(by_host.items()):
         print(f"    {h:<12} {s:<14} {n:>7}")
+    fg = Counter(re.sub(r"from OL\d+M \(([^)]*)\).*", r"\1", re.sub(r"isbn10 \w+ ", "", c[2]))
+                 for c in classified if c[1] == "foreign")
+    if fg:
+        print("\n  foreign detail:")
+        for r, n in fg.most_common(15):
+            print(f"    {n:>6}  {r}")
+    print(f"\n  google flagged as text page: {sum(1 for c in classified if c[1] == 'google' and 'text page' in c[2])}")
     reasons = Counter(re.sub(r"\d+x\d+|std=[\d.]+", "#", c[2]) for c in classified if c[1] == "placeholder")
     if reasons:
         print("\n  placeholder reasons:")
@@ -811,9 +1134,9 @@ def write_census(classified: List[Tuple[Dict[str, Any], str, str, Dict[str, Any]
              "host": host_label(b.get("cover_image_url") or ""), "current_state": st, "detail": det,
              "width": m.get("width", ""), "height": m.get("height", ""),
              "current_url": b.get("cover_image_url") or ""} for b, st, det, m in classified]
-    write_csv(CENSUS_OUT, CENSUS_COLUMNS, rows)
+    write_csv(CENSUS_PATH["p"], CENSUS_COLUMNS, rows)
     summarize_states(classified)
-    print(f"\ncensus CSV: {os.path.relpath(CENSUS_OUT, PROJECT)}\n", flush=True)
+    print(f"\ncensus CSV: {os.path.relpath(CENSUS_PATH['p'], PROJECT)}\n", flush=True)
 
 
 def do_dry_run(args: argparse.Namespace) -> int:
@@ -845,6 +1168,17 @@ def do_dry_run(args: argparse.Namespace) -> int:
     targets = targets[args.offset:]
     if args.limit:
         targets = targets[:args.limit]
+    done_rows: List[Dict[str, Any]] = []
+    if args.resume and os.path.exists(args.out + ".partial"):
+        with open(args.out + ".partial", newline="", encoding="utf-8") as f:
+            for r in csv.DictReader(f):
+                if "(transient)" not in (r.get("reason") or ""):
+                    done_rows.append(r)
+        done_ids = {r["book_id"] for r in done_rows}
+        before = len(targets)
+        targets = [t for t in targets if t[0]["id"] not in done_ids]
+        print(f"resume: {len(done_rows)} rows already in {os.path.relpath(args.out + '.partial', PROJECT)}; "
+              f"{before - len(targets)} targets skipped")
     if not args.slug and len(classified_all) == len(books):
         write_census(classified_all)  # everything was classified anyway; keep the census
     cs = Counter(c[1] for c in classified_all)
@@ -860,6 +1194,9 @@ def do_dry_run(args: argparse.Namespace) -> int:
     with open(partial, "w", newline="", encoding="utf-8") as pf:
         pw = csv.DictWriter(pf, fieldnames=OUT_COLUMNS, extrasaction="ignore")
         pw.writeheader()
+        for r in done_rows:
+            pw.writerow(r)
+        pf.flush()
         with cf.ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
             futs = [ex.submit(recover_one, b, st, det, args.google_fallback) for b, st, det in targets]
             for n, fut in enumerate(cf.as_completed(futs), 1):
@@ -879,6 +1216,7 @@ def do_dry_run(args: argparse.Namespace) -> int:
                     oc = Counter(x["confidence"] for x in rows)
                     log(f"  [{n}/{len(targets)}] {el:.0f}s  eta {el / n * (len(targets) - n):.0f}s  "
                         f"high={oc['high']} medium={oc['medium']} none={oc['none']}")
+    rows.extend(done_rows)
     rows.sort(key=lambda r: (-int(r.get("recommendation_count") or 0), r["slug"]))
     write_csv(out_path, OUT_COLUMNS, rows)
     os.remove(partial)
@@ -994,6 +1332,7 @@ def do_write(args: argparse.Namespace) -> int:
 # ────────────────────────────────────────────────────────────────────────────
 
 def main() -> int:
+    global MAX_WORKERS, SHOWN_CACHE_TTL
     ap = argparse.ArgumentParser(description="Find correct covers for shown books with missing/broken/placeholder covers (dry-run by default).")
     ap.add_argument("--census", action="store_true", help="classify every shown book's current cover and exit")
     ap.add_argument("--limit", type=int, default=0, help="max non-ok target books (0 = all)")
@@ -1005,6 +1344,13 @@ def main() -> int:
     ap.add_argument("--out", default=DEFAULT_OUT, help="dry-run CSV path")
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--fresh", action="store_true", help="reload the shown set from Supabase instead of the 2h disk cache")
+    ap.add_argument("--resume", action="store_true", help="keep the rows already in <out>.partial and only process the rest")
+    ap.add_argument("--workers", type=int, default=MAX_WORKERS, help="concurrent requests (max 3)")
+    ap.add_argument("--census-out", default=CENSUS_OUT, help="census CSV path")
+    ap.add_argument("--text-page-all", action="store_true",
+                    help="run the text-page heuristic on every OL/storage cover too (slow: downloads each)")
+    ap.add_argument("--no-suspect", action="store_true", help="skip the google/foreign/text-page checks on ok covers")
+    ap.add_argument("--shown-ttl-hours", type=float, default=2.0, help="max age of the cached shown set")
     # write path
     ap.add_argument("--write", action="store_true", help="apply a reviewed dry-run CSV (gated)")
     ap.add_argument("--confirm", action="store_true", help="required with --write")
@@ -1013,6 +1359,11 @@ def main() -> int:
     ap.add_argument("--max-writes", type=int, default=0, help="cap the number of rows written")
     args = ap.parse_args()
 
+    SUSPECT_CHECK["on"] = not args.no_suspect
+    TEXT_PAGE_ALL["on"] = args.text_page_all
+    MAX_WORKERS = max(1, min(3, args.workers))
+    CENSUS_PATH["p"] = args.census_out
+    SHOWN_CACHE_TTL = args.shown_ttl_hours * 3600
     if args.write:
         return do_write(args)
     if args.census:
