@@ -1,5 +1,29 @@
 # Changelog
 
+## 2026-11-12 — Weak primary-source candidates checked at the source
+
+- The 613 weak candidates from the entry below were checked at the source itself by the new `scripts/verify_weak_primary_sources.py`. As before, an outside index was used only to find where to look. Nothing from it is stored.
+- Rules: the person must be the author or the speaker. Their own words naming the book must be on the page, not a story or list about them. Comments, sponsor reads, menus and related-post blocks are removed first. Show notes that only list "books mentioned" in an episode do not count.
+- Results: **80 confirmed**, 150 rejected and 383 unreachable.
+
+  | Type | Confirmed | Rejected | Unreachable |
+  |---|---|---|---|
+  | Tweet | 0 | 0 | 135 |
+  | YouTube | 1 | 2 | 104 |
+  | Podcast page | 17 | 78 | 0 |
+  | Interview | 13 | 18 | 24 |
+  | Blog | 0 | 18 | 28 |
+  | Other | 49 | 34 | 92 |
+
+- Tweets were looked up only through the Wayback Machine, and X itself was never fetched. web.archive.org could not be reached from this environment, and archive.org's lookup service answered 429 after about 90 lookups, so the run stopped there. None of the 135 tweets could be read, so none were written.
+- YouTube video pages answered with a bot check (a redirect to a page that answers 429). The fetcher did not count that as a 429 at first, so the run was stopped by hand, and the script now stops on it. Only the video title and channel, cached by the earlier run, were usable. One video names the person and the book in its title and was written. The other 104 do not name the book in the title, and their descriptions could not be read.
+- Main rejection reasons: the book is not on the page (70); the book is only listed in episode show notes (49); a story or list about the person rather than their own words (9); a compiled list of publisher blurbs whose author is unknown (8). There were 14 others, each with its reason in the CSV.
+- Unreachable: robots.txt disallows the page (65, mostly Facebook posts), the site answered 403 (61), or the page was gone or could not be fetched (18).
+- Written to production: **80 rows** at confidence 60, with source_url set to the original primary URL. That was a 10-row pilot, then batches of 40 and 31, guarded by a payload checksum and a snapshot check, with each row backed up first. The batch label is `weak_verified` in `public.bak_recs_primary_sources_20261112`. No row had changed since planning, so the snapshot check skipped none.
+- 56 quotes were stored, each found word for word in the person's own text. Quotes that had been edited with brackets or ellipses were not stored.
+- Hand check of 30 random written rows: 29 were right (97%). The miss was a paywalled book review: only the book's header was visible, not the person's words. That row was reverted to its earlier hidden state, which leaves the 80 rows above (81 were written).
+- The 533 unconfirmed candidates, each with its reason, are in `reports/weak_candidates_unconfirmed_20261112.csv` (gitignored). They were left untouched.
+
 ## 2026-11-12 — Primary sources for orphaned recommendations
 
 - 6,505 recommendations had a stored source that was a pipe-joined list belonging to other people (the site already hid it). `scripts/find_primary_sources.py` now covers all of them (`--scope all`), not just the 987 of published people. For each row it looks for the person's own tweet, podcast episode, interview, video or blog post, and checks that source itself. An outside recommendation index was used only to find where to look. Nothing from it is stored, and no link to it is stored.
