@@ -1,3 +1,12 @@
+// Duplicate books merged on 2026-11-12: [retired slug, surviving slug] pairs,
+// exported from public.slugs. Served as real HTTP 301s; the book page's own
+// public.slugs lookup only covers slugs retired after this list was written.
+const bookMergeRedirects = require("./redirects/book-merges-20261112.json").map(([from, to]) => ({
+  source: `/books/${from}`,
+  destination: `/books/${to}`,
+  statusCode: 301,
+}));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async headers() {
@@ -496,6 +505,7 @@ const nextConfig = {
         destination: "/people/tim-o-reilly",
         permanent: true,
       },
+      ...bookMergeRedirects,
     ];
   },
 
