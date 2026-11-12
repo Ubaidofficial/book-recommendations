@@ -98,7 +98,8 @@ def norm_tokens(s: str) -> list[str]:
 
 
 def title_key(title: str) -> tuple[str, ...]:
-    t = re.split(r"\s*[:(\[]\s*|\s+-\s+", title.strip())[0]  # drop subtitle / (Series #1)
+    # drop subtitle / (Series #1); a colon only splits when followed by a space ("4:50 From Paddington")
+    t = re.split(r"\s*:\s+|\s*[(\[]|\s+-\s+", title.strip())[0]
     toks = norm_tokens(t)
     while toks and toks[0] in ARTICLES and len(toks) > 1:
         toks = toks[1:]
@@ -114,6 +115,22 @@ def surname(author: str) -> str | None:
 
 
 # ----------------------------------------------------------------- catalog
+
+def needs_author_keys(books, people_names=()) -> set[str]:
+    """Title keys that must not count unless the book's author is named:
+    titles made only of numbers ("24", "99", "1984"), and titles that are a
+    person's name that is also an author in the catalog ("Marcus Aurelius")."""
+    authors = {" ".join(norm_tokens(b.get("author_name") or "")) for b in books}
+    authors |= {" ".join(norm_tokens(n)) for n in people_names}  # "Elon Musk" the biography
+    out = set()
+    for b in books:
+        k = " ".join(title_key(b.get("title") or ""))
+        if not k:
+            continue
+        if all(t.isdigit() for t in k.split()) or k in authors:
+            out.add(k)
+    return out
+
 
 def load_catalog(path: str):
     books = json.load(open(path))
@@ -188,6 +205,20 @@ def isolated(raw: str, spans, first: int, after: int) -> bool:
     return True
 
 
+def surname_used(sn: str, toks, spans, raw: str) -> bool:
+    """The surname must end a name: "Nicholas" in "Nassim Nicholas Taleb" does not
+    count, but "Frank Herbert\nNeuromancer" or "Herbert. Then" does."""
+    for j, t in enumerate(toks):
+        if t != sn:
+            continue
+        if j + 1 >= len(toks) or not spans[j + 1][0][0].isupper():
+            return True
+        gap = raw[spans[j][2]:spans[j + 1][1]]
+        if re.search(r"[.!?;:,()\n/*_\"-]", gap) or spans[j + 1][0].lower() in SMALL:
+            return True
+    return False
+
+
 def match_comment(body: str):
     groups, first = G["groups"], G["first"]
     raw = fold(body)
@@ -214,11 +245,14 @@ def match_comment(body: str):
         cstart, cend = spans[s0][1], spans[i + L - 1][2]
         cands = groups[key]
         named = [b for b in cands if b["surname"] and b["surname"] in tokset
-                 and b["surname"] not in key]  # the surname must not just be part of the title
+                 and b["surname"] not in key  # the surname must not just be part of the title
+                 and surname_used(b["surname"], toks, spans, raw)]
         is_cap = capitalised(orig)
         is_fmt = formatted(raw, cstart, cend)
         if is_cap and not is_fmt and len(key) <= 2 and not isolated(raw, spans, s0, i + L):
             is_cap = False  # "James Herriot", "Madeline Miller": part of a longer name
+        if is_cap and len(key) == 1 and len(orig[-1]) <= 5 and orig[-1].isupper():
+            is_cap = False  # acronyms: "VC", "AI", "IT"
         if named and (len(key) >= 3 or is_cap or is_fmt) and " ".join(key) not in {"it", "us", "you", "me"}:
             b = named[0]
             rule = "author"
@@ -281,6 +315,11 @@ def process_file(args):
 
 # ----------------------------------------------------------------- aggregate
 
+def _year(ts: int) -> int:
+    import datetime
+    return datetime.datetime.fromtimestamp(ts, datetime.timezone.utc).year
+
+
 def permalink(source: str, community: str, thread_id: str, comment_id: str | None) -> str:
     if source == "reddit":
         base = f"https://www.reddit.com/r/{community}/comments/{thread_id}/"
@@ -295,6 +334,7 @@ def main() -> int:
     ap.add_argument("--in", dest="inp", action="append", required=True,
                     help="source=folder, e.g. reddit=data/reddit (repeatable)")
     ap.add_argument("--catalog", required=True)
+    ap.add_argument("--people", help="JSON list of people names; titles equal to a name need the author named")
     ap.add_argument("--out", required=True)
     ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 1))
     a = ap.parse_args()
@@ -322,10 +362,28 @@ def main() -> int:
         capn, lown = case[(key, True)], case[(key, False)]
         return capn >= CASE_MIN_HITS and capn / max(1, capn + lown) >= CASE_RATIO_SHORT
 
+    people = json.load(open(a.people)) if a.people else []
+    needs_author = needs_author_keys(json.load(open(a.catalog)), people)
     kept = [r for r in all_rows
             if r["rule"] == "author"
-            or (r["rule"] == "title3" and r["key"] not in GENERIC)
-            or (r["rule"] in ("title1", "title2") and short_ok(r["key"]))]
+            or (r["key"] not in needs_author and (
+                (r["rule"] == "title3" and r["key"] not in GENERIC)
+                or (r["rule"] in ("title1", "title2") and short_ok(r["key"]))))]
+
+    # A title matched without its author must also be matched WITH its author
+    # somewhere in the corpus. "Dune by Frank Herbert" appears often enough to
+    # vouch for bare "Dune"; "Japan by <cookbook author>" never appears, so
+    # mentions of the country do not count for the cookbook.
+    with_author = collections.Counter(r["book_id"] for r in kept if r["rule"] == "author")
+    bare = collections.Counter(r["book_id"] for r in kept if r["rule"] != "author")
+
+    def vouched(r) -> bool:
+        if r["rule"] == "author":
+            return True
+        need = 1 if r["rule"] == "title3" else max(2, int(0.03 * bare[r["book_id"]]))
+        return with_author[r["book_id"]] >= need
+
+    kept = [r for r in kept if vouched(r)]
 
     # one count per (book, thread): keep the best-scoring comment
     best: dict[tuple, dict] = {}
@@ -347,7 +405,7 @@ def main() -> int:
                                 "communities": collections.Counter(), "rows": []})
         a_["thread_count"] += 1
         a_["upvotes"] += max(0, r["score"])
-        year = __import__("datetime").datetime.utcfromtimestamp(r["created_utc"]).year
+        year = _year(r["created_utc"])
         a_["years"][year] += 1
         a_["communities"][r["community"]] += 1
         a_["rows"].append(r)
@@ -367,14 +425,14 @@ def main() -> int:
             "communities": dict(a_["communities"].most_common(8)),
             "top_comments": [{
                 "community": r["community"], "score": r["score"], "year":
-                    __import__("datetime").datetime.utcfromtimestamp(r["created_utc"]).year,
+                    _year(r["created_utc"]),
                 "thread_title": r["thread_title"], "snippet": r["snippet"],
                 "url": permalink(r["source"], r["community"], r["thread_id"], r["comment_id"]),
             } for r in top_c],
             "top_threads": [{
                 "community": r["community"], "title": r["thread_title"],
                 "comments": r.get("thread_comments"),
-                "year": __import__("datetime").datetime.utcfromtimestamp(r["created_utc"]).year,
+                "year": _year(r["created_utc"]),
                 "url": permalink(r["source"], r["community"], r["thread_id"], None),
             } for r in top_t],
         })

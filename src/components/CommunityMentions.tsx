@@ -153,8 +153,8 @@ export function CommunityMentions({
       <YearBars byYear={primary.by_year || {}} label={`${p.name} threads recommending ${bookTitle}, per year`} />
 
       <p className="mt-4 text-xs text-muted leading-relaxed">
-        From public {shown.map((m) => SOURCE_LABEL[m.source].name).join(" and ")} replies to &ldquo;what should I
-        read&rdquo; threads since 2015, matched to this book automatically. A book counts once per thread. Quotes are
+        From public {shown.map((m) => SOURCE_LABEL[m.source].name).join(" and ")}{" "}
+        replies to &ldquo;what should I read&rdquo; threads since 2015, matched to this book automatically. A book counts once per thread. Quotes are
         short excerpts linked to the original comment; usernames are not shown.
       </p>
     </section>

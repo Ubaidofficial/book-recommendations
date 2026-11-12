@@ -42,7 +42,7 @@ def main() -> int:
     ap.add_argument("--replace", action="store_true")
     ap.add_argument("--min-threads", type=int, default=2,
                     help="skip books recommended in fewer threads than this (default 2)")
-    ap.add_argument("--batch", type=int, default=500)
+    ap.add_argument("--batch", type=int, default=200)
     a = ap.parse_args()
 
     base = (os.environ.get("SUPABASE_URL") or os.environ.get("NEXT_PUBLIC_SUPABASE_URL") or "").rstrip("/")
@@ -67,10 +67,20 @@ def main() -> int:
         return 0
 
     url = f"{base}/rest/v1/{TABLE}?on_conflict=book_id,source"
+    skipped = 0
     for i in range(0, len(rows), a.batch):
-        status, _ = req("POST", url, key, rows[i:i + a.batch],
-                        prefer="resolution=merge-duplicates,return=minimal")
-        print(f"  upserted {min(i + a.batch, len(rows))}/{len(rows)} (http {status})", flush=True)
+        batch = rows[i:i + a.batch]
+        # books can be merged/deleted between the catalog export and this load
+        ids = ",".join(sorted({r["book_id"] for r in batch}))
+        _, body = req("GET", f"{base}/rest/v1/books?select=id&id=in.({ids})", key)
+        live = {r["id"] for r in json.loads(body)}
+        keep = [r for r in batch if r["book_id"] in live]
+        skipped += len(batch) - len(keep)
+        if keep:
+            status, _ = req("POST", url, key, keep, prefer="resolution=merge-duplicates,return=minimal")
+            print(f"  upserted {min(i + a.batch, len(rows))}/{len(rows)} (http {status})", flush=True)
+    if skipped:
+        print(f"  skipped {skipped} rows whose book no longer exists")
 
     if a.replace:
         for source in by_source:
