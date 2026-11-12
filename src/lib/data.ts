@@ -2841,3 +2841,66 @@ export const getBooksPaginatedCached = async (
     throw e;
   }
 };
+
+// --- Community recommendation signal (Reddit, Hacker News) ---
+// Built offline by scripts/community/* and stored one row per (book, source)
+// in book_community_mentions. See migrations/006_book_community_mentions.sql.
+
+export type CommunitySource = "reddit" | "hackernews";
+
+export interface CommunityComment {
+  community: string;
+  score: number;
+  year: number;
+  thread_title: string | null;
+  snippet: string;
+  url: string;
+}
+
+export interface CommunityThread {
+  community: string;
+  title: string | null;
+  comments: number | null;
+  year: number;
+  url: string;
+}
+
+export interface BookCommunityMentions {
+  source: CommunitySource;
+  thread_count: number;
+  comment_count: number;
+  upvotes: number;
+  first_year: number | null;
+  last_year: number | null;
+  by_year: Record<string, number>;
+  communities: Record<string, number>;
+  top_comments: CommunityComment[];
+  top_threads: CommunityThread[];
+  source_rank: number | null;
+}
+
+async function fetchBookCommunityMentions(bookId: string): Promise<BookCommunityMentions[]> {
+  const { data, error } = await getSupabase()
+    .from("book_community_mentions")
+    .select(
+      "source, thread_count, comment_count, upvotes, first_year, last_year, by_year, communities, top_comments, top_threads, source_rank"
+    )
+    .eq("book_id", bookId)
+    .order("thread_count", { ascending: false });
+  // Throw so unstable_cache never stores a failed read as "no mentions".
+  if (error) throw error;
+  return (data || []) as BookCommunityMentions[];
+}
+
+export async function getBookCommunityMentions(bookId: string): Promise<BookCommunityMentions[]> {
+  try {
+    return await unstable_cache(
+      () => fetchBookCommunityMentions(bookId),
+      ["book-community-mentions", bookId],
+      { revalidate: 3600, tags: ["community-mentions", `community-mentions:${bookId}`] }
+    )();
+  } catch (e) {
+    logQueryError("getBookCommunityMentions", e);
+    return [];
+  }
+}

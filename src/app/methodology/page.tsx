@@ -38,6 +38,16 @@ export default function MethodologyPage() {
           publicly recommended them. Secondary ranking factors include recency, source quality, and the
           confidence score of each individual recommendation.
         </p>
+        <h2 className="text-xl font-bold text-ink mt-8">Reader Recommendations (Reddit and Hacker News)</h2>
+        <p>
+          Separately from notable people, some book pages show how often everyday readers recommend a book.
+          We look at public replies to &ldquo;what should I read&rdquo; threads posted since 2015 in book
+          communities such as r/suggestmeabook, r/booksuggestions and r/books, and in Ask HN book threads on
+          Hacker News, using public archives. A reply counts when it names a book from our catalog: by title
+          and author, or by a title distinctive enough that it is almost never anything else. Each book counts
+          once per thread. These counts never change the notable-people ranking above. Quotes are short
+          excerpts linked to the original comment, and usernames are not shown.
+        </p>
         <h2 className="text-xl font-bold text-ink mt-8">Quality Standards</h2>
         <p>
           We only surface pages when they have enough useful information, such as clear metadata,

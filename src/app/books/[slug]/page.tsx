@@ -11,7 +11,9 @@ import {
   getSimilarBooksByLists,
   getPersonIdBySlug,
   getSeriesIdBySlug,
+  getBookCommunityMentions,
   type Book,
+  type BookCommunityMentions,
   type BookRecommenderSummary,
   type RecommendationProof,
 } from "@/lib/data";
@@ -36,7 +38,7 @@ import {
   coverAltText,
   cleanQuoteText,
 } from "@/lib/dataQuality";
-import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
+import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated, CommunityMentions } from "@/components";
 
 // Detail-page cover fallback — calmer than the previous oversized-purple version.
 // Subtle neutral gradient, small icon, readable but non-dominant title, "Cover unavailable" caption.
@@ -136,15 +138,17 @@ export default async function BookDetailPage({ params }: Props) {
   let lists: Awaited<ReturnType<typeof getListsForBook>> = [];
   let listSimilarBooks: Awaited<ReturnType<typeof getSimilarBooksByLists>> = [];
   let notableRecommenders: BookRecommenderSummary[] = [];
+  let communityMentions: BookCommunityMentions[] = [];
 
   try {
-    [authorBooks, seriesBooks, rawProof, lists, listSimilarBooks, notableRecommenders] = await Promise.all([
+    [authorBooks, seriesBooks, rawProof, lists, listSimilarBooks, notableRecommenders, communityMentions] = await Promise.all([
       personId ? getBooksByAuthor(personId, 6) : Promise.resolve([]),
       seriesId ? getBooksBySeries(seriesId, 100) : Promise.resolve([]),
       getRecommendationProof(book.id, 6),
       getListsForBook(book.id, 8),
       getSimilarBooksByLists(book.id, 12),
       getBookRecommenders(book.id, 12),
+      getBookCommunityMentions(book.id),
     ]);
   } catch (e) {
     console.error("[book-detail] Relation queries failed:", e);
@@ -1413,6 +1417,9 @@ export default async function BookDetailPage({ params }: Props) {
           </a>
         </div>
       )}
+
+      {/* Reddit / Hacker News reader recommendations (book_community_mentions) */}
+      <CommunityMentions mentions={communityMentions} bookTitle={displayBookTitle(book.title)} />
 
       {/* Appears in Lists — single-pass dedupe across ALL kinds by normalized display label,
           keeping the higher-priority entry (topic > meta > other > category); same priority
