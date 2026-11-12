@@ -3,7 +3,7 @@
 ## 2026-11-12 — Data repairs: covers and misattributed tweet sources
 
 ### Covers (352 books)
-- Replaced 352 broken or placeholder covers with real covers found by `scripts/recover_covers.py`: 308 from Open Library and 44 from Amazon by ISBN. Before the fix, 339 had a bare filename that didn't exist in storage, 12 had Google's "image not available" image or another placeholder, and 1 was empty. Atomic Habits is one of the books fixed.
+- Replaced 352 broken or placeholder covers with real covers found by `scripts/recover_covers.py`: 308 from Open Library and 44 from Amazon by ISBN. Before the fix, 336 had a bare filename that didn't exist in storage, 15 had Google's "image not available" image or another placeholder, and 1 was empty. Atomic Habits is one of the books fixed.
 - Only high-confidence matches were written: exact title, author surname match, and an image re-checked just before the write. Two dry-run picks were left out after a hand check: Parting the Waters (a scanned title page) and The Good Earth (a Spanish edition). The Long Goodbye was also skipped because its image failed the re-check. Medium-confidence matches weren't written (3 of 7 were wrong).
 - The backup is in `bak_books_cover_20261112` (row-level security on). Each update only applied if the row still held the value seen in the dry run.
 
