@@ -10,7 +10,22 @@ import {
   getQualityPeopleCached,
 } from "@/lib/data";
 import { pageMetadata, robotsDirective, contentDates } from "@/lib/seo";
-import { personJsonLd } from "@/lib/jsonld";
+import { personJsonLd, faqPageJsonLd } from "@/lib/jsonld";
+import {
+  getPersonShelf,
+  getPersonTopics,
+  getSimilarShelves,
+  buildPersonFaq,
+  firstNameOf,
+  type ShelfBook,
+  type PersonTopic,
+  type SimilarShelf,
+} from "@/lib/personInsights";
+import { PersonShelf } from "@/components/person/PersonShelf";
+import { PersonTopics } from "@/components/person/PersonTopics";
+import { SimilarShelves } from "@/components/person/SimilarShelves";
+import { PersonFaq } from "@/components/person/PersonFaq";
+import { toSpines } from "@/components/person/spines";
 import {
   isValidHttpUrl,
   formatConfidence,
@@ -70,6 +85,9 @@ export default async function PersonDetailPage({ params }: Props) {
   let recommendedCount = 0;
   let writtenCount = 0;
   let otherPeople: Awaited<ReturnType<typeof getQualityPeopleCached>> = [];
+  let shelf: ShelfBook[] = [];
+  let topics: PersonTopic[] = [];
+  let similar: SimilarShelf[] = [];
 
   try {
     // Person pages linked to books and to nothing else — zero person->person
@@ -77,12 +95,13 @@ export default async function PersonDetailPage({ params }: Props) {
     // for a crawler walking the graph, and leaves the deeper profiles with no
     // internal path to them at all.
     let qualityPeople: Awaited<ReturnType<typeof getQualityPeopleCached>>;
-    [writtenBooks, rawProof, recommendedCount, writtenCount, qualityPeople] = await Promise.all([
+    [writtenBooks, rawProof, recommendedCount, writtenCount, qualityPeople, shelf] = await Promise.all([
       getBooksByAuthorCached(person.id, 24),
       getPersonRecommendationProofCached(person.id, 24),
       getPersonRecommendedCountCached(person.id),
       getPersonWrittenCountCached(person.id),
       getQualityPeopleCached(40),
+      getPersonShelf(person.id),
     ]);
     otherPeople = qualityPeople
       .filter((p) => p && p.slug && p.slug !== person.slug && p.name)
@@ -90,6 +109,36 @@ export default async function PersonDetailPage({ params }: Props) {
   } catch (e) {
     console.error("[person-detail] Relation queries failed:", e);
   }
+
+  // Shelf-derived sections: topics and overlap both start from the full set
+  // of this person's book ids. Each helper already returns [] on failure.
+  const shelfIds = shelf.map((b) => b.id);
+  try {
+    [topics, similar] = await Promise.all([
+      getPersonTopics(person.id, shelfIds, 8),
+      getSimilarShelves(person, shelfIds, 8),
+    ]);
+  } catch (e) {
+    console.error("[person-detail] Shelf insights failed:", e);
+  }
+  const firstName = firstNameOf(person.name);
+  const shelfById = new Map(shelf.map((b) => [b.id, b]));
+  const similarCards = similar.map((s) => ({
+    slug: s.slug,
+    name: s.name,
+    role: s.role,
+    avatarUrl: s.avatar_url,
+    shared: s.shared,
+    comparable: s.comparable,
+    examples: s.sharedBookIds
+      .map((id) => shelfById.get(id))
+      .filter((b): b is ShelfBook => b != null)
+      .sort((a, b) => b.recommendation_count - a.recommendation_count)
+      .slice(0, 2)
+      .map((b) => b.title),
+  }));
+  const faq = buildPersonFaq({ name: person.name, shelf, topics, similar });
+  const faqLd = faqPageJsonLd(faq);
 
   const safeWrittenBooks = writtenBooks.filter((b) => b != null && b.id);
   const safeProof = rawProof.filter((p) => p != null && p.book != null && p.book.id);
@@ -119,9 +168,15 @@ export default async function PersonDetailPage({ params }: Props) {
   const hasFullProof = proofList.every((p) => parseSourceUrls(p.source_url).length > 0);
   const proofHeading = hasFullProof ? "Source & Proof" : "Recommendation Signals";
 
+  // Spine shelf: the 16 picks most recommended across the site. The panel
+  // links down to a proof card only when this page actually renders one.
+  const proofSlugs = new Set(proofList.map((p) => p.book.slug).filter(Boolean));
+  const spines = toSpines(shelf.slice(0, 16), proofSlugs);
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
       {jsonld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />}
+      {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "People", href: "/people" }, { label: person.name }]} />
 
       <div className="flex flex-col sm:flex-row items-start gap-6 mb-8">
@@ -254,6 +309,19 @@ export default async function PersonDetailPage({ params }: Props) {
         </span>
       </div>
 
+      {/* On the shelf — the person's most-recommended picks as spines. */}
+      {spines.length >= 3 && (
+        <section className="mb-14" aria-labelledby="shelf-h">
+          <h2 id="shelf-h" className="text-xl font-bold text-ink mb-1.5 tracking-tight">On the shelf</h2>
+          <p className="text-sm text-muted max-w-2xl mb-5">
+            {spines.length === shelf.length
+              ? `All ${shelf.length} of ${firstName}’s picks. Choose a book to take it off the shelf.`
+              : `The ${spines.length} of ${firstName}’s ${shelf.length.toLocaleString("en-US")} picks that the most people recommend. Choose a book to take it off the shelf.`}
+          </p>
+          <PersonShelf books={spines} firstName={firstName} />
+        </section>
+      )}
+
       {/* Recommended Books */}
       {hasRecommendations ? (
         <section className="mb-14">
@@ -348,6 +416,9 @@ export default async function PersonDetailPage({ params }: Props) {
           </div>
         </section>
       )}
+
+      <PersonTopics topics={topics} firstName={firstName} totalBooks={shelf.length} />
+      <SimilarShelves personSlug={person.slug} firstName={firstName} people={similarCards} />
 
       {/* Books Written */}
       {hasWritten && (
@@ -488,6 +559,8 @@ export default async function PersonDetailPage({ params }: Props) {
           </div>
         )}
       </section>
+
+      <PersonFaq heading={`Questions about ${firstName}’s reading list`} items={faq} />
 
       {/* How this profile is built */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
