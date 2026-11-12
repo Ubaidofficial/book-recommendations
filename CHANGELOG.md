@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-11-12 — Person page depth and shelf comparison pages
+
+### Person pages (`/people/[slug]`)
+- **On the shelf**: up to 16 of the person's picks, ordered by how many people on BookMentions recommend each one, drawn as book spines. Each spine is a real `<button>` (`aria-pressed`, "Title by Author" label). Arrow keys, Home and End move along the shelf. Picking one shows it in a side panel as a 3D book (the existing `Book3D`), with a link to the book page and, when this page has one, to its proof card. Spine colours come from a fixed neutral palette chosen by a stable hash of the slug (no image processing). Heights come from the same hash and widths from page count. Motion is transform-only behind `motion-safe`.
+- **What <first name> reads most**: published lists that hold the most of the person's recommended books (top 8, with counts and a proportional bar), linked to `/lists/<slug>`. Catch-all lists are left out: `most-recommended-books` (5.7k books), `nonfiction` (7.8k), `fiction` (4.7k), plus any list over 3,000 books. They held 157, 92 and 40 of Naval's books and would push every real topic down. `books-recommended-by-*` lists are also left out because they group books by recommender, not by topic.
+- **People with a similar shelf**: other published people ranked by shared recommended books (at least 3 in common, top 8). Each card shows the shared count and two shared titles. A card links to the compare page when that page is indexable, and to the person otherwise.
+- **FAQ** (3–4 Q&As) built only from numbers on the page: books on file, the picks other people recommend most, top topics, and the most similar shelf. The FAQPage JSON-LD comes from the same array as the visible text, so the two match word for word. The answers say that sources are linked where confirmed and that some picks don't have one yet.
+- The H1, Person JSON-LD, LastUpdated, the book grid, proof section and "Other recommenders" are unchanged.
+
+### Compare pages (`/compare/<slugA>-vs-<slugB>`)
+- New route. Slugs are in alphabetical order. The reverse order, or any other spelling, gets a 308 to the canonical URL. An unknown person or the same slug twice returns a 404.
+- Shows both people, the shared count, an area-proportional SVG Venn diagram (circle area follows shelf size, lens area follows shared books), the shared books as cover tiles (top 48), and the top 8 books unique to each person. It also links to both person pages, each book and up to 8 more comparisons.
+- Indexable only when both people are published, each has at least 20 recommendations, and they share at least 8 books. Any other pair renders as `noindex, follow`. Titles look like "Naval Ravikant vs Tim Ferriss: 22 books in common".
+- `sitemap.ts` gets a separate block at the end listing the qualifying pairs: **55 today**. These are computed in JS from one cached, paged read of the 52 published people's 4,658 recommendation rows (`unstable_cache`, 1h).
+
+### Data layer
+- New `src/lib/personInsights.ts`. Every query is bounded with `.limit()`/`.range()`, inner fetchers throw so a failure is never cached, and the exported functions log and return `[]`. UI is in `src/components/person/*` and `src/app/compare/[pair]/page.tsx`.
+
 ## 2026-11-12 — Data repairs: covers and misattributed tweet sources
 
 ### Covers (352 books)
