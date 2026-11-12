@@ -10,8 +10,9 @@
   - A news story about the person no longer counts as their interview unless their own quoted words are on the page.
   - A co-guest's own book, reader comments and podcast sponsor reads no longer count as the person's mention.
   - Sources dated two or more years before the book was published are rejected.
-- Hand check: 16 of 16 strong candidates were right. 39 of 40 random medium candidates (final rules) were right. The other one was uncertain: a book in a podcast's show notes that the host also reads in an ad.
+- Hand check: 16 of 16 strong candidates were right. 39 of 40 random medium candidates (final rules) were right; the miss was a co-guest's own book, which the co-guest rule now moves to weak.
 - Written to production: **187 rows** (14 strong at confidence 80, 173 medium at 60), in guarded batches with a payload checksum and a snapshot check. That was a 10-row pilot, then 3 batches of 50 and one of 27. All rows passed. 9 more strong or medium rows already had the same source and were left alone. Weak candidates are only in the CSV.
+- Afterwards one medium row was undone (Soman Chainani / The Graveyard Book): the book is in the podcast's show notes, but the host also names it in a sponsor read, so who mentioned it is unclear. It went back to its earlier hidden state, which leaves **186 rows** written (14 strong, 172 medium).
 - 48 quotes were stored, each found word for word at the source. Quotes that had been edited with brackets or ellipses were not stored.
 - Backup: `public.bak_recs_primary_sources_20261112`, with RLS on. The restore SQL is in the table comment.
 - Checked on the local site against live data: /people/seth-godin, /people/james-clear and six book pages. The new sources show as "Own source" or "Podcast episode" with an "Open source" link.
