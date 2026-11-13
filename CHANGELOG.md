@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-13 — Re-check of the orphaned recommendations: 1,020 more sources
+
+- An independent re-check (`scripts/recheck_orphans/`) matched all 6,505 orphaned recommendations against both outside indexes. It used looser person and title matching against their full people lists and every cached person page.
+- 2,796 of the 6,505 are listed on at least one index for that same person. 1,022 of those cite a tweet from the person's own account: the handle equals the one on the index's profile for that person, `people.twitter_handle` or HANDLE_MAP. The earlier runs had skipped them because X blocks automated reading, so the tweet could not be opened.
+- Hand check: 26 random rows of this kind, all correct. In 365 of the 1,022 the index's copy of the tweet names the book.
+- Written: **1,020 rows** (2 had changed and were skipped). Each now has source_url = the person's tweet and confidence 60. The quote is empty, because the tweet text could not be checked at the source. The writes were a 10-row pilot plus 6 batches, each with a payload checksum, a snapshot guard and a backup in `public.bak_recs_primary_sources_20261112` (batches `index_tweets_20261113_*`).
+- Recommendations with the person's own source are now 1,289 of the 6,505 (269 earlier plus 1,020).
+- Still without a source: the person is on neither index (3,019 rows); the person's index page does not list the book (657); the book is listed but the cited link failed the checks (aggregator or bookstore, other people's accounts) or no link is cited. Per-row detail is in `reports/orphan_recheck_20261113.csv` (gitignored).
+
 ## 2026-11-13 — Five recommendations confirmed by hand
 
 - Gabor Maté: Don Quixote, The Dhammapada and The Drama of the Gifted Child now cite his Tim Ferriss episode (tim.blog/2018/02/20/gabor-mate/) at confidence 60, quote empty. The episode transcript has Tim naming all four books from Maté's own book and Maté discussing them. These were held back by the medium-precision gate, then confirmed by hand.
