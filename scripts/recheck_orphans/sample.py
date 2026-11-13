@@ -2,7 +2,7 @@ import sys, json, random, os
 D=os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0,D)
 exec(open(D+'/recheck.py').read().split("# previous strict results")[0])
 import find_primary_sources as fps
-L=json.load(open(D+'/listed_rows.json'))
+L=json.load(open(OUT+'/listed_rows.json'))
 random.seed(13)
 def cards_for(x):
     b=books[recs[x['rec_id']]['book_id']]; prof=set(x['profile_handles'].split(';'))

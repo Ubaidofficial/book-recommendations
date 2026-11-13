@@ -42,6 +42,6 @@ upd as (update public.book_recommendations r set quote=ok.q, confidence_score=70
 select (select good from chk) checksum_ok,(select count(*) from v) given,(select count(*) from ok) matched,(select count(*) from bk) backup_rows_updated,(select count(*) from upd) updated;"""
 os.makedirs(OUTD+'/quote_batches',exist_ok=True)
 rows.sort()
-chunks=[rows[:10]]+[rows[i:i+120] for i in range(10,len(rows),120)]
+chunks=([rows[:10]]+[rows[i:i+120] for i in range(10,len(rows),120)]) if rows else []
 for n,ch in enumerate(chunks): open(OUTD+f'/quote_batches/q{n:02d}.sql','w').write(sql(ch,n))
 print('batches',[len(c) for c in chunks])

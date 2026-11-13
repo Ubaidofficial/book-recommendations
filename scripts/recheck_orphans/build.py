@@ -2,7 +2,7 @@ import sys, json, os, re, hashlib, collections, datetime, csv
 D=os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0,D)
 exec(open(D+'/recheck.py').read().split("# previous strict results")[0])
 import find_primary_sources as fps
-L=[x for x in json.load(open(D+'/listed_rows.json')) if x['best'] in ('own_tweet_text_names_book','own_tweet')]
+L=[x for x in json.load(open(OUT+'/listed_rows.json')) if x['best'] in ('own_tweet_text_names_book','own_tweet')]
 fresh={r['id']:r for r in fps.sb_read_ids('book_recommendations','id,person_id,book_id,source_url,quote',[x['rec_id'] for x in L])}
 yrs={b['id']:b.get('first_published_year') for b in fps.sb_read_ids('books','id,first_published_year',list({r['book_id'] for r in fresh.values()}))}
 def tdate(u):
@@ -30,13 +30,14 @@ for x in L:
                         cand=(1 if names else 0, cu)
                         if best is None or cand>best: best=cand
     if not best: c['no_tweet']+=1; continue
+    if (r['source_url'] or '')==best[1]: c['already_written']+=1; continue
     td=tdate(best[1]); y=yrs.get(r['book_id'])
     if td and y and td.year < int(y)-1: c['tweet_older_than_book']+=1; continue
     snap=hashlib.md5(((r['source_url'] or '')+'|'+(r['quote'] or '')).encode()).hexdigest()
     payload.append((r['id'],snap,best[1],'tweet_text_names_book' if best[0] else 'own_tweet'))
     c['ok_'+('names' if best[0] else 'plain')]+=1
 print(c, len(payload))
-json.dump(payload,open(D+'/payload.json','w'))
+json.dump(payload,open(OUT+'/payload.json','w'))
 def sql(rows,batch):
     vals=',\n'.join(f"('{i}'::uuid,'{s}','{u}','{k}')" for i,s,u,k in rows)
     chk=hashlib.md5(','.join(f"{i}|{s}|{u}" for i,s,u,k in sorted(rows)).encode()).hexdigest()
@@ -51,9 +52,10 @@ ins as (insert into public.bak_recs_primary_sources_20261112(id,book_id,person_i
 upd as (update public.book_recommendations r set source_url=ok.nu, source_name=null, quote=null, confidence_score=60
         from ok where r.id=ok.id and r.id in (select id from ins) returning r.id)
 select (select good from chk) checksum_ok,(select count(*) from v) given,(select count(*) from ok) matched,(select count(*) from ins) backed_up,(select count(*) from upd) updated;"""
-os.makedirs(D+'/batches',exist_ok=True)
+TAG=sys.argv[2] if len(sys.argv)>2 else 'index_tweets_20261113'  # batch label prefix in the backup table
+os.makedirs(OUT+'/batches',exist_ok=True)
 payload.sort(key=lambda p:p[0])
-chunks=[payload[:10]]+[payload[i:i+200] for i in range(10,len(payload),200)]
+chunks=([payload[:10]]+[payload[i:i+200] for i in range(10,len(payload),200)]) if payload else []
 for n,ch in enumerate(chunks):
-    open(D+f'/batches/b{n:02d}.sql','w').write(sql(ch,f'index_tweets_20261113_b{n:02d}'))
+    open(OUT+f'/batches/b{n:02d}.sql','w').write(sql(ch,f'{TAG}_b{n:02d}'))
 print('batches',len(chunks),[len(c) for c in chunks])

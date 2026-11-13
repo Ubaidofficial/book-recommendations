@@ -8,7 +8,7 @@ hm=fps.load_house_maps()
 slug_handles=collections.defaultdict(set)
 for h,sl in hm[0].items(): slug_handles[sl].add(h.lower())
 deny=hm[1]
-per=json.load(open(D+'/per_row.json'))
+per=json.load(open(OUT+'/per_row.json'))
 done_ids=set()
 for f in ['/home/user/book-recommendations/.claude/worktrees/agent-aedf84a0558ba70ab/reports/already_written_ids_20261112.json']:
     try: done_ids|=set(json.load(open(f)))
@@ -44,4 +44,4 @@ for x in per:
     c[best]+=1
     out.append(dict(x, best=best, profile_handles=';'.join(sorted(prof))))
 print(c)
-json.dump(out,open(D+'/listed_rows.json','w'))
+json.dump(out,open(OUT+'/listed_rows.json','w'))

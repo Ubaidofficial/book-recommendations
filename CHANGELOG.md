@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-13 — Re-check of the orphaned recommendations: missing index pages
+
+- The re-check now also reads the outside index's own people listing, which names 764 people where its sitemap names 653. The 111 missing person pages were downloaded, plus the 6 person pages (3 on each outside index) that loosely matched our people but had never been downloaded.
+- A page now counts as the person's only when its own name equals the person's full name after accent and punctuation folding, or an alias in ALIAS_GROUPS. This held back the 6 never-downloaded pages, which give a shorter or longer form of the name (a middle name or initial, or "Dr."); 8 own-tweet rows (Balaji S. Srinivasan 6, Richard H. Thaler 2) wait on an alias decision.
+- 29 more of our people matched a newly downloaded page. 3 new rows cite a tweet from the person's own account (David Copperfield, Emily Ratajkowski, Michael Smerconish); all 3 were hand-checked and written with source_url = the tweet and confidence 60 (batch `index_tweets_20261113r2_b00`, backed up first). None of the 3 tweet texts names the book, so no quotes were written.
+- Scripts in `scripts/recheck_orphans/` take an output directory argument.
+
 ## 2026-11-13 — Re-check of the orphaned recommendations: 1,020 more sources
 
 - An independent re-check (`scripts/recheck_orphans/`) matched all 6,505 orphaned recommendations against both outside indexes. It used looser person and title matching against their full people lists and every cached person page.
