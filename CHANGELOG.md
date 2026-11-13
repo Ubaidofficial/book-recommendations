@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-13 — One more own-words source
+
+- Matt Mullenweg / Fooled by Randomness now cites his solo book-recommendations episode transcript (tim.blog/2020/05/13/matt-mullenweg-book-recommendations-transcript/) at confidence 80, with his own words as the quote. The earlier show-notes write for this row was undone, and the backup-table guard then kept the other-sources batch from writing it, so it was written by hand. The backup row is updated, with its batch label suffixed `+manual_20261113b`.
+- Totals across the 6,505 orphaned recommendations: 1,404 now cite the person's own source.
+
 ## 2026-11-13 — Own sources found outside the indexes
 
 - New script `scripts/find_other_sources.py` looks for the person's own source for the 657 doubtful recommendations where the person has a page on an outside index but no index lists the book. It reuses the fetcher and matching helpers of `find_primary_sources.py` (generic User-Agent, robots.txt honoured, 1.1 s per host, cached under `reports/third_party_cache/other/`). Places checked: the person's own site, blog or newsletter (WordPress site search where the site has one), podcast transcripts where the person speaks under their own name label (tim.blog for all 169 people, lexfridman.com for 158), transcript copies of the person's own YouTube videos, and interviews in their own words. Web search was used sparingly: 31 searches for 29 people. The outside indexes, bookselects.com, X, Twitter and Reddit were not used.
