@@ -8,7 +8,7 @@ import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRa
   coverAltText,
 } from "@/lib/dataQuality";
 import { itemListJsonLd } from "@/lib/jsonld";
-import { Avatar, Breadcrumbs, SafeImage, EmptyState, LastUpdated } from "@/components";
+import { AmazonCoverLink, Avatar, Breadcrumbs, SafeImage, EmptyState, LastUpdated } from "@/components";
 
 // Declared for consistency with books/[slug] and series/[slug] (all three
 // detail-page types share the same 1-8s cold-Supabase-read problem). Note
@@ -383,6 +383,9 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
   const renderBook = (book: (typeof sortedBooks)[number], i: number) => {
             const hasCover = isValidHttpUrl(book.cover_image_url);
     const showRating = isValidRating(book.rating);
+    // Tagged (bookmention09-20) Amazon URL, shared by the cover link and the
+    // "View on Amazon" button so both always point at the same place.
+    const ctaUrl = amazonCtaUrl(book);
     
     return (
       <div
@@ -396,6 +399,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
 
         {/* Cover image container */}
         <div className="w-28 h-40 sm:w-32 sm:h-48 shrink-0 rounded-xl overflow-hidden shadow-sm bg-subtle relative mx-auto sm:mx-0 border border-border/40">
+          <AmazonCoverLink href={ctaUrl} title={book.title} slug={book.slug} section="list-cover">
           {hasCover ? (
             <SafeImage
               src={book.cover_image_url!}
@@ -414,6 +418,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
               <span className="text-[10px] font-medium text-ink/65 leading-snug line-clamp-3 mt-1">{book.title}</span>
             </div>
           )}
+          </AmazonCoverLink>
         </div>
 
         {/* Content details */}
@@ -513,14 +518,9 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
               View full details →
             </Link>
             {(() => {
-              // normalizeAmazonUrl repairs the dominant 22-char malformed
-              // ASIN pattern (≈25% of with-amazon-url books) and returns
-              // null for non-Amazon hosts, so the CTA is suppressed cleanly
-              // when the URL isn't usable. Render-time only — DB unchanged.
-              // No affiliate tag is appended (we don't have an approved tag
-              // yet — the env-gated withAmazonAffiliateTag helper proposed in
-              // the readiness audit is intentionally not used here).
-              const ctaUrl = amazonCtaUrl(book);
+              // ctaUrl (computed above) is repaired and tagged with
+              // bookmention09-20 by amazonCtaUrl; null only when there is no
+              // title to search for. Render-time only — DB unchanged.
               if (!ctaUrl) return null;
               return (
                 <a

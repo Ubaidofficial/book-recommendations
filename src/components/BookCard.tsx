@@ -30,6 +30,8 @@ interface BookCardProps {
   rating: number;
   recommendationCount: number;
   amazonUrl?: string | null;
+  /** Analytics label for the card's Amazon button (data-track-section). */
+  trackSection?: string;
 }
 
 export function BookCard({
@@ -41,6 +43,7 @@ export function BookCard({
   rating,
   recommendationCount,
   amazonUrl,
+  trackSection = "book-card",
 }: BookCardProps) {
   const showCover = isValidHttpUrl(coverUrl);
   const showRating = isValidRating(rating);
@@ -50,17 +53,25 @@ export function BookCard({
     <div
       className="group flex flex-col h-full rounded-2xl border border-border bg-surface overflow-hidden motion-card-hover hover:border-accent/20"
     >
-      <Link href={`/books/${slug}`} className="block aspect-[2/3] bg-subtle overflow-hidden">
-        {showCover ? (
-          <SafeImage
-            src={coverUrl}
-            alt={coverAltText(title, author)}
-            className="w-full h-full object-cover motion-cover-img"
-            fallback={<NoCoverFallback title={title} />}
-          />
-        ) : (
-          <NoCoverFallback title={title} />
-        )}
+      <Link href={`/books/${slug}`} className="book-cover-tilt block aspect-[2/3] bg-subtle overflow-hidden">
+        {/* Inner wrapper takes the hover tilt so the Link's overflow clip stays
+            square to the card. */}
+        <span className="book-cover-tilt-inner block relative w-full h-full">
+          {showCover ? (
+            <SafeImage
+              src={coverUrl}
+              alt={coverAltText(title, author)}
+              className="w-full h-full object-cover"
+              fallback={<NoCoverFallback title={title} />}
+            />
+          ) : (
+            <NoCoverFallback title={title} />
+          )}
+          {/* Spine crease + light sweep: reads as a bound book, not a flat
+              thumbnail. Pure decoration, no layout. */}
+          <span className="book-cover-hinge" aria-hidden="true" />
+          <span className="book-cover-sheen" aria-hidden="true" />
+        </span>
       </Link>
       <div className="p-4 flex flex-col flex-1 justify-between">
         <div className="mb-3">
@@ -94,7 +105,7 @@ export function BookCard({
               target="_blank"
               rel="noopener noreferrer nofollow sponsored"
               data-track-slug={slug}
-              data-track-section="book-card"
+              data-track-section={trackSection}
               data-track-label="View on Amazon"
               className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-sm text-center cursor-pointer motion-btn-cta"
             >

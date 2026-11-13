@@ -504,31 +504,87 @@ export async function getBookBySlug(slug: string): Promise<Book | null> {
 }
 
 /**
+ * Current slug of the book a retired slug was merged into, or null.
+ *
+ * When duplicate book rows are merged, each removed row's slug is kept in
+ * `public.slugs` (entity_type 'book', entity_id = the surviving book,
+ * is_primary false; see migrations/006). Resolving through the id means a
+ * later rename or second merge of the surviving book still lands on its live
+ * slug. Only called when no book has this slug, so ordinary pages pay nothing.
+ */
+async function fetchBookRedirectSlug(slug: string): Promise<string | null> {
+  const db = getSupabase();
+  const { data: alias, error } = await db
+    .from("slugs")
+    .select("entity_id")
+    .eq("entity_type", "book")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error) throw error;
+  if (!alias?.entity_id) return null;
+  const { data: book, error: bookError } = await db
+    .from("books")
+    .select("slug")
+    .eq("id", alias.entity_id)
+    .maybeSingle();
+  if (bookError) throw bookError;
+  return book?.slug && book.slug !== slug ? book.slug : null;
+}
+
+export async function getBookRedirectSlug(slug: string): Promise<string | null> {
+  try {
+    return await unstable_cache(() => fetchBookRedirectSlug(slug), ["book-redirect-slug", slug], {
+      revalidate: 3600,
+      tags: ["books", `book:${slug}`],
+    })();
+  } catch (e) {
+    logQueryError("getBookRedirectSlug", e);
+    return null;
+  }
+}
+
+/**
  * True when another, different book in the catalogue uses this book's Amazon
  * product. A single book page cannot see its neighbours, so the check goes to
  * the database. Fails open: if the lookup errors, the stored link is kept
  * rather than hiding a link that may be right.
+ *
+ * Cached for a day per book and product: it ran on every book page render
+ * (every 5 minutes per page under the page's own cache) and, without the
+ * text_pattern_ops index of migrations/005, read the whole books table each
+ * time. That was ~88% of the Data API's failures and drained the project's
+ * Disk IO budget (2026-11-09). Which books share a product changes only when
+ * the catalogue is edited, so a day-old answer is fine.
  */
 async function amazonProductSharedElsewhere(book: Book): Promise<boolean> {
   const asin = amazonAsin(book.amazon_url);
   if (!asin) return false;
   try {
-    const { data, error } = await getSupabase()
-      .from("books")
-      .select("title")
-      // Prefix match on the canonical stored form. A "contains" match scans the
-      // whole table (about 3x slower, and it timed out under crawl load); the
-      // prefix form is as fast as a keyed lookup and also catches the variants
-      // with junk after the product id. URLs stored in other shapes are missed.
-      .like("amazon_url", `https://www.amazon.com/dp/${asin}%`)
-      .neq("id", book.id)
-      .limit(25);
-    if (error) { logQueryError("amazonProductSharedElsewhere", error); return false; }
-    return (data || []).some((r: { title: string | null }) => !sameWork(book.title, r.title));
+    return await unstable_cache(
+      () => amazonProductSharedElsewhereUncached(asin, book.id, book.title),
+      ["amazon-shared-elsewhere", asin, book.id, book.title ?? ""],
+      { revalidate: 86400, tags: ["books"] },
+    )();
   } catch (e) {
     logQueryError("amazonProductSharedElsewhere", e);
     return false;
   }
+}
+
+/** Throws on a database error, so unstable_cache never stores a failed lookup as "not shared". */
+async function amazonProductSharedElsewhereUncached(asin: string, bookId: string, title: string | null): Promise<boolean> {
+  const { data, error } = await getSupabase()
+    .from("books")
+    .select("title")
+    // Prefix match on the canonical stored form, served by
+    // idx_books_amazon_url_prefix (migrations/005). A "contains" match scans
+    // the whole table; the prefix form also catches the variants with junk
+    // after the product id. URLs stored in other shapes are missed.
+    .like("amazon_url", `https://www.amazon.com/dp/${asin}%`)
+    .neq("id", bookId)
+    .limit(25);
+  if (error) throw error;
+  return (data || []).some((r: { title: string | null }) => !sameWork(title, r.title));
 }
 
 export async function getBooksByAuthor(personId: string, limit = 12): Promise<Book[]> {

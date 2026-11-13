@@ -1,5 +1,276 @@
 # Changelog
 
+## 2026-11-13 — 21 likely-wrong recommendations removed; Laird Hamilton / Dune sourced
+
+- Deleted 21 recommendations where checking the person's own sources showed the pairing was wrong:
+  - 8: the person's own book (Susan Cain / Quiet, Satya Nadella / Hit Refresh, Stephen King / On Writing, Ben Horowitz / The Hard Thing About Hard Things, Julia Galef / The Scout Mindset, Tony Hsieh / Delivering Happiness, Reid Hoffman / The Start-up of You, Doris Kearns Goodwin / The Bully Pulpit).
+  - 4: named by the host, not this person (Peter Thiel / The Black Swan, Scott Belsky / Bird by Bird, Reid Hoffman / Zero to One, Josh Waitzkin / Essentialism).
+  - 5 by Matt D'Avella: 3 were his interview guests' own books, 2 came up only in sponsor reads.
+  - 3 by Nir Eyal: they appear in guest posts on his site, not in his words.
+  - 1: Mark Manson / the Ashlee Vance *Elon Musk*. His list names Isaacson's book, which is not in the database.
+- Rows that are simply missing from one checked page (for example Tim Ferriss / Tao Te Ching) were kept: absence on one page does not show a recommendation is wrong.
+- Backup: `public.bak_recs_wrong_20261113`, with RLS on and the restore SQL in the table comment. `books.recommendation_count` was recomputed as distinct recommenders for the 20 affected books; 3 of them had already been off by one.
+- Laird Hamilton / Dune now cites his Tim Ferriss episode, whose notes say "Dune by Frank Herbert – recommended by Laird" (confidence 60, quote empty, backed up, batch `manual_20261113c`).
+
+## 2026-11-13 — One more own-words source
+
+- Matt Mullenweg / Fooled by Randomness now cites his solo book-recommendations episode transcript (tim.blog/2020/05/13/matt-mullenweg-book-recommendations-transcript/) at confidence 80, with his own words as the quote. The earlier show-notes write for this row was undone, and the backup-table guard then kept the other-sources batch from writing it, so it was written by hand. The backup row is updated, with its batch label suffixed `+manual_20261113b`.
+- Totals across the 6,505 orphaned recommendations: 1,404 now cite the person's own source.
+
+## 2026-11-13 — Own sources found outside the indexes
+
+- New script `scripts/find_other_sources.py` looks for the person's own source for the 657 doubtful recommendations where the person has a page on an outside index but no index lists the book. It reuses the fetcher and matching helpers of `find_primary_sources.py` (generic User-Agent, robots.txt honoured, 1.1 s per host, cached under `reports/third_party_cache/other/`). Places checked: the person's own site, blog or newsletter (WordPress site search where the site has one), podcast transcripts where the person speaks under their own name label (tim.blog for all 169 people, lexfridman.com for 158), transcript copies of the person's own YouTube videos, and interviews in their own words. Web search was used sparingly: 31 searches for 29 people. The outside indexes, bookselects.com, X, Twitter and Reddit were not used.
+- Hand check: every candidate was read before it was accepted; a re-read of 30 random accepted rows found 29 clearly right and 1 weak (a newsletter "quote of the week" taken from the book), about 97%.
+- Written: **103 rows**, in a 10-row pilot plus 4 guarded batches (`other_sources_20261113_b00`–`b04`), each with a payload checksum, a snapshot guard, a skip for rows already backed up, and a backup in `public.bak_recs_primary_sources_20261112` before the update. 65 are strong (confidence 80: the person's own site or blog names the book) and 38 medium (confidence 60: their own words in a podcast transcript, interview or their own video). source_name is the host. 31 rows have a quote, each verbatim at the source and at least 50 characters. One more verified row (Matt Mullenweg / Fooled by Randomness, his own words in his solo episode) was skipped by the guard because another batch had already backed it up.
+- Not resolved: 554 rows, listed with a reason in `reports/doubtful_unresolved_20261113.csv` (gitignored). Most (506) have no own source in any place checked. Some are clearly wrong: 8 credit the person with their own book (for example Susan Cain / Quiet, Satya Nadella / Hit Refresh); several credit a guest with a book that the host named in the episode (Scott Belsky / Bird by Bird, Peter Thiel / The Black Swan, Josh Waitzkin / Essentialism); 3 come from guest posts on the person's site; one is a different book with the same title (Mark Manson's list has Isaacson's Elon Musk, not Vance's).
+
+## 2026-11-13 — Series cards on the outside index
+
+- The parser for the first outside index read only single-book cards. Person pages also show series cards ("Dune (17 books)"), and the page's "has recommended N books" figure counts every volume. The parser now also returns each series volume as a card (title, author, the series card's source links and quote, and a `series` field), plus the series itself as a card. Volume lists come from the index's series pages (47 fetched once, politely, robots.txt allows them; 2 redirect elsewhere, so only the covers on the card are known for those).
+- Check: on all 489 cached person pages, the claimed count equals single cards plus series volumes, and the single-card output is unchanged. An offline run of `find_primary_sources.py` with the old and new parser differs only by the new series rows (and a "same URL cited for N books" count in 17 notes).
+- Re-check run 4 found the 18 doubtful rows that are volumes of a series on the person's page. Hand check (person is the speaker, book or volume named at the source):
+  - Written (2, confidence 60, quote empty, batch `index_series_20261113_b00`, backed up first with a snapshot guard and payload checksum): Matt Mullenweg / Fooled by Randomness and Soman Chainani / His Dark Materials, both named in the show notes of their own Tim Ferriss episode. **Both were then undone:** the evidence is only the episode's "books mentioned" list, which the earlier passes rejected as not enough (the same list's Graveyard Book row was reverted for that reason). Their backup rows are marked `+reverted_show_notes_only`, so net 0 written.
+  - Not written: 8 own-account tweets (Jeff Bezos 6 Culture novels, Naval Ravikant / Neuromancer, David Sacks / The Last Lion). The index's copy of each tweet names only the series or no title, and X cannot be read. Mark Manson / Fooled by Randomness: his post reviews Antifragile, not this book. Matt Mullenweg / Skin in the Game (the book came out three years after the episode) and The Bed of Procrustes (not named). Laird Hamilton / Dune: the show notes say "Dune by Frank Herbert, recommended by Laird", but the scripts treat a one-word title as too short, so it scores weak; left for a decision. Ev Williams (3) and Kelly Starrett (1) cite only a reading-list site or a bookstore.
+
+## 2026-11-13 — Tweet text saved as the quote
+
+- For the 365 own-account tweet rows where the index's copy of the tweet names the book, that text is now the quote. Confidence was raised to 70, so the 338 quotes of 50+ characters pass the display gate. This text comes from the index's copy and was not re-read at X.
+- Written in 4 guarded batches (`build_quotes.py`). The quote text goes in as base64, because a no-break space in one tweet broke the checksum on the first attempt; that batch wrote nothing, as the guard intended. The new values are recorded on each row's backup in `bak_recs_primary_sources_20261112`.
+- Totals across the 6,505 orphaned recommendations: 1,300 now cite the person's own source (269 verified at the source, plus 1,031 own-account tweets), and 367 of them show a quote.
+
+## 2026-11-13 — Re-check: names with middle initials or titles
+
+- The same-name rule now also accepts a page name with the same first and last name when the only differences are titles, initials or a middle name ("Balaji S. Srinivasan" / "Balaji Srinivasan", "Richard H. Thaler" / "Richard Thaler", "Dr. Andrew Weil").
+- Re-running the re-check found 10 more own-account tweet rows; 2 were already done. 8 were written (batch `index_tweets_20261113r3_b00`), and 2 Thaler rows got the tweet text as their quote at confidence 70.
+
+## 2026-11-13 — Re-check of the orphaned recommendations: missing index pages
+
+- The re-check now also reads the outside index's own people listing, which names 764 people where its sitemap names 653. The 111 missing person pages were downloaded, plus the 6 person pages (3 on each outside index) that loosely matched our people but had never been downloaded.
+- A page now counts as the person's only when its own name equals the person's full name after accent and punctuation folding, or an alias in ALIAS_GROUPS. This held back the 6 never-downloaded pages, which give a shorter or longer form of the name (a middle name or initial, or "Dr."); 8 own-tweet rows (Balaji S. Srinivasan 6, Richard H. Thaler 2) wait on an alias decision.
+- 29 more of our people matched a newly downloaded page. 3 new rows cite a tweet from the person's own account (David Copperfield, Emily Ratajkowski, Michael Smerconish); all 3 were hand-checked and written with source_url = the tweet and confidence 60 (batch `index_tweets_20261113r2_b00`, backed up first). None of the 3 tweet texts names the book, so no quotes were written.
+- Scripts in `scripts/recheck_orphans/` take an output directory argument.
+
+## 2026-11-13 — Re-check of the orphaned recommendations: 1,020 more sources
+
+- An independent re-check (`scripts/recheck_orphans/`) matched all 6,505 orphaned recommendations against both outside indexes. It used looser person and title matching against their full people lists and every cached person page.
+- 2,796 of the 6,505 are listed on at least one index for that same person. 1,022 of those cite a tweet from the person's own account: the handle equals the one on the index's profile for that person, `people.twitter_handle` or HANDLE_MAP. The earlier runs had skipped them because X blocks automated reading, so the tweet could not be opened.
+- Hand check: 26 random rows of this kind, all correct. In 365 of the 1,022 the index's copy of the tweet names the book.
+- Written: **1,020 rows** (2 had changed and were skipped). Each now has source_url = the person's tweet and confidence 60. The quote is empty, because the tweet text could not be checked at the source. The writes were a 10-row pilot plus 6 batches, each with a payload checksum, a snapshot guard and a backup in `public.bak_recs_primary_sources_20261112` (batches `index_tweets_20261113_*`).
+- Recommendations with the person's own source are now 1,289 of the 6,505 (269 earlier plus 1,020).
+- Still without a source: the person is on neither index (3,019 rows); the person's index page does not list the book (657); the book is listed but the cited link failed the checks (aggregator or bookstore, other people's accounts) or no link is cited. Per-row detail is in `reports/orphan_recheck_20261113.csv` (gitignored).
+
+## 2026-11-13 — Five recommendations confirmed by hand
+
+- Gabor Maté: Don Quixote, The Dhammapada and The Drama of the Gifted Child now cite his Tim Ferriss episode (tim.blog/2018/02/20/gabor-mate/) at confidence 60, quote empty. The episode transcript has Tim naming all four books from Maté's own book and Maté discussing them. These were held back by the medium-precision gate, then confirmed by hand.
+- Brené Brown: The Book of Qualities and The Power of Starting Something Stupid kept their own-blog source. Their old pipe-joined, garbled quotes were replaced with her exact words from that post.
+- Backed up in `public.bak_recs_primary_sources_20261112` (batch `manual_20261113`) before writing, with a snapshot guard.
+
+## 2026-11-12 — Weak primary-source candidates checked at the source
+
+- The 613 weak candidates from the entry below were checked at the source itself by the new `scripts/verify_weak_primary_sources.py`. As before, an outside index was used only to find where to look. Nothing from it is stored.
+- Rules: the person must be the author or the speaker. Their own words naming the book must be on the page, not a story or list about them. Comments, sponsor reads, menus and related-post blocks are removed first. Show notes that only list "books mentioned" in an episode do not count.
+- Results: **80 confirmed**, 150 rejected and 383 unreachable.
+
+  | Type | Confirmed | Rejected | Unreachable |
+  |---|---|---|---|
+  | Tweet | 0 | 0 | 135 |
+  | YouTube | 1 | 2 | 104 |
+  | Podcast page | 17 | 78 | 0 |
+  | Interview | 13 | 18 | 24 |
+  | Blog | 0 | 18 | 28 |
+  | Other | 49 | 34 | 92 |
+
+- Tweets were looked up only through the Wayback Machine, and X itself was never fetched. web.archive.org could not be reached from this environment, and archive.org's lookup service answered 429 after about 90 lookups, so the run stopped there. None of the 135 tweets could be read, so none were written.
+- YouTube video pages answered with a bot check (a redirect to a page that answers 429). The fetcher did not count that as a 429 at first, so the run was stopped by hand, and the script now stops on it. Only the video title and channel, cached by the earlier run, were usable. One video names the person and the book in its title and was written. The other 104 do not name the book in the title, and their descriptions could not be read.
+- Main rejection reasons: the book is not on the page (70); the book is only listed in episode show notes (49); a story or list about the person rather than their own words (9); a compiled list of publisher blurbs whose author is unknown (8). There were 14 others, each with its reason in the CSV.
+- Unreachable: robots.txt disallows the page (65, mostly Facebook posts), the site answered 403 (61), or the page was gone or could not be fetched (18).
+- Written to production: **80 rows** at confidence 60, with source_url set to the original primary URL. That was a 10-row pilot, then batches of 40 and 31, guarded by a payload checksum and a snapshot check, with each row backed up first. The batch label is `weak_verified` in `public.bak_recs_primary_sources_20261112`. No row had changed since planning, so the snapshot check skipped none.
+- 56 quotes were stored, each found word for word in the person's own text. Quotes that had been edited with brackets or ellipses were not stored.
+- Hand check of 30 random written rows: 29 were right (97%). The miss was a paywalled book review: only the book's header was visible, not the person's words. That row was reverted to its earlier hidden state, which leaves the 80 rows above (81 were written).
+- The 533 unconfirmed candidates, each with its reason, are in `reports/weak_candidates_unconfirmed_20261112.csv` (gitignored). They were left untouched.
+
+## 2026-11-13 — Primary sources for orphaned recommendations: a second outside index
+
+- The orphaned-recommendation search was repeated with a second outside recommendation index, collected once with the project owner's approval (one request at a time, at least 2 s apart, every page cached locally). As before, the index was used only to find where to look. Nothing from it is stored: no link to it, none of its text, no mention of it and no credit. New script: `scripts/rtt_primary_sources.py`. It reuses the matching and checking code of `scripts/find_primary_sources.py`, which now exposes those steps as shared functions; that script's output is unchanged.
+- Scope: the 6,505 orphaned rows minus the 187 already handled on 2026-11-12 (186 written and the one reverted on purpose), so 6,318 rows, checked again against the live tables.
+- The index has a page for 649 of the 1,426 people with orphaned rows, covering 3,228 of the 6,505 rows. Of the 1,043 people the first index had no page for, it covers 329 (1,023 rows). The newest date on any page was March 2023, so the index is no longer updated.
+- Results: 2 strong candidates (the person's own blog), 6 medium (podcast show notes) and 181 weak. 6,129 rows have no candidate: for 3,249 the person has no page in the index, for 1,096 the book is not on their page, 1,779 had only unusable sources (809 tweets from accounts we could not confirm, 152 bookstore or aggregator links, the rest with no sign the person wrote or said it), and 5 now sit on a book with a different title after the merge.
+- Tweets could not be checked this time. The archive service's lookup started refusing requests (too many requests) after about 300 lookups, and its snapshot server did not accept connections at all, so every tweet stayed weak or was rejected.
+- New rule after the hand check: the index sometimes gives a sentence written about the person ("His primary book source on management technique is ...") as their quote. Such sentences are now ignored, so they can neither be stored nor count as the person's own words. This moved 3 rows from a magazine profile to weak.
+- Hand check: 2 of 2 strong candidates were right. All 6 medium candidates were checked: 4 were confirmed (one in the episode's own timestamps, three in the episode transcript). The other 2 came from an episode with two guests whose show notes do not say which guest named the book. Medium precision was 4 of 6, below the 90% bar, so only strong rows could be written.
+- Written to production: **0 rows**, 0 quotes. Both strong rows already carry exactly that source link, and the site already shows it as "Own source", so they were left alone, as in the first run. In all, 29 candidate rows already had their source link (2 strong, 3 medium, 24 weak).
+- Weak candidates are only in a local CSV (`reports/rtt_weak_candidates_20261112.csv`).
+- Checked afterwards: no link to or text from either outside index was added to any recommendation. One older row, outside this work, holds a person's own tweet that mentions the second index's account name.
+
+## 2026-11-12 — Primary sources for orphaned recommendations
+
+- 6,505 recommendations had a stored source that was a pipe-joined list belonging to other people (the site already hid it). `scripts/find_primary_sources.py` now covers all of them (`--scope all`), not just the 987 of published people. For each row it looks for the person's own tweet, podcast episode, interview, video or blog post, and checks that source itself. An outside recommendation index was used only to find where to look. Nothing from it is stored, and no link to it is stored.
+- All 6,505 rows still exist after today's book merge. 3 were skipped because they now sit on a book with a different title.
+- Results: 16 strong, 180 medium and 613 weak candidates. 5,696 rows have no candidate: 4,030 rows belong to the 1,043 people with no entry in the index, for 729 the book is not listed for the person, 934 had only unusable sources (bookstores, aggregators, other people's accounts), and 3 were the merge skips above.
+- Rules tightened after a hand check:
+  - Medium now needs the book named, or the person's words found, at the source itself. X, Facebook and Instagram block automated reading, so 135 tweet candidates and the YouTube ones moved to weak. One of them was a 2015 tweet about an author, cited for that author's 2020 book.
+  - A news story about the person no longer counts as their interview unless their own quoted words are on the page.
+  - A co-guest's own book, reader comments and podcast sponsor reads no longer count as the person's mention.
+  - Sources dated two or more years before the book was published are rejected.
+- Hand check: 16 of 16 strong candidates were right. 39 of 40 random medium candidates (final rules) were right; the miss was a co-guest's own book, which the co-guest rule now moves to weak.
+- Written to production: **187 rows** (14 strong at confidence 80, 173 medium at 60), in guarded batches with a payload checksum and a snapshot check. That was a 10-row pilot, then 3 batches of 50 and one of 27. All rows passed. 9 more strong or medium rows already had the same source and were left alone. Weak candidates are only in the CSV.
+- Afterwards one medium row was undone (Soman Chainani / The Graveyard Book): the book is in the podcast's show notes, but the host also names it in a sponsor read, so who mentioned it is unclear. It went back to its earlier hidden state, which leaves **186 rows** written (14 strong, 172 medium).
+- 48 quotes were stored, each found word for word at the source. Quotes that had been edited with brackets or ellipses were not stored.
+- Backup: `public.bak_recs_primary_sources_20261112`, with RLS on. The restore SQL is in the table comment.
+- Checked on the local site against live data: /people/seth-godin, /people/james-clear and six book pages. The new sources show as "Own source" or "Podcast episode" with an "Open source" link.
+
+## 2026-11-12 — Book covers: English editions only, second recovery pass
+
+- `scripts/recover_covers.py` now takes a cover only from an English edition. Open Library covers come from the work's editions (`editions.json`). The edition's languages must include `eng`, or it must list no language and carry only group-0/1 ISBNs, and its own title must match the book. Amazon and the book's own ISBN must be in group 0/1 (978-0/978-1). Covers that Open Library imported from an Internet Archive title-page scan are rejected. Photos of library copies (often plain cloth or leather bindings) are tried last.
+- New checks on covers that load fine: `google` (any Google Books URL), `foreign` (an Amazon ISBN outside group 0/1, or an OL cover whose edition is not English) and `maybe_not_cover` (an OL cover taken from an IA title-page scan). A text-page heuristic (low saturation, mostly white) only flags covers.
+- Census of the 17,199 shown books before this pass: 6,529 ok, 9,956 bare filename, 347 empty, 177 placeholder, 90 Google, 68 foreign (39 Amazon, 29 OL), 32 title-page scans.
+- Written to production, all high confidence and backed up in `public.bak_books_cover_20261112b` (the restore SQL is in the table comment): **2,237 covers**. That is 2,131 missing, 24 placeholder, 41 foreign, 31 not-a-cover and 10 Google. The 10 Google replacements are only the ones checked by hand as wrong: a title page, praise page, grey art, contents page or print template (Principles, Thinking Fast and Slow, The Psychology of Money, Steve Jobs, How to Win Friends, The Power of Habit, Surely You're Joking, Think and Grow Rich, Endurance, Crossing the Chasm). The other 80 Google covers are real covers and were kept.
+- Hand check: 104 of 105 random high-confidence missing-cover candidates were right (right book, English, real cover). 42 of 43 foreign replacements and 32 of 32 title-page replacements were right.
+- Applied the 31 remaining batches (`reports/cover_write_batches_20261112b/`, gitignored): 6,004 rows given, 5,870 written, 134 skipped because the book was deleted or its cover changed since the dry run. Every batch passed its checksum. Backup table total: 8,107 rows (7,874 missing, 151 placeholder, 41 foreign, 31 not_cover, 10 google); every surviving book has its new cover in place.
+
+## 2026-11-12 — Book page v4: "Should you read it?"
+
+### What changed on /books/[slug]
+- **Hero.** The 3D book sits beside the title, with a row of facts underneath: how many people recommend it, how many sources we traced, pages, and difficulty. A fact is left out when its value is zero or unknown. The editorial summary follows when the book has one, with the label "Draft reader notes, written with AI help and not yet reviewed by an editor". The Amazon CTA (still `above-fold`) sits next to a "See who said it, and where" button. The sticky left rail is gone: one `Book3D` now serves both layouts (`mobileWidth`), so on phones the hero cover is the eager LCP image as well.
+- **Is it for you?** has two cards, "Read it if you are…" (`best_for`) and "Skip it if…" (`not_for`), plus `key_themes` chips. It always carries the draft label, and it hides when neither list parses. It replaces the old Reading Profile strip, the "Should I read this?" card, the "Read this if / Skip this if" boxes, Before You Buy and Key themes, which repeated the same fields.
+- **Who said it, and where** replaces "Recommendation Signals". Each recommender whose source passes `getProofDisplaySafety` (unchanged) gets a row with a source type (Tweet, Podcast episode, YouTube, Their own website, Interview, Article, Reference page, Other). An "Own source" note appears when the account or site is demonstrably theirs: their own handle, a handle that matches their slug, a hand-checked owned domain, or their name in the host. Each row links "Open source ↗" (`rel="noopener noreferrer nofollow"`). Everyone else appears in a "Source not confirmed yet" list, by name only and with no link.
+- **Who recommends it, by profession.** Bars per profession bucket, from `people.role` and a conservative keyword classifier (`src/lib/roles.ts`). The section also says how many recommenders have no role on file, and it hides when fewer than 3 people are classified.
+- **An unlikely pair.** Among the published recommenders with at least 15 picks, the pair whose shelves overlap least (Jaccard), with the real counts. On Sapiens: Keith Rabois and Richard Branson, 100 and 87 picks, and Sapiens is the only book they share.
+- **Read next.** The books most often recommended by the same people, with "N shared recommenders". Other editions of the same work are skipped, and so are books without a valid cover or slug.
+- The face grid no longer links sources (they were not gated). The "+N more" popover now shows a quote or source only when the gate allows it.
+- Section headings use a serif. The methodology note now says sources are linked only when they can be tied to the person.
+
+### 3D book (`src/components/Book3D.tsx`)
+- Its height follows the cover's real aspect ratio, from the image's natural size or an `aspectRatio` prop, clamped to 1.36–1.62. The stage keeps its 2:3 box and the book stands on its floor, so a ratio that arrives late never shifts the layout. A taller cover rises above the box.
+- Every `Book3D` turns over by default, including the homepage consensus shelf and person-page panels. Pass `flippable={false}` to turn that off.
+- Click without dragging turns the book to its back cover and back again. Press and drag past 6px turns it freely, and on release it settles on the nearer cover. Enter and Space turn it when it has focus, and Escape returns to the front. It has `role="button"`, with `aria-pressed` set to show the back.
+- There's now a back cover with the title, author and "Recommended by N people" (the optional `backTitle`, `backAuthor` and `backNote` props), on a blurred, darkened wash of the cover art.
+- Paper grain on the boards and a warmer, brown contact shadow. The spine is now the cover's left edge blurred into a colour, so the cover lettering no longer shows on it.
+- Motion is still a single rAF loop writing CSS variables, with no React re-render per frame. Under `prefers-reduced-motion` there is no tilt, drag, float or entrance, and a click shows the back without animating. Existing props are unchanged. The front face keeps the real `<img>` with its alt text.
+- New CSS is in a `/* book page v4 */` block at the end of `globals.css`.
+
+### Data (`src/lib/bookInsights.ts`)
+- `getBookInsights(bookId, title)` makes three bounded reads: the book's recommendation rows (≤300), the shelves of up to 120 recommenders (paged, ≤6×1,000 rows), and ≤40 candidate books. It computes everything else in JS. Profileless surname stubs ("Ek", "Kloss") are excluded so nobody is counted twice. Results are cached for 15 minutes. A failed query throws inside the cache, so it is never stored, and the page gets empty sections instead.
+- `src/lib/sourceKind.ts` labels source URLs. It does not decide visibility, which stays with `getProofDisplaySafety`. Its owned-domain map mirrors `DOMAIN_MAP` in `scripts/reattribute_quotes.js`.
+- Self-checks for the role and source classifiers: `node --experimental-strip-types scripts/selfcheck_book_v4.mjs` (55 checks; no test framework added).
+
+### Data caveats
+- Most recommendation rows on popular books still carry a pipe-joined aggregate source. Those fail the gate and are listed as "not confirmed" (67 of 72 on Sapiens).
+- A few `people` rows are not people (for example "Book Recommendations (43 Books)"). They appear in the unconfirmed names list until the data is cleaned.
+
+## 2026-11-12 — Duplicate books merged (738 rows), old slugs 301 to the surviving book
+
+The same book was often stored twice or more, mostly because the author name was written differently ("Letters from a Stoic" by "Lucius Annaeus Seneca" and by "Lucius Seneca", "High Output Management" by "Andrew S. Grove" and "Andrew Grove"). Recommenders and lists were split between the copies, so each page showed a lower count. A person page or list could also show the same book twice.
+
+### What was merged
+- Candidates: every group of books sharing a normalised main title (text before ":", lowercased, letters and digits only) that contains at least one book shown on the site (published, on a published list, or recommended by a published person). That gave **1,937 groups**. Shown books were also matched against books that are not shown.
+- A pair counts as the same book only with author evidence: same surname with compatible first names or initials, one name's words contained in the other's ("Chip & Dan Heath" / "Chip Heath"), a surname typo with an identical first name, or a known pen name or transliteration (Galbraith/Rowling, LeSieg/Seuss, Dostoevsky/Dostoyevsky). Without a shared Amazon product or ISBN, a pair whose first names differ goes to review.
+- A pair stays separate when anything points to a different work: subtitles that don't match ("Cravings" vs "Cravings: Hungry for More"), different volume or series numbers ("Dinosaur Training Secrets: Volume I/II"), adaptation or format words on one side only (graphic, workbook, summary, omnibus, young readers, a "Kids" author), or first-published years more than 3 years apart. Titles that are just a volume number ("Vol. 1"), 1–2 characters, or a one-word title naming the author without a full subtitle ("Trump", "Will") go to review. A merge group is accepted only if no pair inside it conflicts.
+- 38 pairs had the same Amazon product and the same full title and subtitle, but one row named a recommender as the author ("Quiet" by David Blaine, "Abundance" by Arnold Schwarzenegger). They were merged into the row with the real author, and that row is always the one kept.
+- 20 review groups were checked by hand and merged: co-authors, editors, translators, pen names and later editions (Hooked, Billion Dollar Whale, The Bhagavad Gita (Easwaran), First Break All the Rules, The Red Knight).
+- Result: **716 groups merged, 738 rows deleted**. 37 groups (76 rows) are left for review and the rest are kept separate. The plan, with a reason for every row, is in `reports/dedupe_20261112/plan.csv` (gitignored), made by `scripts/dedupe_books/plan.py`.
+- Hand check: all 716 merge groups were read. The rules were tightened until none was wrong. Two wrong merges found in early drafts were fixed: Dinosaur Training Secrets Vol. I/II, and The Travel Book adult vs Kids edition. 107 kept-separate pairs were also checked. Every different-author pair was a different book. Of the same-author pairs kept apart, about half are missed merges (e.g. "The Passage of Power" "Vol. IV" vs "Book 4"), which are left for review on purpose.
+
+### How rows were merged (one transaction per batch: a pilot of 10, then 15 batches of at most 50)
+- Kept row: the published one, then the one already shown on the site (to keep the indexed URL), then the most recommendations, a valid cover, a useful description or editorial, and the oldest. Its empty fields were filled from the duplicates and never overwritten: 38 covers, 57 descriptions (under 80 characters counts as empty), 75 subtitles, 45 first-published years, 8 editorial blocks, 8 Amazon links.
+- Links moved to the kept row: 522 recommendations, 684 list memberships, 42 series memberships and 28 author links. When one person had recommended two copies, only one recommendation was kept: the one with a clean single source, else the longer quote. That dropped **408** rows. The same book twice on one list kept the better rank, dropping 142 rows, and `lists.book_count` went down to match. Two author links were dropped as duplicates.
+- `recommendation_count`, `list_count`, `series_count` and `author_count` were recomputed for the 716 kept rows: distinct recommenders, lists, series and authors, as the import does. Kept books gained 412 recommenders in total ("The 4-Hour Workweek" now has 59, "Influence" 38).
+
+### Redirects
+- Each removed slug is stored in the existing, empty `public.slugs` table: `entity_type='book'`, `entity_id` = the kept book, `is_primary=false`. That is 738 rows. `migrations/006_book_slug_redirects.sql` adds an anon read policy (book rows only) and an index.
+- `next.config.js` serves the 738 slugs as real **HTTP 301**s from `redirects/book-merges-20261112.json`, exported from `public.slugs`. A redirect from inside the book page can't set the status, because `books/[slug]/loading.tsx` streams the response first.
+- Fallback for later merges: when no book has the slug, the book page asks `getBookRedirectSlug` (src/lib/data.ts), which reads `public.slugs` and resolves to the kept book's current slug, then calls `permanentRedirect` before `notFound()`. In a stream that is a client-side 308.
+- 13 genre-map keys in `src/lib/bookGenres.ts` pointed at removed slugs. Seven now point at the kept slug. Six were dropped because the kept slug already had the same genre.
+- The sitemap and lists no longer contain removed slugs because the rows are gone. Checked: 0 of 54 sitemap book URLs.
+
+### Backup and restore
+- `bak_books_dedupe_20261112` holds the full rows of every deleted duplicate and every kept row as it was before. `bak_book_links_dedupe_20261112` holds every recommendation, list, series and author row of both, as jsonb, plus the `lists` rows whose `book_count` changed. RLS is on for both, and a table comment explains the restore. The full restore SQL is at the bottom of `scripts/dedupe_books/merge_20261112.sql`.
+
+## 2026-11-12 — One Amazon button per book card on person pages
+
+- Person pages showed two "View on Amazon" buttons on every recommended book: BookCard's own button, plus a second one the page appended below the card. The extra button is gone. BookCard now gets the book's `amazon_url`, so its single button links to the product page (an Amazon search is the fallback), and it keeps the person page's `people-detail-rec` analytics label through a new optional `trackSection` prop.
+
+## 2026-11-12 — Person page depth and shelf comparison pages
+
+### Person pages (`/people/[slug]`)
+- **On the shelf**: up to 16 of the person's picks, ordered by how many people on BookMentions recommend each one, drawn as book spines. Each spine is a real `<button>` (`aria-pressed`, "Title by Author" label). Arrow keys, Home and End move along the shelf. Picking one shows it in a side panel as a 3D book (the existing `Book3D`), with a link to the book page and, when this page has one, to its proof card. Spine colours come from a fixed neutral palette chosen by a stable hash of the slug (no image processing). Heights come from the same hash and widths from page count. Motion is transform-only behind `motion-safe`.
+- **What <first name> reads most**: published lists that hold the most of the person's recommended books (top 8, with counts and a proportional bar), linked to `/lists/<slug>`. Catch-all lists are left out: `most-recommended-books` (5.7k books), `nonfiction` (7.8k), `fiction` (4.7k), plus any list over 3,000 books. They held 157, 92 and 40 of Naval's books and would push every real topic down. `books-recommended-by-*` lists are also left out because they group books by recommender, not by topic.
+- **People with a similar shelf**: other published people ranked by shared recommended books (at least 3 in common, top 8). Each card shows the shared count and two shared titles. A card links to the compare page when that page is indexable, and to the person otherwise.
+- **FAQ** (3–4 Q&As) built only from numbers on the page: books on file, the picks other people recommend most, top topics, and the most similar shelf. The FAQPage JSON-LD comes from the same array as the visible text, so the two match word for word. The answers say that sources are linked where confirmed and that some picks don't have one yet.
+- The H1, Person JSON-LD, LastUpdated, the book grid, proof section and "Other recommenders" are unchanged.
+
+### Compare pages (`/compare/<slugA>-vs-<slugB>`)
+- New route. Slugs are in alphabetical order. The reverse order, or any other spelling, gets a 308 to the canonical URL. An unknown person or the same slug twice returns a 404.
+- Shows both people, the shared count, an area-proportional SVG Venn diagram (circle area follows shelf size, lens area follows shared books), the shared books as cover tiles (top 48), and the top 8 books unique to each person. It also links to both person pages, each book and up to 8 more comparisons.
+- Indexable only when both people are published, each has at least 20 recommendations, and they share at least 8 books. Any other pair renders as `noindex, follow`. Titles look like "Naval Ravikant vs Tim Ferriss: 22 books in common".
+- `sitemap.ts` gets a separate block at the end listing the qualifying pairs: **55 today**. These are computed in JS from one cached, paged read of the 52 published people's 4,658 recommendation rows (`unstable_cache`, 1h).
+
+### Data layer
+- New `src/lib/personInsights.ts`. Every query is bounded with `.limit()`/`.range()`, inner fetchers throw so a failure is never cached, and the exported functions log and return `[]`. UI is in `src/components/person/*` and `src/app/compare/[pair]/page.tsx`.
+## 2026-11-12 — Mega menus, link-rich footer, consensus shelf, thin-page floor
+
+### Header mega menus
+- Books, People and Lists in the header are now menus. Books shows the 8 most-recommended books (small cover, author, recommendation count) and the broad topics. People shows the 12 published people with the most recommendations (photo or initials, book count). Lists shows the 12 "Books recommended by …" lists and the 12 largest "Best … books" lists. Each has an "All …" link.
+- The panels are rendered in the server HTML and only shown or hidden, so every link is a real, crawlable `<a href>` with the book title, person name or list title as its text. Nothing is fetched when a menu opens.
+- Opens on hover with a mouse and on click or Enter. Escape closes it and returns focus to its button, as do a click outside and tabbing out of the panel. Buttons carry `aria-expanded` and `aria-controls`.
+- Below 1024px the menu button opens the existing mobile menu, now with Books, People and Lists as collapsible groups holding the same links.
+- Covers are shown only when the URL is valid and is not one of the Google Books images that turned out not to be a cover: the "image not available" placeholder, a blank grey cover, or a scanned title or praise page (Principles, How to Win Friends and Influence People, The Psychology of Money, Steve Jobs, Thinking, Fast and Slow). Those books get a plain coloured stand-in.
+
+### Footer
+- New link columns: Most recommended books (8), People (8) and Topics (8), above the existing Discover, Info, Legal and Help links. Two columns on phones.
+
+### Homepage: "The books most people agree on"
+- A shelf of the 18 most-recommended books, placed right after the hero. Each spine's height is the book's recommendation count, scaled between the shelf's lowest and highest count. Its thickness follows the page count, and it shows the title along the spine and the count at the top. Spine colours come from a fixed palette chosen by slug, with no image processing.
+- Picking a spine (click, or arrow keys then Enter) shows the book in 3D (`Book3D`) with its count, title, author and a link to its page. The shelf is one tab stop. It scrolls sideways inside its case on small screens, never the page, and has no motion under reduced motion.
+- A "Show this shelf as a list" disclosure gives the same 18 books as a text list, for screen readers and crawlers.
+- Existing homepage sections are unchanged. The hero is a little shorter so the shelf sits higher.
+
+### Shared data and fallbacks
+- `src/lib/siteNav.ts` reads the menu, footer and shelf data in three cached queries (15 minutes), each with `.limit()`. A failed read is never cached. Each section falls back to a dated static snapshot (`src/lib/siteNavFallback.ts`, no covers), so the header, footer and shelf render real links even with the database down. The build passes with the database unreachable.
+
+### Thin-page floor for indexing
+- New pure rules in `src/lib/indexing.ts`, used by the person and book page `robots` metadata and by `sitemap.ts`. A page whose `index_status` is published is still served `noindex, follow` and left out of the sitemap when it is thin:
+  - Person: fewer than 5 recommended books AND no recommendation with a source we would show (`getProofDisplaySafety().showSource`).
+  - Book: no recommenders AND no useful description AND no editorial summary.
+- When the database can't be read, the check fails open and the page keeps its `index_status`, so an outage never de-indexes anything.
+- Measured before shipping with read-only queries: **0** of 52 published people and **0** of 54 published books are affected today. The thinnest published person has 28 recommended books, and the least-recommended published book has 20 recommenders. The rule would catch 775 of the 2,307 unpublished people (for example julie-plec with 1 book, marie-forleo with 2, john-gruber with 4) and at least 73,799 of the 98,846 noindex books, so it guards future publishing. Lists (191) and series (102) are unchanged: none is empty, and the smallest have 15 and 4 books.
+
+### Internal links (unique, server HTML)
+- Homepage: 55 → 105. Person page (Naval Ravikant): 42 → 98. Book page (Zero to One): 41 → 88.
+
+## 2026-11-12 — Data repairs: covers and misattributed tweet sources
+
+### Covers (352 books)
+- Replaced 352 broken or placeholder covers with real covers found by `scripts/recover_covers.py`: 308 from Open Library and 44 from Amazon by ISBN. Before the fix, 336 had a bare filename that didn't exist in storage, 15 had Google's "image not available" image or another placeholder, and 1 was empty. Atomic Habits is one of the books fixed.
+- Only high-confidence matches were written: exact title, author surname match, and an image re-checked just before the write. Two dry-run picks were left out after a hand check: Parting the Waters (a scanned title page) and The Good Earth (a Spanish edition). The Long Goodbye was also skipped because its image failed the re-check. Medium-confidence matches weren't written (3 of 7 were wrong).
+- The backup is in `bak_books_cover_20261112` (row-level security on). Each update only applied if the row still held the value seen in the dry run.
+
+### Misattributed tweet sources (140 rows)
+- 140 recommendation rows on published people cited a tweet by a *different* known person. For example, a Charlie Munger row cited an @paulg tweet. 51 of them showed that tweet's quote on the page; the other 89 linked the wrong person's tweet as the source.
+- These rows now have `source_url` and `quote` cleared and `confidence_score` set to 30. The recommendation itself stays. In every case the tweet's author already has their own row with that tweet.
+- The backup is in `bak_recs_misattributed_tweets_20261112` (row-level security on).
+- `node scripts/reattribute_quotes.js --misattributed-tweets` reproduces the list. 657 more such rows on draft people were not changed.
+
+### New dry-run tool
+- `scripts/find_primary_sources.py` looks up unsourced recommendations on mostrecommendedbooks.com person pages to discover the *primary* source each one cites. It stores the primary URL only, never MRB's page or text, follows robots.txt, and checks that the source belongs to the person. readthistwice.com is excluded because its terms forbid automated access. Nothing has been written from this tool yet.
+
+## 2026-11-11 — 3D book covers on book detail pages
+
+### What changed
+- New `Book3D` component (`src/components/Book3D.tsx`): the book page's hero cover is now drawn as a physical book (front cover, spine, page block, top and bottom page edges, back cover, and a contact shadow underneath) using CSS 3D transforms. It adds no dependency and no WebGL.
+- Spine thickness follows `page_count`. The 0.06–0.22 × width range is clamped, and books with an unknown page count get a mid-size spine.
+- The spine is painted with the cover image's own left edge, so its colour matches the book without client-side canvas sampling, which remote covers would block via CORS.
+- Mouse: the book turns toward the pointer (left shows the spine, right shows the page block) and a light sweep follows. Touch: a horizontal drag turns it and vertical scrolling is untouched (`touch-action: pan-y`). Motion is eased in a rAF loop that writes CSS custom properties, so React never re-renders on move.
+- Entrance turn-in and an idle float. Under `prefers-reduced-motion` all motion is off and the book sits still in its angled pose.
+- Grid covers (`BookCard`): a spine-crease shading on every cover, plus a slight turn-on-spine and light sweep on hover. This is CSS only.
+- `books/[slug]/loading.tsx` skeleton resized to the new cover sizes (280px desktop and 190px mobile, down from 300px and 200px) so the swap doesn't jump.
+
+### What did not change
+- The cover is still a real `<img>` with the same alt text and `loading="eager"` + `fetchpriority="high"` on desktop, so LCP, image search and JSON-LD see the same image as before.
+
+### Research behind it
+- Studied GithubAnant/bookshelf (a fork of mintdotgg/bookshelf). It's a three.js scene of roughly 400 KB+ that loads lazily, and it has no license file, so it was used for ideas only and no code was copied. Also studied scastiel/3d-book-image-css-generator (MIT), elishacoad/3d-bookshelf (MIT), mawise/bookshelf (MIT) and gcuddy/3d-bookshelf. For a single book, CSS 3D gives the same effect at near-zero bundle cost.
+
 ## 2026-06-01 — GPT-5 mini post-cover fresh500 promote (415 → 736 drafts)
 
 ### Fresh500 candidate build

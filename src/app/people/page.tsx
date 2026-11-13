@@ -169,7 +169,7 @@ export default async function PeoplePage({ searchParams }: Props) {
         <SearchBar placeholder="Search people by name or role…" />
       </div>
       <div className="flex items-center justify-between mb-6 text-sm">
-        <span className="text-muted">{rawTotal.toLocaleString()} people</span>
+        <h2 className="text-sm font-normal text-muted">{rawTotal.toLocaleString()} people</h2>
         <select className="border border-border rounded-lg px-3 py-1.5 bg-surface text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/20">
           <option>Most Recommendations</option>
           <option>Name A-Z</option>

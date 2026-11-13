@@ -10,6 +10,8 @@ import {
   getRecentlyPublishedSeriesCached,
 } from "@/lib/data";
 import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual, NewlyPublished } from "@/components";
+import { ConsensusShelf } from "@/components/ConsensusShelf";
+import { getSiteNav } from "@/lib/siteNav";
 
 // noStore() used to sit in the component body and silently defeated this
 // declaration; the featured reads are cached explicitly instead.
@@ -27,6 +29,9 @@ export default async function HomePage() {
   let featuredSeries: Awaited<ReturnType<typeof getFeaturedSeriesCached>> = [];
   let recentLists: Awaited<ReturnType<typeof getRecentlyPublishedListsCached>> = [];
   let recentSeries: Awaited<ReturnType<typeof getRecentlyPublishedSeriesCached>> = [];
+  // Same cached read as the header/footer; falls back to a static snapshot
+  // itself, so the shelf always renders.
+  const siteNav = await getSiteNav();
 
   try {
     [featuredBooks, featuredPeople, featuredLists, featuredSeries, recentLists, recentSeries] =
@@ -77,7 +82,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <section className="py-20 md:py-24 px-4">
+      <section className="pt-16 pb-10 md:pt-20 md:pb-12 px-4">
         <div className="max-w-3xl mx-auto text-center motion-fade-up">
           <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-ink leading-tight mb-5 tracking-tight">
             Find books recommended by <span className="text-accent">people you trust</span>.
@@ -112,6 +117,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* The books most people agree on: spine height = recommendation count */}
+      <ConsensusShelf books={siteNav.books} />
 
       {/* Trust / Value Strip */}
       <section className="border-y border-border bg-subtle/30 py-6 px-4">
