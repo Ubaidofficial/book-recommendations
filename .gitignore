@@ -41,3 +41,9 @@ scripts/qa/output/
 
 # Claude Code agent worktrees (temporary checkouts, never committed)
 .claude/worktrees/
+
+# re-check script outputs
+scripts/recheck_orphans/*.pkl
+scripts/recheck_orphans/*.json
+scripts/recheck_orphans/batches/
+scripts/recheck_orphans/quote_batches/
