@@ -442,7 +442,13 @@ def strip_tags(s: str) -> str:
     return html.unescape(re.sub(r"<[^>]+>", "", s))
 
 
-def parse_mrb_person(page: str) -> dict:
+def parse_mrb_person(page: str, series_pages=None) -> dict:
+    """Single-book cards, then each series card's volumes (from the cached /series/<slug> page; see
+    load_cached_mrb_series, or pass series_pages(slug) → cached response) and the series itself as a card.
+    Series-derived cards carry a "series" dict (name, slug, books, volumes_known, position; position None
+    for the whole-series card). When the series page is missing or redirects elsewhere (volumes_known
+    False), the volumes are only the up-to-three covers shown on the card. claimed_books = single_cards +
+    sum of series "books" on every cached page."""
     title_m = re.search(r"<title>\s*\d*\s*(.+?) Recommended Books", page)
     claimed = re.search(r"has recommended (\d+) books", page)
     body = page[: page.find("self.__next_f.push")] if "self.__next_f.push" in page else page
@@ -469,9 +475,114 @@ def parse_mrb_person(page: str) -> dict:
             "quote_attrib": qm.group(2).strip() if qm else None,
             "has_context_only": bool(text) and not qm,
         })
+    singles = len(cards)
+    series = parse_mrb_series_cards(body, series_pages if series_pages is not None else load_cached_mrb_series)
+    for s in series:
+        info = {"name": s["name"], "slug": s["slug"], "books": s["books"], "volumes_known": s["volumes_known"]}
+        shared = {"links": s["links"], "quote": s["quote"], "quote_attrib": s["quote_attrib"],
+                  "has_context_only": s["has_context_only"]}
+        for v in s["volumes"]:
+            cards.append({"title": v["title"], "subtitle": v["subtitle"], "author": v["author"], **shared,
+                          "series": {**info, "position": v["position"]}})
+        # the series as a whole ("His Dark Materials", "The Last Lion"): matches an omnibus/box-set book row.
+        # position None marks it; it is not counted in claimed_books.
+        cards.append({"title": s["name"], "subtitle": "", "author": s["author"], **shared,
+                      "series": {**info, "position": None}})
     return {"name": html.unescape(title_m.group(1)).strip() if title_m else None,
             "claimed_books": int(claimed.group(1)) if claimed else None,
-            "profile_handles": profile_handles, "cards": cards}
+            "profile_handles": profile_handles, "cards": cards,
+            "single_cards": singles, "series": [{k: s[k] for k in ("name", "slug", "books", "volumes_known")} for s in series]}
+
+
+# Series cards on a person page: <h3 class="text-xl font-bold">Dune<!-- --> (<!-- -->17<!-- --> books)</h3>.
+# The person page shows only three covers; the volumes are listed on /series/<slug> (allowed by robots.txt),
+# with the same card markup as a person page, under "<Name> books in publication order".
+SERIES_H3 = re.compile(r'<h3 class="text-xl font-bold">(.*?)</h3>', re.S)
+SERIES_CARD_START = '<div data-slot="card" '
+
+
+def mrb_series_url(slug: str) -> str:
+    return f"{MRB}/series/{slug}"
+
+
+def load_cached_mrb_series(slug: str) -> dict | None:
+    """The cached /series/<slug> response (same cache layout as Fetcher(kind='mrb')), or None. No network."""
+    url = mrb_series_url(slug)
+    cp = CACHE / "mrb" / host_of(url) / f"{hashlib.sha1(url.encode()).hexdigest()}.json"
+    if not cp.exists():
+        return None
+    return json.loads(cp.read_text(encoding="utf-8"))
+
+
+def parse_mrb_series_page(res: dict | None, slug: str) -> list[dict] | None:
+    """Volumes (title, subtitle, author, position) of a cached series page, in the site's publication order.
+    None when the page is missing, not 200, or redirected to another page (e.g. an author's page)."""
+    if not res or res.get("status") != 200:
+        return None
+    final = urllib.parse.urlsplit((res.get("final_url") or "").split(",")[0]).path.rstrip("/")
+    if final != f"/series/{slug}":
+        return None
+    page = res.get("text") or ""
+    body = page[: page.find("self.__next_f.push")] if "self.__next_f.push" in page else page
+    h2s = list(re.finditer(r"<h2[^>]*>(.*?)</h2>", body, re.S))
+    end = next((m.start() for m in h2s if "Other Series" in strip_tags(m.group(1))), len(body))
+    # only the first ordering (publication order); later orderings repeat the same books
+    order = [m for m in h2s if m.start() < end and "books in" in strip_tags(m.group(1)).lower()]
+    if len(order) > 1:
+        end = min(end, order[1].start())
+    part = body[:end]
+    ms = list(CARD_H3.finditer(part))
+    vols = []
+    for k, m in enumerate(ms):
+        seg = part[m.end(): ms[k + 1].start() if k + 1 < len(ms) else len(part)]
+        sub = re.match(r'\s*<p class="text-xs font-medium[^>]*>(.*?)</p>', seg, re.S)
+        au = re.search(r'title="by ([^"]*)"', seg)
+        vols.append({"title": strip_tags(m.group(1)).strip(), "subtitle": strip_tags(sub.group(1)).strip() if sub else "",
+                     "author": html.unescape(au.group(1)) if au else "", "position": k + 1})
+    return vols
+
+
+def parse_mrb_series_cards(body: str, series_pages) -> list[dict]:
+    """Series cards of a person page body, each with the card's own source links/quote and its volumes.
+    series_pages(slug) → the cached series response (dict with status/final_url/text) or None."""
+    out = []
+    for m in SERIES_H3.finditer(body):
+        head = " ".join(strip_tags(m.group(1)).split())
+        hm = re.match(r"^(.*?)\s*\(\s*(\d+)\s+books?\s*\)$", head)
+        name, n = (hm.group(1).strip(), int(hm.group(2))) if hm else (head, None)
+        start = body.rfind(SERIES_CARD_START, 0, m.start())
+        nxt = body.find(SERIES_CARD_START, m.end())
+        card_html = body[start if start >= 0 else 0: nxt if nxt >= 0 else len(body)]
+        before = body[start if start >= 0 else 0: m.start()]
+        slug_m = re.search(r'href="/series/([a-z0-9-]+)"', before)
+        slug = slug_m.group(1) if slug_m else None
+        after = card_html[card_html.find("</h3>", card_html.find(m.group(0))) :]
+        bq = MAIN_BQ.search(after)
+        text, links = "", []
+        if bq:
+            links = [html.unescape(u) for u in re.findall(r'href="([^"]+)"', bq.group(1))]
+            text = " ".join(strip_tags(bq.group(1)).split())
+        qm = QUOTE_RE.match(text) if text else None
+        vols = parse_mrb_series_page(series_pages(slug), slug) if slug else None
+        known = vols is not None and n is not None and len(vols) == n
+        # cover images on the card itself: alt "<Series> book <N> cover", file "<Title> - <Author>.jpg"
+        # (up to three, file names sometimes truncated) — the only volumes known when the series page is
+        # missing or redirects elsewhere
+        covers = []
+        for alt, src in re.findall(r'<img alt="[^"]*? book (\d+) cover"[^>]*?src="[^"]*?/book_picture/size\d+x\d+_([^"]+?)\.(?:jpe?g|png|webp)"', before):
+            t_a = [x.strip() for x in urllib.parse.unquote(html.unescape(src)).rsplit(" - ", 1)] + [""]
+            title, au = t_a[0], t_a[1]
+            if norm_title(name) and norm_title(name) in norm_title(au) and norm_title(name) not in norm_title(title):
+                title, au = au, ""  # "Vol. 1 - The Gulag Archipelago, Book 1": not "<Title> - <Author>"
+            covers.append({"title": title, "subtitle": "", "author": au, "position": int(alt)})
+        covers.sort(key=lambda v: v["position"])
+        # the series' author is that of its first volume (Dune: Frank Herbert, not the later co-authors)
+        author = next((v["author"] for v in ((vols or []) if known else covers) if v["author"]), "")
+        out.append({"name": name, "slug": slug, "books": n, "volumes_known": known,
+                    "volumes": vols if known else covers, "author": author, "links": links,
+                    "quote": qm.group(1).strip() if qm else None, "quote_attrib": qm.group(2).strip() if qm else None,
+                    "has_context_only": bool(text) and not qm})
+    return out
 
 
 # ─── Source classification ──────────────────────────────────────────────────
@@ -1055,7 +1166,8 @@ def main():
                 st["mrb_name_mismatch"] = len(rows)
                 log(f"  skip {slug}: MRB page name {page['name']!r} != {person['name']!r}")
                 continue
-            st["mrb_cards_rendered"] = len(page["cards"])
+            # books shown: single cards + series volumes (the whole-series card is not a book of its own)
+            st["mrb_cards_rendered"] = sum(1 for c in page["cards"] if not c.get("series") or c["series"]["position"] is not None)
             st["mrb_books_claimed"] = page["claimed_books"] or 0
             idx = defaultdict(list)
             for c in page["cards"]:

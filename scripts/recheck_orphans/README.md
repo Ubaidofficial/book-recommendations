@@ -7,4 +7,6 @@ Independent re-check of the two primary-source runs. Run from the repo root with
 3. `sample.py`: prints random rows per class for a hand check.
 4. `build.py`: builds guarded SQL batches for own-account tweets. Each batch has a payload checksum and a snapshot guard, skips rows already in the backup table, and backs up into `bak_recs_primary_sources_20261112` before writing. It rejects tweets dated two or more years before the book's first published year, and leaves out rows that already carry the chosen tweet. An optional second argument sets the batch label prefix (default `index_tweets_20261113`).
 
+Series cards: the first index also shows series cards ("Dune (17 books)"), and its "has recommended N books" figure counts every volume. `parse_mrb_person` now returns each volume as a card (with a `series` field), plus the series itself as a card, reading the volume list from the cached `/series/<slug>` page (allowed by robots.txt; fetched once with the polite Fetcher). Where that page is missing or redirects elsewhere, only the up-to-three covers on the card are known.
+
 Cached index pages are read from `reports/third_party_cache/` (gitignored).
