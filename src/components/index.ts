@@ -15,5 +15,6 @@ import { PageJump } from "./PageJump";
 import { LastUpdated } from "./LastUpdated";
 import { NewlyPublished } from "./NewlyPublished";
 import { Book3D } from "./Book3D";
+import { AmazonCoverLink } from "./AmazonCoverLink";
 
-export { Book3D, NewlyPublished, LastUpdated, SectionHeading, BookCard, PersonCard, ListCard, SeriesCard, SearchBar, SortSelect, GlobalSearch, HomepageVisual, SafeImage, Avatar, Breadcrumbs, BookCardSkeleton, PersonCardSkeleton, ListCardSkeleton, EmptyState, PageJump };
+export { Book3D, AmazonCoverLink, NewlyPublished, LastUpdated, SectionHeading, BookCard, PersonCard, ListCard, SeriesCard, SearchBar, SortSelect, GlobalSearch, HomepageVisual, SafeImage, Avatar, Breadcrumbs, BookCardSkeleton, PersonCardSkeleton, ListCardSkeleton, EmptyState, PageJump };

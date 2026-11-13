@@ -7,6 +7,12 @@ export function isValidHttpUrl(value: string | null | undefined): boolean {
   return /^https?:\/\//i.test(value.trim());
 }
 
+const AMAZON_SHORT_HOSTS = new Set(["amzn.to", "amzn.com", "a.co"]);
+
+function isAmazonShortLink(hostname: string): boolean {
+  return AMAZON_SHORT_HOSTS.has(hostname.toLowerCase());
+}
+
 /**
  * True iff the URL points at an Amazon affiliate domain (incl. regional TLDs and
  * the amzn.to / amzn.com short-link hosts). Conservative: requires `amazon` to be
@@ -16,7 +22,7 @@ export function isValidHttpUrl(value: string | null | undefined): boolean {
  *   - amazon.com, amazon.co.uk, amazon.ca, amazon.de, amazon.fr, amazon.co.jp,
  *     amazon.com.au, amazon.es, amazon.it, … (any `amazon.<tld>` or `amazon.<tld>.<tld>`)
  *   - www.amazon.com, smile.amazon.com, read.amazon.com (any subdomain of amazon.<tld>)
- *   - amzn.to, amzn.com (short-link hosts)
+ *   - amzn.to, amzn.com, a.co (short-link hosts)
  *
  * Does NOT match: malformed URLs, non-amazon hosts, or substrings inside other domains.
  */
@@ -28,7 +34,7 @@ export function isAmazonUrl(url: string | null | undefined): boolean {
   } catch {
     return false;
   }
-  if (host === "amzn.to" || host === "amzn.com") return true;
+  if (isAmazonShortLink(host)) return true;
   // Either the hostname IS amazon.<tld>[.<tld>], or any subdomain of one
   // (the `(^|\.)` boundary requires `amazon` to be a full label).
   return /(^|\.)amazon(\.[a-z]{2,3}){1,2}$/.test(host);
@@ -184,27 +190,38 @@ export function amazonCtaUrl(book: {
   return withAmazonAssociateTag(u);
 }
 
-function getAmazonAssociateTag(): string {
-  return (process.env.AMAZON_ASSOCIATE_TAG || process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG || "bookmentions-20").trim();
-}
+/**
+ * The one Amazon Associates tag this site uses. Deliberately a constant, not an
+ * environment variable: every Amazon link we emit must carry exactly this tag,
+ * and a config value could be missing, empty, or set to something else.
+ */
+export const AMAZON_ASSOCIATE_TAG = "bookmention09-20";
 
+/** Query params that tie a click to an Associates account or campaign. */
+const AMAZON_ASSOCIATE_PARAMS = new Set([
+  "tag",
+  "ascsubtag",
+  "linkcode",
+  "linkid",
+  "creative",
+  "creativeasin",
+  "camp",
+]);
+
+/**
+ * Forces `tag=bookmention09-20` onto an Amazon URL. Any existing Associates tag
+ * (and the tracking params that go with one, e.g. linkCode/linkId/ascsubtag, or
+ * `ref_=as_li_*`) is removed first, so a stored link tagged for someone else
+ * can never carry their tag, and a repeated or differently-cased `Tag=` cannot
+ * survive next to ours.
+ */
 function withAmazonAssociateTag(u: URL): string {
-  const tag = getAmazonAssociateTag();
-
-  // Do not modify Amazon image/CDN hosts or short links. Only monetize normal
-  // Amazon product/search URLs where adding ?tag= is safe and expected.
-  const host = u.hostname.toLowerCase();
-  if (host === "images-na.ssl-images-amazon.com" || host.endsWith(".ssl-images-amazon.com")) {
-    return u.toString();
+  for (const key of [...u.searchParams.keys()]) {
+    const k = key.toLowerCase();
+    const isAssociateRef = k === "ref_" && /^as_li/i.test(u.searchParams.get(key) || "");
+    if (AMAZON_ASSOCIATE_PARAMS.has(k) || isAssociateRef) u.searchParams.delete(key);
   }
-  if (host === "amzn.to" || host === "amzn.com") {
-    return u.toString();
-  }
-
-  if (!tag) return u.toString();
-  if (!u.searchParams.get("tag")) {
-    u.searchParams.set("tag", tag);
-  }
+  u.searchParams.set("tag", AMAZON_ASSOCIATE_TAG);
   return u.toString();
 }
 
@@ -227,6 +244,11 @@ function withAmazonAssociateTag(u: URL): string {
  *   - URL fails parse / non-http(s) protocol         → null
  *   - Non-Amazon host (per `isAmazonUrl`)            → null
  *     (lets the caller suppress the CTA cleanly)
+ *   - Short links (amzn.to, amzn.com, a.co)          → null
+ *     (they redirect to a URL we cannot tag, so they are never emitted)
+ *
+ * Every URL returned carries `tag=bookmention09-20` and no other Associates
+ * tag: an existing tag is replaced, never kept (see `withAmazonAssociateTag`).
  *   - Already-valid `/dp/<10-char-ASIN>` URLs        → returned unchanged
  *   - 22-char `/dp/` candidate whose first 10 chars
  *     match the ASIN/ISBN-10 shape `[A-Z0-9]{10}`    → truncated to first 10
@@ -239,9 +261,6 @@ function withAmazonAssociateTag(u: URL): string {
  * `/Some-Book-Title/dp/<ASIN>/ref=…` SEO form is preserved).
  *
  * Does NOT:
- *   - require an affiliate tag to be present. If AMAZON_ASSOCIATE_TAG is set,
- *     appends it to normal Amazon product/search URLs that do not already
- *     have a tag. If no tag is set, returns the clean normalized URL.
  *   - rewrite hosts
  *   - convert non-Amazon URLs into Amazon URLs
  *   - touch any tracking parameters
@@ -264,19 +283,9 @@ export function normalizeAmazonUrl(url: string | null | undefined): string | nul
   if (u.protocol !== "https:" && u.protocol !== "http:") return null;
   if (!isAmazonUrl(trimmed)) return null;
 
-  const host = u.hostname.toLowerCase();
-  const associateTag = (
-    process.env.AMAZON_ASSOCIATE_TAG ||
-    process.env.NEXT_PUBLIC_AMAZON_ASSOCIATE_TAG ||
-    ""
-  ).trim();
-
-  // Never add Associate tags to Amazon image/CDN URLs or short links.
-  const shouldSkipTag =
-    host === "amzn.to" ||
-    host === "amzn.com" ||
-    host.includes("ssl-images-amazon.com") ||
-    host.includes("images-amazon.com");
+  // Short links redirect somewhere we cannot put our tag on. Drop them rather
+  // than emit an untagged (or someone else's tagged) Amazon link.
+  if (isAmazonShortLink(u.hostname)) return null;
 
   const VALID_ASIN = /^[A-Z0-9]{10}$/i;
   const m = u.pathname.match(/^(.*\/dp\/)([^\/?#]+)(.*)$/);
@@ -292,11 +301,7 @@ export function normalizeAmazonUrl(url: string | null | undefined): string | nul
     }
   }
 
-  if (associateTag && !shouldSkipTag && !u.searchParams.get("tag")) {
-    u.searchParams.set("tag", associateTag);
-  }
-
-  return u.toString();
+  return withAmazonAssociateTag(u);
 }
 
 export function isValidRating(value: unknown): boolean {
@@ -524,6 +529,9 @@ export function hasPipeAggregate(value: string | null | undefined): boolean {
 
 export function isMetadataOrPurchaseSourceUrl(url: string | null | undefined): boolean {
   if (!url) return true;
+  // Amazon short links (amzn.to, a.co) don't contain "amazon." but are still
+  // purchase links; they can't be tagged, so they never count as a source.
+  if (isAmazonUrl(url.trim())) return true;
   const uLower = url.toLowerCase().trim();
   return [
     "books.google.",

@@ -33,7 +33,7 @@ import {
   getProofDisplaySafety,
   coverAltText,
 } from "@/lib/dataQuality";
-import { Avatar, Book3D, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
+import { AmazonCoverLink, Avatar, Book3D, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
 import { BookSectionHeading, DraftNotesLabel, FactsRow, type Fact } from "@/components/book/primitives";
 import { ReaderFit } from "@/components/book/ReaderFit";
 import { ProfessionBars } from "@/components/book/ProfessionBars";
@@ -1175,6 +1175,7 @@ export default async function BookDetailPage({ params }: Props) {
           role="region"
           aria-label="Buy this book"
         >
+          <AmazonCoverLink href={normalizedAmazonUrl} title={displayBookTitle(book.title)} slug={book.slug} section="cover-sticky-mobile" className="block shrink-0">
           {hasCover ? (
             <SafeImage
               src={book.cover_image_url}
@@ -1185,6 +1186,7 @@ export default async function BookDetailPage({ params }: Props) {
           ) : (
             <div className="w-10 h-14 bg-subtle rounded shrink-0" aria-hidden />
           )}
+          </AmazonCoverLink>
           <p className="text-xs font-semibold text-ink line-clamp-1 flex-1 min-w-0">
             {displayBookTitle(book.title)}
           </p>

@@ -36,6 +36,7 @@ import {
   uniqueByNormalizedText,
   parseSourceUrls,
   outboundLinkRel,
+  normalizeOutboundUrl,
   getProofDisplaySafety,
 } from "@/lib/dataQuality";
 import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
@@ -231,12 +232,13 @@ export default async function PersonDetailPage({ params }: Props) {
                     : "";
             if (!text) return null;
             const className = "text-[10px] text-muted/60 leading-snug text-center max-w-[7rem] line-clamp-2";
-            if (isValidHttpUrl(person.avatar_source_url)) {
+            const avatarSourceHref = normalizeOutboundUrl(person.avatar_source_url);
+            if (avatarSourceHref) {
               return (
                 <a
-                  href={person.avatar_source_url!}
+                  href={avatarSourceHref}
                   target="_blank"
-                  rel={outboundLinkRel(person.avatar_source_url)}
+                  rel={outboundLinkRel(avatarSourceHref)}
                   className={className + " hover:text-accent hover:underline"}
                   title={text}
                 >
@@ -281,9 +283,9 @@ export default async function PersonDetailPage({ params }: Props) {
               </span>
             )}
           </div>
-          {isValidHttpUrl(person.source_url) && (
+          {normalizeOutboundUrl(person.source_url) && (
             <Link
-              href={person.source_url!}
+              href={normalizeOutboundUrl(person.source_url)!}
               target="_blank"
               rel={outboundLinkRel(person.source_url)}
               className="inline-flex items-center gap-1 text-xs text-accent hover:underline mt-3"
