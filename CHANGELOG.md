@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-13 — Five recommendations confirmed by hand
+
+- Gabor Maté: Don Quixote, The Dhammapada and The Drama of the Gifted Child now cite his Tim Ferriss episode (tim.blog/2018/02/20/gabor-mate/) at confidence 60, quote empty. The episode transcript has Tim naming all four books from Maté's own book and Maté discussing them. These were held back by the medium-precision gate, then confirmed by hand.
+- Brené Brown: The Book of Qualities and The Power of Starting Something Stupid kept their own-blog source. Their old pipe-joined, garbled quotes were replaced with her exact words from that post.
+- Backed up in `public.bak_recs_primary_sources_20261112` (batch `manual_20261113`) before writing, with a snapshot guard.
+
 ## 2026-11-12 — Weak primary-source candidates checked at the source
 
 - The 613 weak candidates from the entry below were checked at the source itself by the new `scripts/verify_weak_primary_sources.py`. As before, an outside index was used only to find where to look. Nothing from it is stored.
@@ -23,6 +29,19 @@
 - 56 quotes were stored, each found word for word in the person's own text. Quotes that had been edited with brackets or ellipses were not stored.
 - Hand check of 30 random written rows: 29 were right (97%). The miss was a paywalled book review: only the book's header was visible, not the person's words. That row was reverted to its earlier hidden state, which leaves the 80 rows above (81 were written).
 - The 533 unconfirmed candidates, each with its reason, are in `reports/weak_candidates_unconfirmed_20261112.csv` (gitignored). They were left untouched.
+
+## 2026-11-13 — Primary sources for orphaned recommendations: a second outside index
+
+- The orphaned-recommendation search was repeated with a second outside recommendation index, collected once with the project owner's approval (one request at a time, at least 2 s apart, every page cached locally). As before, the index was used only to find where to look. Nothing from it is stored: no link to it, none of its text, no mention of it and no credit. New script: `scripts/rtt_primary_sources.py`. It reuses the matching and checking code of `scripts/find_primary_sources.py`, which now exposes those steps as shared functions; that script's output is unchanged.
+- Scope: the 6,505 orphaned rows minus the 187 already handled on 2026-11-12 (186 written and the one reverted on purpose), so 6,318 rows, checked again against the live tables.
+- The index has a page for 649 of the 1,426 people with orphaned rows, covering 3,228 of the 6,505 rows. Of the 1,043 people the first index had no page for, it covers 329 (1,023 rows). The newest date on any page was March 2023, so the index is no longer updated.
+- Results: 2 strong candidates (the person's own blog), 6 medium (podcast show notes) and 181 weak. 6,129 rows have no candidate: for 3,249 the person has no page in the index, for 1,096 the book is not on their page, 1,779 had only unusable sources (809 tweets from accounts we could not confirm, 152 bookstore or aggregator links, the rest with no sign the person wrote or said it), and 5 now sit on a book with a different title after the merge.
+- Tweets could not be checked this time. The archive service's lookup started refusing requests (too many requests) after about 300 lookups, and its snapshot server did not accept connections at all, so every tweet stayed weak or was rejected.
+- New rule after the hand check: the index sometimes gives a sentence written about the person ("His primary book source on management technique is ...") as their quote. Such sentences are now ignored, so they can neither be stored nor count as the person's own words. This moved 3 rows from a magazine profile to weak.
+- Hand check: 2 of 2 strong candidates were right. All 6 medium candidates were checked: 4 were confirmed (one in the episode's own timestamps, three in the episode transcript). The other 2 came from an episode with two guests whose show notes do not say which guest named the book. Medium precision was 4 of 6, below the 90% bar, so only strong rows could be written.
+- Written to production: **0 rows**, 0 quotes. Both strong rows already carry exactly that source link, and the site already shows it as "Own source", so they were left alone, as in the first run. In all, 29 candidate rows already had their source link (2 strong, 3 medium, 24 weak).
+- Weak candidates are only in a local CSV (`reports/rtt_weak_candidates_20261112.csv`).
+- Checked afterwards: no link to or text from either outside index was added to any recommendation. One older row, outside this work, holds a person's own tweet that mentions the second index's account name.
 
 ## 2026-11-12 — Primary sources for orphaned recommendations
 
