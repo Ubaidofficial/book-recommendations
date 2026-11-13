@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-13 — Tweet text saved as the quote
+
+- For the 365 own-account tweet rows where the index's copy of the tweet names the book, that text is now the quote. Confidence was raised to 70, so the 338 quotes of 50+ characters pass the display gate. This text comes from the index's copy and was not re-read at X.
+- Written in 4 guarded batches (`build_quotes.py`). The quote text goes in as base64, because a no-break space in one tweet broke the checksum on the first attempt; that batch wrote nothing, as the guard intended. The new values are recorded on each row's backup in `bak_recs_primary_sources_20261112`.
+- Totals across the 6,505 orphaned recommendations: 1,300 now cite the person's own source (269 verified at the source, plus 1,031 own-account tweets), and 367 of them show a quote.
+
 ## 2026-11-13 — Re-check: names with middle initials or titles
 
 - The same-name rule now also accepts a page name with the same first and last name when the only differences are titles, initials or a middle name ("Balaji S. Srinivasan" / "Balaji Srinivasan", "Richard H. Thaler" / "Richard Thaler", "Dr. Andrew Weil").
