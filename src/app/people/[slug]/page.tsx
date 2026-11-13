@@ -9,8 +9,25 @@ import {
   getPersonWrittenCountCached,
   getQualityPeopleCached,
 } from "@/lib/data";
-import { pageMetadata, robotsDirective, contentDates } from "@/lib/seo";
-import { personJsonLd } from "@/lib/jsonld";
+import { pageMetadata, contentDates } from "@/lib/seo";
+import { detailRobotsDirective } from "@/lib/indexing";
+import { isPersonPageThin } from "@/lib/thinPages";
+import { personJsonLd, faqPageJsonLd } from "@/lib/jsonld";
+import {
+  getPersonShelf,
+  getPersonTopics,
+  getSimilarShelves,
+  buildPersonFaq,
+  firstNameOf,
+  type ShelfBook,
+  type PersonTopic,
+  type SimilarShelf,
+} from "@/lib/personInsights";
+import { PersonShelf } from "@/components/person/PersonShelf";
+import { PersonTopics } from "@/components/person/PersonTopics";
+import { SimilarShelves } from "@/components/person/SimilarShelves";
+import { PersonFaq } from "@/components/person/PersonFaq";
+import { toSpines } from "@/components/person/spines";
 import {
   isValidHttpUrl,
   formatConfidence,
@@ -20,7 +37,6 @@ import {
   parseSourceUrls,
   outboundLinkRel,
   normalizeOutboundUrl,
-  amazonCtaUrl,
   getProofDisplaySafety,
 } from "@/lib/dataQuality";
 import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
@@ -57,7 +73,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: desc || "",
     path: `/people/${person.slug}`,
     image: isValidHttpUrl(person.avatar_url) ? person.avatar_url : undefined,
-    robots: robotsDirective(person),
+    // index_status, plus the thin-page floor (src/lib/indexing.ts).
+    robots: detailRobotsDirective(person, await isPersonPageThin(person)),
   });
 }
 
@@ -71,6 +88,9 @@ export default async function PersonDetailPage({ params }: Props) {
   let recommendedCount = 0;
   let writtenCount = 0;
   let otherPeople: Awaited<ReturnType<typeof getQualityPeopleCached>> = [];
+  let shelf: ShelfBook[] = [];
+  let topics: PersonTopic[] = [];
+  let similar: SimilarShelf[] = [];
 
   try {
     // Person pages linked to books and to nothing else — zero person->person
@@ -78,12 +98,13 @@ export default async function PersonDetailPage({ params }: Props) {
     // for a crawler walking the graph, and leaves the deeper profiles with no
     // internal path to them at all.
     let qualityPeople: Awaited<ReturnType<typeof getQualityPeopleCached>>;
-    [writtenBooks, rawProof, recommendedCount, writtenCount, qualityPeople] = await Promise.all([
+    [writtenBooks, rawProof, recommendedCount, writtenCount, qualityPeople, shelf] = await Promise.all([
       getBooksByAuthorCached(person.id, 24),
       getPersonRecommendationProofCached(person.id, 24),
       getPersonRecommendedCountCached(person.id),
       getPersonWrittenCountCached(person.id),
       getQualityPeopleCached(40),
+      getPersonShelf(person.id),
     ]);
     otherPeople = qualityPeople
       .filter((p) => p && p.slug && p.slug !== person.slug && p.name)
@@ -91,6 +112,36 @@ export default async function PersonDetailPage({ params }: Props) {
   } catch (e) {
     console.error("[person-detail] Relation queries failed:", e);
   }
+
+  // Shelf-derived sections: topics and overlap both start from the full set
+  // of this person's book ids. Each helper already returns [] on failure.
+  const shelfIds = shelf.map((b) => b.id);
+  try {
+    [topics, similar] = await Promise.all([
+      getPersonTopics(person.id, shelfIds, 8),
+      getSimilarShelves(person, shelfIds, 8),
+    ]);
+  } catch (e) {
+    console.error("[person-detail] Shelf insights failed:", e);
+  }
+  const firstName = firstNameOf(person.name);
+  const shelfById = new Map(shelf.map((b) => [b.id, b]));
+  const similarCards = similar.map((s) => ({
+    slug: s.slug,
+    name: s.name,
+    role: s.role,
+    avatarUrl: s.avatar_url,
+    shared: s.shared,
+    comparable: s.comparable,
+    examples: s.sharedBookIds
+      .map((id) => shelfById.get(id))
+      .filter((b): b is ShelfBook => b != null)
+      .sort((a, b) => b.recommendation_count - a.recommendation_count)
+      .slice(0, 2)
+      .map((b) => b.title),
+  }));
+  const faq = buildPersonFaq({ name: person.name, shelf, topics, similar });
+  const faqLd = faqPageJsonLd(faq);
 
   const safeWrittenBooks = writtenBooks.filter((b) => b != null && b.id);
   const safeProof = rawProof.filter((p) => p != null && p.book != null && p.book.id);
@@ -120,9 +171,15 @@ export default async function PersonDetailPage({ params }: Props) {
   const hasFullProof = proofList.every((p) => parseSourceUrls(p.source_url).length > 0);
   const proofHeading = hasFullProof ? "Source & Proof" : "Recommendation Signals";
 
+  // Spine shelf: the 16 picks most recommended across the site. The panel
+  // links down to a proof card only when this page actually renders one.
+  const proofSlugs = new Set(proofList.map((p) => p.book.slug).filter(Boolean));
+  const spines = toSpines(shelf.slice(0, 16), proofSlugs);
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
       {jsonld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />}
+      {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "People", href: "/people" }, { label: person.name }]} />
 
       <div className="flex flex-col sm:flex-row items-start gap-6 mb-8">
@@ -256,6 +313,19 @@ export default async function PersonDetailPage({ params }: Props) {
         </span>
       </div>
 
+      {/* On the shelf — the person's most-recommended picks as spines. */}
+      {spines.length >= 3 && (
+        <section className="mb-14" aria-labelledby="shelf-h">
+          <h2 id="shelf-h" className="text-xl font-bold text-ink mb-1.5 tracking-tight">On the shelf</h2>
+          <p className="text-sm text-muted max-w-2xl mb-5">
+            {spines.length === shelf.length
+              ? `All ${shelf.length} of ${firstName}’s picks. Choose a book to take it off the shelf.`
+              : `The ${spines.length} of ${firstName}’s ${shelf.length.toLocaleString("en-US")} picks that the most people recommend. Choose a book to take it off the shelf.`}
+          </p>
+          <PersonShelf books={spines} firstName={firstName} />
+        </section>
+      )}
+
       {/* Recommended Books */}
       {hasRecommendations ? (
         <section className="mb-14">
@@ -273,12 +343,10 @@ export default async function PersonDetailPage({ params }: Props) {
               const matchedProof = proofList.find((pl) => pl.book.id === p.book.id);
               const cardCue = matchedProof ? matchedProof.safety.cardCue : "none";
               return (
-                // Wrapper around BookCard so we can append a secondary Amazon
-                // CTA below each card on the people detail page WITHOUT
-                // touching BookCard (which is shared with /books and was
-                // reverted from Phase-4 recommender experiments). The CTA is
-                // an independent sibling <a>, so BookCard's internal link to
-                // /books/<slug> stays the primary card click target.
+                // One Amazon button per card: BookCard renders it (with the
+                // book's own Amazon URL, falling back to an Amazon search).
+                // This page used to append a second "View on Amazon" below
+                // every card, so each book showed two identical buttons.
                 <div key={`${p.book.id}-${i}`} className="flex flex-col h-full justify-between">
                   <div>
                     <BookCard
@@ -289,6 +357,8 @@ export default async function PersonDetailPage({ params }: Props) {
                       coverUrl={p.book.cover_image_url}
                       rating={p.book.rating}
                       recommendationCount={p.book.recommendation_count}
+                      amazonUrl={p.book.amazon_url}
+                      trackSection="people-detail-rec"
                     />
                     {cardCue !== "none" && p.book.slug ? (
                       <div className="mt-2.5 flex flex-col items-center justify-center gap-1 text-[11px] text-center">
@@ -306,32 +376,6 @@ export default async function PersonDetailPage({ params }: Props) {
                       <div className="mt-2.5 h-[34px]" aria-hidden="true" />
                     )}
                   </div>
-                  {(() => {
-                    // normalizeAmazonUrl repairs the dominant 22-char malformed
-                    // ASIN pattern and returns null for non-Amazon hosts, so
-                    // the CTA is suppressed cleanly when the URL isn't usable.
-                    // Render-time only — DB is not modified.
-                    const ctaUrl = amazonCtaUrl(p.book);
-                    if (!ctaUrl) return null;
-                    return (
-                      <a
-                        href={ctaUrl}
-                        target="_blank"
-                        rel="noopener noreferrer nofollow sponsored"
-                        data-track-slug={p.book.slug}
-                        data-track-section="people-detail-rec"
-                        data-track-label="View on Amazon"
-                        // CTA visual upgrade only — href / target / rel /
-                        // data-track-* attributes above are UNCHANGED.
-                        // Stronger amber background and border, darker text,
-                        // larger touch target (px-3 py-2), text-xs (12px)
-                        // instead of [11px]. Same shape, more clickable.
-                        className="mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-bold shadow-sm motion-btn-cta"
-                      >
-                        View on Amazon →
-                      </a>
-                    );
-                  })()}
                 </div>
               );
             })}
@@ -350,6 +394,9 @@ export default async function PersonDetailPage({ params }: Props) {
           </div>
         </section>
       )}
+
+      <PersonTopics topics={topics} firstName={firstName} totalBooks={shelf.length} />
+      <SimilarShelves personSlug={person.slug} firstName={firstName} people={similarCards} />
 
       {/* Books Written */}
       {hasWritten && (
@@ -490,6 +537,8 @@ export default async function PersonDetailPage({ params }: Props) {
           </div>
         )}
       </section>
+
+      <PersonFaq heading={`Questions about ${firstName}’s reading list`} items={faq} />
 
       {/* How this profile is built */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">

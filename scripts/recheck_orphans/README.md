@@ -1,0 +1,12 @@
+# Re-check of the 6,505 orphaned recommendations (2026-11-13)
+
+Independent re-check of the two primary-source runs. Run from the repo root with `python3 -I`; all of them read only cached pages (no network) plus the read-only Supabase key. Each takes the output directory as its first argument (default: next to the script), e.g. `python3 -I scripts/recheck_orphans/recheck.py /tmp/recheck`; pass the same directory to every step. Outputs: `live.pkl`, `per_row.json`, `listed_rows.json`, `payload.json`, `batches/`, `quote_batches/`.
+
+1. `recheck.py`: loose person match (name tokens, first+last) against both outside indexes' full people lists (for the first index, its sitemap plus its own `/people` listing page, which lists about 110 more people than the sitemap), and loose title match (subtitle dropped, containment) against every cached person page. A loosely matched page counts as the person's only when the page's own name equals the person's full name after accent and punctuation folding, or is an alias in ALIAS_GROUPS (`scripts/reattribute_quotes.js`); pages dropped by this rule are kept in `mrb_other_name` / `rtt_other_name` for review. Writes `per_row.json`.
+2. `tweets.py`: for rows whose book is listed, classifies the cited link. A tweet counts as the person's own when its handle equals the handle on the index's own profile for the person, `people.twitter_handle`, or HANDLE_MAP in `scripts/reattribute_quotes.js`, minus HANDLE_DENY.
+3. `sample.py`: prints random rows per class for a hand check.
+4. `build.py`: builds guarded SQL batches for own-account tweets. Each batch has a payload checksum and a snapshot guard, skips rows already in the backup table, and backs up into `bak_recs_primary_sources_20261112` before writing. It rejects tweets dated two or more years before the book's first published year, and leaves out rows that already carry the chosen tweet. An optional second argument sets the batch label prefix (default `index_tweets_20261113`).
+
+Series cards: the first index also shows series cards ("Dune (17 books)"), and its "has recommended N books" figure counts every volume. `parse_mrb_person` now returns each volume as a card (with a `series` field), plus the series itself as a card, reading the volume list from the cached `/series/<slug>` page (allowed by robots.txt; fetched once with the polite Fetcher). Where that page is missing or redirects elsewhere, only the up-to-three covers on the card are known.
+
+Cached index pages are read from `reports/third_party_cache/` (gitignored).
