@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-13 — 21 likely-wrong recommendations removed; Laird Hamilton / Dune sourced
+
+- Deleted 21 recommendations where checking the person's own sources showed the pairing was wrong:
+  - 8: the person's own book (Susan Cain / Quiet, Satya Nadella / Hit Refresh, Stephen King / On Writing, Ben Horowitz / The Hard Thing About Hard Things, Julia Galef / The Scout Mindset, Tony Hsieh / Delivering Happiness, Reid Hoffman / The Start-up of You, Doris Kearns Goodwin / The Bully Pulpit).
+  - 4: named by the host, not this person (Peter Thiel / The Black Swan, Scott Belsky / Bird by Bird, Reid Hoffman / Zero to One, Josh Waitzkin / Essentialism).
+  - 5 by Matt D'Avella: 3 were his interview guests' own books, 2 came up only in sponsor reads.
+  - 3 by Nir Eyal: they appear in guest posts on his site, not in his words.
+  - 1: Mark Manson / the Ashlee Vance *Elon Musk*. His list names Isaacson's book, which is not in the database.
+- Rows that are simply missing from one checked page (for example Tim Ferriss / Tao Te Ching) were kept: absence on one page does not show a recommendation is wrong.
+- Backup: `public.bak_recs_wrong_20261113`, with RLS on and the restore SQL in the table comment. `books.recommendation_count` was recomputed as distinct recommenders for the 20 affected books; 3 of them had already been off by one.
+- Laird Hamilton / Dune now cites his Tim Ferriss episode, whose notes say "Dune by Frank Herbert – recommended by Laird" (confidence 60, quote empty, backed up, batch `manual_20261113c`).
+
 ## 2026-11-13 — One more own-words source
 
 - Matt Mullenweg / Fooled by Randomness now cites his solo book-recommendations episode transcript (tim.blog/2020/05/13/matt-mullenweg-book-recommendations-transcript/) at confidence 80, with his own words as the quote. The earlier show-notes write for this row was undone, and the backup-table guard then kept the other-sources batch from writing it, so it was written by hand. The backup row is updated, with its batch label suffixed `+manual_20261113b`.
