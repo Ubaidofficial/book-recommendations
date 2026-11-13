@@ -6,7 +6,7 @@ import sys, json, os, re, hashlib
 D=os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0,D)
 exec(open(D+'/recheck.py').read().split("# previous strict results")[0])
 import find_primary_sources as fps
-OUTD=sys.argv[1] if len(sys.argv)>1 else D
+OUTD=OUT  # set from the output-dir argument by recheck.py's loader
 payload=[p for p in json.load(open(OUTD+'/payload.json')) if p[3]=='tweet_text_names_book']
 def tid(u): m=re.search(r'/status/(\d+)',u); return m.group(1) if m else None
 by_tid={}
@@ -23,7 +23,11 @@ for rid,snap,url,kind in payload:
     q=re.sub(r'\s+\n','\n',q)
     rows.append((rid,url,q))
 print('quotes',len(rows),'of',len(payload),' >=50 chars:',sum(len(q)>=50 for _,_,q in rows))
-def lit(s): return "$q$"+s+"$q$" if "$q$" not in s else "'"+s.replace("'","''")+"'"
+import base64
+def lit(s):
+    # base64 keeps the statement pure ASCII: no-break spaces, curly quotes and
+    # newlines in tweets cannot be altered on the way to the database.
+    return "convert_from(decode('"+base64.b64encode(s.encode()).decode()+"','base64'),'UTF8')"
 def sql(ch,batch):
     vals=',\n'.join(f"('{i}'::uuid,'{u}',{lit(q)})" for i,u,q in ch)
     chk=hashlib.md5(','.join(f"{i}|{u}|{hashlib.md5(q.encode()).hexdigest()}" for i,u,q in sorted(ch)).encode()).hexdigest()
