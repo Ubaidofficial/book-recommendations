@@ -15,14 +15,14 @@ export function PersonTopics({
   const max = topics[0].count || 1;
   return (
     <section className="mb-14" aria-labelledby="topics-h">
-      <h2 id="topics-h" className="text-xl font-bold text-ink mb-1.5 tracking-tight">
+      <h2 data-reveal id="topics-h" className="type-h2 text-ink mb-1.5">
         What {firstName} reads most
       </h2>
-      <p className="text-sm text-muted max-w-2xl mb-5">
+      <p data-reveal className="text-sm text-muted max-w-2xl mb-5">
         Reading lists on BookMentions that {firstName}’s recommended books appear on, by number of books
         {totalBooks > 0 ? ` (out of ${totalBooks.toLocaleString("en-US")})` : ""}. A book can be on more than one list.
       </p>
-      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <ul data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {topics.map((t) => (
           <li key={t.slug}>
             <Link

@@ -612,7 +612,7 @@ export default async function BookDetailPage({ params }: Props) {
             </div>
 
             <div>
-              <h1 className={`font-serif font-medium text-ink tracking-tight leading-[1.05] break-words ${h1Size}`}>{bookTitle}</h1>
+              <h1 className={`font-serif font-medium text-ink tracking-[-0.022em] leading-[1.04] text-balance break-words ${h1Size}`}>{bookTitle}</h1>
               {book.subtitle && <p className="mt-3 text-base md:text-lg text-muted">{book.subtitle}</p>}
               {hasAuthor && (
                 <p className="mt-3 text-base md:text-lg text-muted">
@@ -626,11 +626,11 @@ export default async function BookDetailPage({ params }: Props) {
 
             {editorialSummary ? (
               <div className="flex flex-col gap-3">
-                <p className="text-[15px] md:text-base text-ink/90 leading-relaxed max-w-2xl">{editorialSummary}</p>
+                <p className="prose-body text-ink/90">{editorialSummary}</p>
                 <DraftNotesLabel reviewed={editorialReviewed} />
               </div>
             ) : whyRecSentence ? (
-              <p className="text-[15px] md:text-base text-ink/90 leading-relaxed max-w-2xl">{whyRecSentence}</p>
+              <p className="prose-body text-ink/90">{whyRecSentence}</p>
             ) : null}
 
             {socialProofRow}
@@ -714,8 +714,8 @@ export default async function BookDetailPage({ params }: Props) {
 
         {showDescription && (
           <section className="mb-16 max-w-3xl" aria-labelledby="about-book">
-            <h2 id="about-book" className="font-serif text-[22px] md:text-2xl font-medium text-ink tracking-tight mb-3">About the book</h2>
-            <p className="text-[15px] text-muted leading-relaxed">{descriptionText}</p>
+            <h2 id="about-book" className="type-h3 text-ink mb-3">About the book</h2>
+            <p className="prose-body text-muted-strong">{descriptionText}</p>
           </section>
         )}
 
@@ -755,7 +755,7 @@ export default async function BookDetailPage({ params }: Props) {
             title={`Who recommended ${bookTitle}?`}
             dek="People and public figures who have recommended this book."
           />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {notableRecommenders.map((r) => (
               <Link
                 key={r.person_slug}
@@ -922,8 +922,8 @@ export default async function BookDetailPage({ params }: Props) {
         };
         return (
           <section className="mb-14">
-            <h2 className="font-serif text-2xl md:text-[28px] leading-tight font-medium text-ink mb-5 tracking-tight">Appears in</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <h2 data-reveal className="type-h2 text-ink mb-5">Appears in</h2>
+            <div data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {finalList.map(({ l, kind, displayName }) => {
                 const content = (
                   <>
@@ -974,8 +974,8 @@ export default async function BookDetailPage({ params }: Props) {
 
         return (
           <section className="mb-14">
-            <h2 className="font-serif text-2xl md:text-[28px] leading-tight font-medium text-ink mb-5 tracking-tight">More from {displayTitle(book.series!)}</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
+            <h2 data-reveal className="type-h2 text-ink mb-5">More from {displayTitle(book.series!)}</h2>
+            <div data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
               {bottomSeriesBooks.map((b) => (
                 <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} amazonUrl={b.amazon_url} />
               ))}
@@ -987,8 +987,8 @@ export default async function BookDetailPage({ params }: Props) {
       {/* Also By Author */}
       {safeAuthorBooks.filter((b) => b.id !== book.id).length > 0 && (
         <section className="mb-14">
-          <h2 className="font-serif text-2xl md:text-[28px] leading-tight font-medium text-ink mb-5 tracking-tight">Also by {book.author}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
+          <h2 data-reveal className="type-h2 text-ink mb-5">Also by {book.author}</h2>
+          <div data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {safeAuthorBooks.filter((b) => b.id !== book.id).map((b) => (
               <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} amazonUrl={b.amazon_url} />
             ))}
@@ -1015,7 +1015,7 @@ export default async function BookDetailPage({ params }: Props) {
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-semibold uppercase tracking-wider mb-2">
                 Try This Instead
               </span>
-              <h3 className="text-lg font-bold text-ink mb-1">
+              <h3 className="type-h3 text-ink mb-1">
                 Not sure if this is the right fit?
               </h3>
               <p className="text-sm text-muted mb-4">
@@ -1066,8 +1066,8 @@ export default async function BookDetailPage({ params }: Props) {
 
       {similarBooks.length > 0 && (
         <section className="mb-14">
-          <h2 className="font-serif text-2xl md:text-[28px] leading-tight font-medium text-ink mb-5 tracking-tight">Books like {displayBookTitle(book.title)}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
+          <h2 data-reveal className="type-h2 text-ink mb-5">Books like {displayBookTitle(book.title)}</h2>
+          <div data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {similarBooks.map((b) => (
               <BookCard key={b.id} title={b.title} slug={b.slug} author={b.author} authorSlug={b.author_slug} coverUrl={b.cover_image_url} rating={b.rating} recommendationCount={b.recommendation_count} amazonUrl={b.amazon_url} />
             ))}
@@ -1077,7 +1077,7 @@ export default async function BookDetailPage({ params }: Props) {
 
       {faq.length > 0 && (
         <section className="mb-14" aria-labelledby="faq">
-          <h2 id="faq" className="font-serif text-2xl leading-tight font-medium text-ink mb-4 tracking-tight">{bookTitle}: common questions</h2>
+          <h2 data-reveal id="faq" className="type-h2 text-ink mb-4">{bookTitle}: common questions</h2>
           <dl className="space-y-4">
             {faq.map((f) => (
               <div key={f.q}>
@@ -1091,7 +1091,7 @@ export default async function BookDetailPage({ params }: Props) {
 
       {/* Methodology footer */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
-        <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">{bottomBoxTitle}</h2>
+        <h2 className="type-h3 text-ink mb-2">{bottomBoxTitle}</h2>
         <p className="text-sm text-muted leading-relaxed">
           Each recommendation is collected from a public source — interviews, articles, or curated lists.
           We link the original source only when we can tie it to the person who recommended the book;

@@ -85,7 +85,7 @@ export function SourceEvidence({
 
       {confirmed.length > 0 ? (
         <>
-          <ul className="grid gap-3">
+          <ul data-reveal-stagger className="grid gap-3">
             {shown.map((e) => (
               <EvidenceItem key={e.slug} e={e} />
             ))}

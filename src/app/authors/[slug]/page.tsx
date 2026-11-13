@@ -39,7 +39,7 @@ export default async function AuthorDetailPage({ params }: Props) {
       />
 
       <div className="mb-10">
-        <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight mb-2">
+        <h1 className="type-h1 text-ink mb-2">
           Books by {authorName}
         </h1>
         
@@ -66,7 +66,7 @@ export default async function AuthorDetailPage({ params }: Props) {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5 mb-14">
+      <div data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5 mb-14">
         {books.map((book) => (
           <BookCard
             key={book.id}

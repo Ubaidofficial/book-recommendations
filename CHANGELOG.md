@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-13 — Editorial typography, scroll reveals, and three UI fixes
+
+- **Fonts:** Newsreader (serif, headings and display) and Inter (UI and body), self-hosted from `@fontsource-variable/*` (OFL-1.1) through `next/font/local`: no font CDN request at build or run time, both preloaded, `display: swap`, and size-adjusted local fallbacks (Times New Roman / Arial) so the swap shifts nothing. Latin subset, weight axis only: 58 KB + 48 KB = 104 KB of woff2. The Georgia rules (spine titles, back cover) and Tailwind's `font-serif` now use Newsreader.
+- **Type system** (`src/app/globals.css`): a major-third scale on a 16px base (12.8 · 16 · 20 · 25 · 31 · 39 · 49 · 61) as `@theme` tokens, with fluid h1/h2/display steps, and utilities `type-display`, `type-h1`, `type-h2`, `type-h3`, `eyebrow`, `prose-body` (17px / 1.65 / 65ch) and `stat-num` (tabular figures). Every page's h1/h2 and section headings use them; header and footer wordmarks are serif; footer column titles are eyebrows. `--color-muted` darkened from #787880 (4.2:1) to #6c6c74 (4.95:1) to pass AA; `--color-muted-strong` added for body copy.
+- **Scroll reveals** (`src/components/Reveal.tsx`, about 1.4 KB minified, plus a 223-byte inline `<head>` script): opt in with `data-reveal`, `data-reveal-stagger` (children 50 ms apart along each row, capped at 5) and `data-reveal-shelf` (spines rise in sequence once). Content is never hidden by the server HTML: the head script sets `html.js-reveal` (not under reduced motion; dropped again if the reveal script has not started within 4 s), and only elements still below the viewport get armed. Blocks use `animation-timeline: view()` where supported; grids, shelves and older browsers use one IntersectionObserver that unobserves each element once revealed. Opacity and the `translate` property only, never on a Book3D ancestor.
+- **Home hero:** left-aligned editorial layout with a serif display heading, eyebrow, and an "On their shelves" card (top five recommenders, text and small portraits). Same copy, search box and both CTAs; the old fade-in on the hero (the LCP element) is gone.
+- **Person page:** the h1 now reads "Naval Ravikant Recommended Books" (was "Naval RavikantRecommended Books"); the photo credit shows "Photo: kris krüg, Flickr · CC BY-SA 2.0" linked to the source instead of a cut-off URL (`src/lib/photoCredit.ts`); the empty right half holds an "At a glance" card (books recommended and written, top topics, closest shelf).
+- **Compare page:** the Venn count moves to a callout above the circles with a leader line into the overlap whenever the overlap is too narrow to hold it, at every width. The compare h1 got the same missing-space fix.
+- **Book page CLS:** the book loading skeleton is at least one viewport tall, so the footer no longer jumps when the page streams in (CLS 0.164 → 0.0004 at 1440×900, also present on the live site).
+- Checked at 390 and 1440 px on 10 pages: no console errors or hydration warnings, no horizontal overflow, all reveals complete after scrolling, everything visible with JS off, no animation with reduced motion.
+
 ## 2026-11-13 — 21 likely-wrong recommendations removed; Laird Hamilton / Dune sourced
 
 - Deleted 21 recommendations where checking the person's own sources showed the pairing was wrong:

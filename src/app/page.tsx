@@ -9,7 +9,7 @@ import {
   getRecentlyPublishedListsCached,
   getRecentlyPublishedSeriesCached,
 } from "@/lib/data";
-import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual, NewlyPublished } from "@/components";
+import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual, NewlyPublished, SafeImage } from "@/components";
 import { ConsensusShelf } from "@/components/ConsensusShelf";
 import { getSiteNav } from "@/lib/siteNav";
 
@@ -82,39 +82,97 @@ export default async function HomePage() {
 
   return (
     <>
-      <section className="pt-16 pb-10 md:pt-20 md:pb-12 px-4">
-        <div className="max-w-3xl mx-auto text-center motion-fade-up">
-          <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-ink leading-tight mb-5 tracking-tight">
-            Find books recommended by <span className="text-accent">people you trust</span>.
-          </h1>
-          <p className="text-base md:text-lg text-muted max-w-2xl mx-auto mb-8 leading-relaxed">
-            Explore source-backed recommendations from founders, authors, investors, scientists, creators, and public figures — with Amazon options on book pages.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
-            <Link
-              href="/books"
-              className="px-6 py-3 rounded-full bg-accent text-white font-semibold hover:bg-accent-hover transition-colors shadow-sm text-sm"
-            >
-              Browse Books
-            </Link>
-            <Link
-              href="/people"
-              className="px-6 py-3 rounded-full border border-border bg-surface text-ink font-semibold hover:bg-subtle transition-colors text-sm"
-            >
-              Explore People
-            </Link>
+      {/* Hero. No entrance animation: the heading is the LCP element and is
+          painted as soon as the HTML arrives. */}
+      <section className="home-hero relative px-4 md:px-6 pt-12 pb-14 md:pt-20 md:pb-20">
+        <div className="max-w-7xl mx-auto grid gap-12 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-16 items-center">
+          <div className="min-w-0">
+            <p className="eyebrow text-accent flex items-center gap-3 mb-5 md:mb-6">
+              <span aria-hidden="true" className="h-px w-8 bg-accent/60" />
+              Source-backed recommendations
+            </p>
+            <h1 className="type-display text-ink max-w-[15ch]">
+              Find books recommended by <span className="text-accent">people you trust</span>.
+            </h1>
+            <p className="mt-6 prose-body text-muted-strong max-w-[54ch]">
+              Explore source-backed recommendations from founders, authors, investors, scientists, creators, and public figures — with Amazon options on book pages.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Link
+                href="/books"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-accent text-white font-semibold hover:bg-accent-hover transition-colors shadow-[0_8px_20px_-10px_rgba(91,79,207,0.7)] text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+              >
+                Browse Books
+                <span aria-hidden="true">→</span>
+              </Link>
+              <Link
+                href="/people"
+                className="px-6 py-3 rounded-full border border-ink/15 bg-surface text-ink font-semibold hover:border-ink/30 transition-colors text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+              >
+                Explore People
+              </Link>
+            </div>
+            <GlobalSearch placeholder="Search for books, authors, or topics…" className="mt-8 max-w-xl" />
+            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-strong">
+              <span className="eyebrow text-muted">Popular</span>
+              <Link href="/books?q=business" className="hover:text-ink transition-colors font-medium">Business</Link>
+              <span aria-hidden="true" className="text-border">·</span>
+              <Link href="/books?q=science" className="hover:text-ink transition-colors font-medium">Science</Link>
+              <span aria-hidden="true" className="text-border">·</span>
+              <Link href="/books?q=startup" className="hover:text-ink transition-colors font-medium">Startups</Link>
+              <span aria-hidden="true" className="text-border">·</span>
+              <Link href="/books?q=history" className="hover:text-ink transition-colors font-medium">History</Link>
+            </div>
           </div>
-          <GlobalSearch placeholder="Search for books, authors, or topics…" className="max-w-2xl mx-auto" />
-          <div className="mt-7 flex items-center justify-center gap-3 text-sm text-muted">
-            <span>Popular:</span>
-            <Link href="/books?q=business" className="hover:text-ink transition-colors font-medium">Business</Link>
-            <span className="text-border">·</span>
-            <Link href="/books?q=science" className="hover:text-ink transition-colors font-medium">Science</Link>
-            <span className="text-border">·</span>
-            <Link href="/books?q=startup" className="hover:text-ink transition-colors font-medium">Startups</Link>
-            <span className="text-border">·</span>
-            <Link href="/books?q=history" className="hover:text-ink transition-colors font-medium">History</Link>
-          </div>
+
+          {/* Whose shelves: the people behind the picks. Text and small
+              portraits only, so it never competes with the heading for LCP. */}
+          {siteNav.people.length > 0 && (
+            <aside aria-labelledby="hero-shelves" className="hidden lg:block min-w-0">
+              <div className="rounded-[28px] border border-border bg-surface p-7 shadow-[0_40px_70px_-44px_rgba(58,40,28,0.45)]">
+                <div className="flex items-baseline justify-between gap-4">
+                  <h2 id="hero-shelves" className="eyebrow text-muted">On their shelves</h2>
+                  <span className="text-xs text-muted">books recommended</span>
+                </div>
+                <ol className="mt-3 divide-y divide-border">
+                  {siteNav.people.slice(0, 5).map((p, i) => (
+                    <li key={p.slug}>
+                      <Link
+                        href={`/people/${p.slug}`}
+                        className="group grid grid-cols-[1.75rem_2.5rem_minmax(0,1fr)_auto] items-center gap-3 py-3 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                      >
+                        <span className="stat-num text-sm text-muted">{String(i + 1).padStart(2, "0")}</span>
+                        <SafeImage
+                          src={p.avatar}
+                          alt=""
+                          width={40}
+                          height={40}
+                          className="w-10 h-10 rounded-full object-cover bg-subtle"
+                          fallback={
+                            <span className="w-10 h-10 rounded-full bg-accent-light text-accent font-serif text-sm font-semibold flex items-center justify-center">
+                              {p.name
+                                .split(/\s+/)
+                                .map((w) => w.charAt(0))
+                                .slice(0, 2)
+                                .join("")}
+                            </span>
+                          }
+                        />
+                        <span className="font-serif text-lg leading-tight text-ink truncate group-hover:text-accent transition-colors">{p.name}</span>
+                        <span className="stat-num text-lg text-ink">{p.count.toLocaleString("en-US")}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ol>
+                <Link
+                  href="/people"
+                  className="mt-4 inline-flex text-sm font-semibold text-accent hover:text-accent-hover transition-colors"
+                >
+                  Browse every shelf →
+                </Link>
+              </div>
+            </aside>
+          )}
         </div>
       </section>
 
@@ -123,7 +181,7 @@ export default async function HomePage() {
 
       {/* Trust / Value Strip */}
       <section className="border-y border-border bg-subtle/30 py-6 px-4">
-        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6" data-reveal-stagger>
           <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-3">
             <div className="w-10 h-10 rounded-full bg-accent-light flex items-center justify-center shrink-0 text-accent">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -177,17 +235,18 @@ export default async function HomePage() {
       {/* Start Exploring / Discovery Cards */}
       <section className="py-16 px-4 bg-surface">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-xl font-bold text-ink mb-6 tracking-tight">Start Exploring</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <p className="eyebrow text-accent mb-2" data-reveal>Where to begin</p>
+          <h2 className="type-h2 text-ink mb-6" data-reveal>Start Exploring</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" data-reveal-stagger>
             <Link
               href="/lists/most-recommended-books"
               className="group flex flex-col justify-between p-6 rounded-2xl border border-border bg-subtle/20 hover:border-accent/30 hover:shadow-lg transition-all duration-200"
             >
               <div>
-                <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
-                  ★
+                <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center mb-4 text-accent stat-num text-sm group-hover:scale-110 transition-transform" aria-hidden="true">
+                  01
                 </div>
-                <h3 className="font-bold text-base text-ink mb-2 group-hover:text-accent transition-colors">Most Recommended</h3>
+                <h3 className="type-h3 text-ink mb-2 group-hover:text-accent transition-colors">Most Recommended</h3>
                 <p className="text-xs text-muted leading-relaxed">The all-time top recommended books based on consolidated public mentions.</p>
               </div>
               <span className="text-xs font-semibold text-accent mt-4 inline-flex items-center gap-1">
@@ -199,10 +258,10 @@ export default async function HomePage() {
               className="group flex flex-col justify-between p-6 rounded-2xl border border-border bg-subtle/20 hover:border-accent/30 hover:shadow-lg transition-all duration-200"
             >
               <div>
-                <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
-                  👤
+                <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center mb-4 text-accent stat-num text-sm group-hover:scale-110 transition-transform" aria-hidden="true">
+                  02
                 </div>
-                <h3 className="font-bold text-base text-ink mb-2 group-hover:text-accent transition-colors">Explore People</h3>
+                <h3 className="type-h3 text-ink mb-2 group-hover:text-accent transition-colors">Explore People</h3>
                 <p className="text-xs text-muted leading-relaxed">Browse recommendations from tech founders, investors, authors, and creators.</p>
               </div>
               <span className="text-xs font-semibold text-accent mt-4 inline-flex items-center gap-1">
@@ -214,10 +273,10 @@ export default async function HomePage() {
               className="group flex flex-col justify-between p-6 rounded-2xl border border-border bg-subtle/20 hover:border-accent/30 hover:shadow-lg transition-all duration-200"
             >
               <div>
-                <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
-                  📚
+                <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center mb-4 text-accent stat-num text-sm group-hover:scale-110 transition-transform" aria-hidden="true">
+                  03
                 </div>
-                <h3 className="font-bold text-base text-ink mb-2 group-hover:text-accent transition-colors">Browse Topics</h3>
+                <h3 className="type-h3 text-ink mb-2 group-hover:text-accent transition-colors">Browse Topics</h3>
                 <p className="text-xs text-muted leading-relaxed">Explore curated reading lists across business, science fiction, history, and development.</p>
               </div>
               <span className="text-xs font-semibold text-accent mt-4 inline-flex items-center gap-1">
@@ -229,10 +288,10 @@ export default async function HomePage() {
               className="group flex flex-col justify-between p-6 rounded-2xl border border-border bg-subtle/20 hover:border-accent/30 hover:shadow-lg transition-all duration-200"
             >
               <div>
-                <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center mb-4 text-accent group-hover:scale-110 transition-transform">
-                  📖
+                <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center mb-4 text-accent stat-num text-sm group-hover:scale-110 transition-transform" aria-hidden="true">
+                  04
                 </div>
-                <h3 className="font-bold text-base text-ink mb-2 group-hover:text-accent transition-colors">Browse All Books</h3>
+                <h3 className="type-h3 text-ink mb-2 group-hover:text-accent transition-colors">Browse All Books</h3>
                 <p className="text-xs text-muted leading-relaxed">Explore the full curated catalogue of books with recommendations and options.</p>
               </div>
               <span className="text-xs font-semibold text-accent mt-4 inline-flex items-center gap-1">
@@ -245,9 +304,9 @@ export default async function HomePage() {
 
       {/* Trust & Visual */}
       <section className="py-16 px-4 bg-subtle/40 border-y border-border">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
+        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-10 items-center" data-reveal-stagger>
           <div>
-            <h2 className="text-2xl font-bold text-ink mb-4 tracking-tight">Recommendations backed by real sources</h2>
+            <h2 className="type-h2 text-ink mb-4">Recommendations backed by real sources</h2>
             <div className="space-y-3">
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-lg bg-accent-light flex items-center justify-center shrink-0 mt-0.5">
@@ -293,19 +352,19 @@ export default async function HomePage() {
       {/* Explore Trusted Reading Lists */}
       <section className="py-16 px-4 bg-surface border-t border-border">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-10 text-center md:text-left">
-            <h2 className="text-2xl font-bold text-ink mb-2 tracking-tight">Explore trusted reading lists</h2>
+          <div className="mb-10 text-center md:text-left" data-reveal>
+            <h2 className="type-h2 text-ink mb-2">Explore trusted reading lists</h2>
             <p className="text-sm text-muted">
               Start with curated books recommended by founders, investors, CEOs, writers, billionaires, and Bill Gates.
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-reveal-stagger>
             <Link
               href="/lists/books-recommended-by-founders"
               className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Founders</h3>
+                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Founders</h3>
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
                   75 books
                 </span>
@@ -322,7 +381,7 @@ export default async function HomePage() {
               className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Investors</h3>
+                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Investors</h3>
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
                   75 books
                 </span>
@@ -339,7 +398,7 @@ export default async function HomePage() {
               className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">CEOs</h3>
+                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">CEOs</h3>
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
                   75 books
                 </span>
@@ -356,7 +415,7 @@ export default async function HomePage() {
               className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Bill Gates</h3>
+                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Bill Gates</h3>
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
                   75 books
                 </span>
@@ -373,7 +432,7 @@ export default async function HomePage() {
               className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Billionaires</h3>
+                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Billionaires</h3>
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
                   75 books
                 </span>
@@ -390,7 +449,7 @@ export default async function HomePage() {
               className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Writers</h3>
+                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Writers</h3>
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
                   75 books
                 </span>
@@ -407,7 +466,7 @@ export default async function HomePage() {
               className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Naval Ravikant</h3>
+                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Naval Ravikant</h3>
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
                   75 books
                 </span>
@@ -424,7 +483,7 @@ export default async function HomePage() {
               className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Warren Buffett</h3>
+                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Warren Buffett</h3>
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
                   70 books
                 </span>
@@ -441,7 +500,7 @@ export default async function HomePage() {
               className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
             >
               <div className="flex justify-between items-start mb-3">
-                <h3 className="font-bold text-base text-ink group-hover:text-accent transition-colors">Elon Musk</h3>
+                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Elon Musk</h3>
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
                   75 books
                 </span>
@@ -461,7 +520,7 @@ export default async function HomePage() {
       <section className="py-14 px-4">
         <div className="max-w-7xl mx-auto">
           <SectionHeading title="Popular Books" href="/books" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5" data-reveal-stagger>
             {books.map((book) => (
               <BookCard key={book.id} {...book} coverUrl={book.cover_image_url} authorSlug={book.author_slug} recommendationCount={book.recommendation_count} amazonUrl={book.amazon_url} />
             ))}
@@ -473,7 +532,7 @@ export default async function HomePage() {
       <section className="py-14 px-4 bg-subtle/60">
         <div className="max-w-7xl mx-auto">
           <SectionHeading title="Books recommended by notable people" href="/people" linkLabel="View all people →" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-reveal-stagger>
             {peopleWithCounts.map((person) => (
               <PersonCard
                 key={person.id}
@@ -494,7 +553,7 @@ export default async function HomePage() {
         <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-14">
           <div>
             <SectionHeading title="Featured Reading Lists" href="/lists" />
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3" data-reveal-stagger>
               {lists.map((list) => (
                 <ListCard key={list.id} {...list} bookCount={list.book_count} />
               ))}
@@ -502,7 +561,7 @@ export default async function HomePage() {
           </div>
           <div>
             <SectionHeading title="Popular Series" href="/series" />
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3" data-reveal-stagger>
               {series.map((s) => (
                 <SeriesCard key={s.id} {...s} bookCount={s.book_count} />
               ))}
@@ -513,9 +572,9 @@ export default async function HomePage() {
 
       {/* How recommendations are verified */}
       <section className="py-14 px-4 bg-subtle/40 border-y border-border">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-xl font-bold text-ink mb-3 tracking-tight">How recommendations are sourced</h2>
-          <p className="text-sm text-muted leading-relaxed max-w-2xl mx-auto mb-4">
+        <div className="max-w-3xl mx-auto text-center" data-reveal>
+          <h2 className="type-h2 text-ink mb-3">How recommendations are sourced</h2>
+          <p className="prose-body text-muted-strong mx-auto mb-5">
             We collect book recommendations from public sources — interviews, articles, podcasts, and curated reading lists.
             Where we have the original source, the entry links to it. Some entries don&apos;t have a source link yet, and
             we show them without one rather than hide them.
@@ -534,8 +593,8 @@ export default async function HomePage() {
 
       {/* CTA */}
       <section className="py-20 px-4 text-center">
-        <div className="max-w-xl mx-auto">
-          <h2 className="text-2xl md:text-3xl font-bold text-ink mb-4 tracking-tight">Ready to find your next book?</h2>
+        <div className="max-w-xl mx-auto" data-reveal>
+          <h2 className="type-h1 text-ink mb-4">Ready to find your next book?</h2>
           <p className="text-base text-muted mb-8 leading-relaxed">
             Browse thousands of books, explore curated lists, and discover what people you admire are reading.
           </p>

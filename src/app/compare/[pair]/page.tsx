@@ -225,9 +225,9 @@ export default async function ComparePage({ params }: Props) {
 
       <header className="mb-8">
         <p className="text-xs font-semibold uppercase tracking-wider text-accent mb-2">Compare two shelves</p>
-        <h1 className="text-2xl md:text-4xl font-bold text-ink tracking-tight leading-tight">
-          {a.name} vs {b.name}
-          <span className="block text-base md:text-xl font-semibold text-muted mt-1">
+        <h1 className="type-h1 text-ink">
+          {a.name} vs {b.name}{" "}
+          <span className="block mt-2 font-sans text-base md:text-lg font-medium tracking-normal text-muted-strong">
             {n > 0 ? `${n} ${n === 1 ? "book" : "books"} in common` : "No books in common yet"}
           </span>
         </h1>
@@ -240,8 +240,8 @@ export default async function ComparePage({ params }: Props) {
 
       <section className="mb-14 rounded-2xl border border-border bg-surface p-5 md:p-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] items-center" aria-labelledby="overlap-h">
         <div>
-          <h2 id="overlap-h" className="text-xl font-bold text-ink tracking-tight mb-2">How much their shelves overlap</h2>
-          <p className="text-sm text-muted leading-relaxed">
+          <h2 data-reveal id="overlap-h" className="type-h2 text-ink mb-2">How much their shelves overlap</h2>
+          <p data-reveal className="text-sm text-muted leading-relaxed">
             {n > 0 ? (
               <>
                 {a.name} and {b.name} both recommend <b className="text-ink">{n}</b> {n === 1 ? "book" : "books"}. That is{" "}
@@ -264,14 +264,14 @@ export default async function ComparePage({ params }: Props) {
 
       {n > 0 && (
         <section className="mb-14" aria-labelledby="shared-h">
-          <h2 id="shared-h" className="text-xl font-bold text-ink mb-1.5 tracking-tight">
+          <h2 data-reveal id="shared-h" className="type-h2 text-ink mb-1.5">
             {n === 1 ? "The book they both recommend" : `The ${n} books they both recommend`}
           </h2>
-          <p className="text-sm text-muted max-w-2xl mb-6">
+          <p data-reveal className="text-sm text-muted max-w-2xl mb-6">
             Ordered by how many people on BookMentions recommend each one
             {n > SHARED_SHOWN ? `; showing the top ${SHARED_SHOWN}` : ""}.
           </p>
-          <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-7 md:gap-x-5">
+          <ul data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-7 md:gap-x-5">
             {shown.map((x) => (
               <li key={x.id}>
                 <CoverTile book={x} />
@@ -283,9 +283,9 @@ export default async function ComparePage({ params }: Props) {
 
       {(o.onlyA.length > 0 || o.onlyB.length > 0) && (
         <section className="mb-14" aria-labelledby="unique-h">
-          <h2 id="unique-h" className="text-xl font-bold text-ink mb-1.5 tracking-tight">What only one of them recommends</h2>
-          <p className="text-sm text-muted max-w-2xl mb-6">The most-recommended picks on each shelf that are not on the other.</p>
-          <div className="grid gap-4 md:grid-cols-2">
+          <h2 data-reveal id="unique-h" className="type-h2 text-ink mb-1.5">What only one of them recommends</h2>
+          <p data-reveal className="text-sm text-muted max-w-2xl mb-6">The most-recommended picks on each shelf that are not on the other.</p>
+          <div data-reveal-stagger className="grid gap-4 md:grid-cols-2">
             {[
               { p: a, list: o.onlyA, tone: "border-t-[#5b4fcf]" },
               { p: b, list: o.onlyB, tone: "border-t-[#e07b39]" },
@@ -317,7 +317,7 @@ export default async function ComparePage({ params }: Props) {
 
       {morePairs.length > 0 && (
         <section className="mb-10 pt-8 border-t border-border" aria-labelledby="more-h">
-          <h2 id="more-h" className="text-lg font-bold text-ink mb-4 tracking-tight">More shelf comparisons</h2>
+          <h2 id="more-h" className="type-h3 text-ink mb-4">More shelf comparisons</h2>
           <ul className="flex flex-wrap gap-2">
             {morePairs.map((p) => (
               <li key={p.href}>

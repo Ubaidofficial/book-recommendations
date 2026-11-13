@@ -4,7 +4,7 @@
   --color-bg: #faf9f7;
   --color-surface: #ffffff;
   --color-ink: #1b1b1f;
-  --color-muted: #787880;
+  --color-muted: #6c6c74; /* was #787880 (4.2:1 on bg); now 4.95:1, passes AA */
   --color-border: #e5e5ea;
   --color-subtle: #f4f2f0;
   --color-accent: #5b4fcf;
@@ -12,6 +12,170 @@
   --color-accent-hover: #4a3eb8;
   --color-warm: #e07b39;
   --color-skeleton: #e9e8ed;
+  /* Secondary text that still passes 4.5:1 on bg and surface. */
+  --color-muted-strong: #5d5d66;
+
+  /* ── Type ──────────────────────────────────────────────────────────────
+     Newsreader (serif, display and headings) + Inter (UI and body), both
+     self-hosted variable fonts; next/font sets --font-newsreader and
+     --font-inter on <html>. Scale: major third (1.25) on a 16px base —
+     12.8 · 16 · 20 · 25 · 31.25 · 39 · 48.8 · 61 — with the larger steps
+     fluid between a 390px and a 1280px viewport. */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-serif: var(--font-newsreader), "Iowan Old Style", Georgia, "Times New Roman", serif;
+
+  --text-eyebrow: 0.75rem;
+  --text-eyebrow--line-height: 1.3;
+  --text-eyebrow--letter-spacing: 0.14em;
+  --text-body-lg: 1.0625rem;
+  --text-body-lg--line-height: 1.65;
+  --text-h3: 1.25rem;
+  --text-h3--line-height: 1.3;
+  --text-h2: clamp(1.563rem, 1.392rem + 0.701vw, 1.953rem);
+  --text-h2--line-height: 1.15;
+  --text-h1: clamp(1.953rem, 1.739rem + 0.877vw, 2.441rem);
+  --text-h1--line-height: 1.08;
+  --text-display: clamp(2.441rem, 1.839rem + 2.47vw, 3.815rem);
+  --text-display--line-height: 1.02;
+
+  --tracking-display: -0.022em;
+  --tracking-heading: -0.012em;
+  --tracking-eyebrow: 0.14em;
+  --measure: 65ch;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Type system. Utilities, so a page can still add colour and spacing.
+   ───────────────────────────────────────────────────────────────────────────── */
+@utility type-display {
+  font-family: var(--font-serif);
+  font-size: var(--text-display);
+  line-height: var(--text-display--line-height);
+  letter-spacing: var(--tracking-display);
+  font-weight: 500;
+  text-wrap: balance;
+}
+@utility type-h1 {
+  font-family: var(--font-serif);
+  font-size: var(--text-h1);
+  line-height: var(--text-h1--line-height);
+  letter-spacing: var(--tracking-display);
+  font-weight: 500;
+  text-wrap: balance;
+}
+@utility type-h2 {
+  font-family: var(--font-serif);
+  font-size: var(--text-h2);
+  line-height: var(--text-h2--line-height);
+  letter-spacing: var(--tracking-heading);
+  font-weight: 500;
+  text-wrap: balance;
+}
+@utility type-h3 {
+  font-family: var(--font-serif);
+  font-size: var(--text-h3);
+  line-height: var(--text-h3--line-height);
+  letter-spacing: -0.005em;
+  font-weight: 600;
+  text-wrap: balance;
+}
+/* Small uppercase label above a heading. */
+@utility eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--text-eyebrow);
+  line-height: var(--text-eyebrow--line-height);
+  letter-spacing: var(--tracking-eyebrow);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+/* Long-form reading text: 17px, 1.65 leading, 65 characters a line. */
+@utility prose-body {
+  font-size: var(--text-body-lg);
+  line-height: var(--text-body-lg--line-height);
+  max-width: var(--measure);
+  text-wrap: pretty;
+}
+/* Stats and counts: figures line up and do not jitter. */
+@utility stat-num {
+  font-family: var(--font-serif);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+@layer base {
+  body {
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  ::selection {
+    background: var(--color-accent-light);
+    color: var(--color-ink);
+  }
+}
+
+/* Home hero: warm paper with a faint violet light behind the shelves card. */
+.home-hero {
+  background:
+    radial-gradient(55% 70% at 88% 18%, color-mix(in srgb, var(--color-accent-light) 70%, transparent), transparent 72%),
+    linear-gradient(180deg, var(--color-surface) 0%, var(--color-bg) 100%);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Scroll reveals (components/Reveal.tsx)
+
+   Nothing here applies until the <head> script has set html.js-reveal and
+   Reveal.tsx has armed an element that was below the viewport, so the first
+   screen and no-JS readers always see finished content. Motion is opacity and
+   the `translate` property only: no layout shift, and it composes with the
+   transform-based hover effects. Never put these attributes on an ancestor of
+   a Book3D stage: opacity flattens its preserve-3d tree.
+   ───────────────────────────────────────────────────────────────────────────── */
+@keyframes rv-rise {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+@keyframes rv-spine {
+  from {
+    translate: 0 calc(100% + 40px);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html.js-reveal [data-rv="armed"]:not([data-reveal-shelf]) {
+    opacity: 0;
+    translate: 0 14px;
+    transition: none;
+  }
+  /* transition: none so a card's own transition-all cannot race the reveal;
+     the attribute is removed once the motion ends, restoring it. */
+  html.js-reveal [data-rv="in"]:not([data-reveal-shelf]) {
+    animation: rv-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) var(--rd, 0ms) backwards;
+    transition: none;
+  }
+  /* Shelves: the spines rise out of the plank one after another. Their
+     scroller clips them, so nothing shows below the shelf meanwhile. */
+  html.js-reveal [data-reveal-shelf][data-rv="armed"] :is(.cs-spine, .ps-spine) {
+    translate: 0 calc(100% + 40px);
+  }
+  html.js-reveal [data-reveal-shelf][data-rv="in"] :is(.cs-spine, .ps-spine) {
+    animation: rv-spine 0.7s cubic-bezier(0.22, 1, 0.36, 1) calc(min(var(--si, 0), 17) * 40ms) backwards;
+  }
+  /* Where the browser has scroll-driven animations, blocks follow the scroll
+     instead of a timer: fully in once their top is 200px into view. */
+  @supports (animation-timeline: view()) {
+    html.js-reveal [data-rv="sd"] {
+      animation: rv-rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 200px;
+    }
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -528,9 +692,10 @@
   margin: 8px 0 16px;
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-serif);
   font-weight: 600;
-  font-size: 13px;
+  font-size: 13.5px;
+  letter-spacing: 0.005em;
   line-height: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -676,7 +841,8 @@
   line-height: 1.35;
 }
 .book3d-back-title {
-  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-family: var(--font-serif);
+  font-weight: 500;
   font-size: calc(var(--w) * 0.105);
   line-height: 1.1;
   display: -webkit-box;

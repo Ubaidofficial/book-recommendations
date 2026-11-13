@@ -18,7 +18,7 @@ export function ReadNext({ bookTitle, books }: { bookTitle: string; books: ReadN
         title="Read next"
         dek={`Books most often recommended by the same people who recommend ${bookTitle}.`}
       />
-      <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-8">
+      <ul data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-8">
         {books.map((b) => {
           const title = displayBookTitle(b.title);
           return (

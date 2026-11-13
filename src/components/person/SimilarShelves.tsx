@@ -29,13 +29,13 @@ export function SimilarShelves({
   if (people.length === 0) return null;
   return (
     <section className="mb-14" aria-labelledby="similar-h">
-      <h2 id="similar-h" className="text-xl font-bold text-ink mb-1.5 tracking-tight">
+      <h2 data-reveal id="similar-h" className="type-h2 text-ink mb-1.5">
         People with a similar shelf
       </h2>
-      <p className="text-sm text-muted max-w-2xl mb-5">
+      <p data-reveal className="text-sm text-muted max-w-2xl mb-5">
         Ranked by how many of the same books they recommend as {firstName}.
       </p>
-      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <ul data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {people.map((p) => {
           const href = p.comparable ? comparePath(personSlug, p.slug) : `/people/${p.slug}`;
           return (

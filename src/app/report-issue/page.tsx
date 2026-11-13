@@ -10,14 +10,14 @@ export const metadata: Metadata = pageMetadata({
 export default function ReportIssuePage() {
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-12">
-      <h1 className="text-3xl font-bold text-ink mb-4 tracking-tight">Report an Issue</h1>
-      <div className="prose prose-base text-muted max-w-none space-y-5 leading-relaxed">
+      <h1 className="type-h1 text-ink mb-4">Report an Issue</h1>
+      <div className="prose-body text-muted-strong space-y-5">
         <p>
           Found something that doesn&apos;t look right? We want to fix it. You can report problems
           with book data, recommendation sources, or anything else on the site.
         </p>
 
-        <h2 className="text-xl font-bold text-ink mt-8">What you can report</h2>
+        <h2 data-reveal className="type-h2 text-ink mt-8">What you can report</h2>
         <ul className="list-disc pl-5 space-y-1.5">
           <li>Incorrect book information (wrong title, author, cover)</li>
           <li>Misattributed recommendations</li>
@@ -26,7 +26,7 @@ export default function ReportIssuePage() {
           <li>Any other issue</li>
         </ul>
 
-        <h2 className="text-xl font-bold text-ink mt-8">How to reach us</h2>
+        <h2 data-reveal className="type-h2 text-ink mt-8">How to reach us</h2>
         <p>
           Send us an email with a description of the issue. Include the page URL and any supporting
           information that would help us verify the correction.

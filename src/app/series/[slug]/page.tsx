@@ -104,7 +104,7 @@ export default async function SeriesDetailPage({ params }: Props) {
 
       <div className="mb-10">
         <div className="flex items-start gap-3 flex-wrap mb-3">
-          <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">{heading}</h1>
+          <h1 className="type-h1 text-ink">{heading}</h1>
           {total > 0 && (
             <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium shrink-0 mt-1">
               {/* Same honesty rule as list pages: when the page cannot show
@@ -132,7 +132,7 @@ export default async function SeriesDetailPage({ params }: Props) {
 
       {hasBooks ? (
         <>
-          <h2 className="text-xl font-bold text-ink mb-1 tracking-tight">
+          <h2 data-reveal className="type-h2 text-ink mb-1">
             {order === "publication"
               ? `${base} books in publication order`
               : order === "position"
@@ -154,7 +154,7 @@ export default async function SeriesDetailPage({ params }: Props) {
                   : "Reading order is based on available series metadata."}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5 mb-14">
+          <div data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5 mb-14">
             {books.map((book) => {
               // Badge shows verified data only — a real position, or a real
               // first-publication year — never the array index.
@@ -194,7 +194,7 @@ export default async function SeriesDetailPage({ params }: Props) {
 
       {faq.length > 0 && (
         <section className="mb-14" aria-labelledby="faq">
-          <h2 id="faq" className="text-lg font-bold text-ink mb-4 tracking-tight">{base} books: common questions</h2>
+          <h2 id="faq" className="type-h3 text-ink mb-4">{base} books: common questions</h2>
           <dl className="space-y-4">
             {faq.map((f) => (
               <div key={f.q}>
@@ -209,8 +209,8 @@ export default async function SeriesDetailPage({ params }: Props) {
       {/* Related Series */}
       {hasRelated && (
         <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Explore more series</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <h2 data-reveal className="type-h2 text-ink mb-5">Explore more series</h2>
+          <div data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {related.map((rs) => (
               <Link
                 key={rs.id}
@@ -234,7 +234,7 @@ export default async function SeriesDetailPage({ params }: Props) {
 
       {/* About this series */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
-        <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">About this page</h2>
+        <h2 className="type-h3 text-ink mb-2">About this page</h2>
         <p className="text-sm text-muted leading-relaxed">
           {order === "publication"
             ? `Books are listed by the year each was first published, taken from Open Library's record for the original work rather than a later edition. Recommendation counts come from the public interviews, articles and reading lists BookMentions tracks, so you can spot the standout ${base} books.`

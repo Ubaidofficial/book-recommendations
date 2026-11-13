@@ -8,7 +8,10 @@
  */
 
 const VB_W = 640;
-const VB_H = 280;
+/** Room above the circles for the "in common" callout when the lens is too narrow to hold it. */
+const CALLOUT_BAND = 84;
+/** Narrowest lens (viewBox units) that holds the count and "in common" inside it. */
+const MIN_LENS_FOR_LABEL = 150;
 const MAX_R = 118;
 const MIN_R = 34;
 
@@ -67,11 +70,22 @@ export function VennDiagram({
   const left = (VB_W - (rA + d + rB)) / 2;
   const cxA = left + rA;
   const cxB = cxA + d;
-  const cy = VB_H / 2;
+  const maxR = Math.max(rA, rB);
 
   const lensL = Math.max(cxB - rB, cxA - rA);
   const lensR = Math.min(cxA + rA, cxB + rB);
   const lensMid = shared > 0 ? (lensL + lensR) / 2 : (cxA + rA + cxB - rB) / 2;
+  // A thin lens (two big shelves, few shared books) cannot hold the label:
+  // it would sit on the circle borders. Put it above, with a leader line.
+  const inside = shared > 0 && lensR - lensL >= MIN_LENS_FOR_LABEL;
+  const cy = (inside ? 16 : CALLOUT_BAND) + maxR;
+  const vbH = cy + maxR + 16;
+  // Upper point where the two circles cross (top tip of the lens).
+  const ix = shared > 0 && d > 0 ? (d * d + rA * rA - rB * rB) / (2 * d) : 0;
+  const tipY = shared > 0 ? cy - Math.sqrt(Math.max(0, rA * rA - ix * ix)) : cy;
+  // The callout hangs over the chord through the two crossing points: below
+  // the tip, that line runs inside the overlap all the way to its centre.
+  const calloutX = shared > 0 ? cxA + ix : lensMid;
   const onlyAX = (cxA - rA + Math.min(lensL, cxB - rB)) / 2;
   const onlyBX = (Math.max(lensR, cxA + rA) + cxB + rB) / 2;
   const onlyA = Math.max(0, sizeA - shared);
@@ -83,23 +97,51 @@ export function VennDiagram({
 
   return (
     <figure className="m-0">
-      <svg viewBox={`0 0 ${VB_W} ${VB_H}`} role="img" aria-label={label} className="w-full h-auto max-h-[300px]">
+      <svg viewBox={`0 0 ${VB_W} ${vbH}`} role="img" aria-label={label} className="w-full h-auto max-h-[340px]">
         <circle cx={cxA} cy={cy} r={rA} fill="#5b4fcf" fillOpacity={0.16} stroke="#5b4fcf" strokeWidth={2} />
         <circle cx={cxB} cy={cy} r={rB} fill="#e07b39" fillOpacity={0.16} stroke="#e07b39" strokeWidth={2} />
         <g fontFamily="inherit" textAnchor="middle" fill="#1b1b1f">
-          <text x={lensMid} y={cy + 4} fontSize={48} fontWeight={700} paintOrder="stroke" stroke="#faf9f7" strokeWidth={6} strokeLinejoin="round">
-            {shared}
-          </text>
-          <text x={lensMid} y={cy + 32} fontSize={18} fill="#5d5d66" paintOrder="stroke" stroke="#faf9f7" strokeWidth={4}>
-            in common
-          </text>
+          {inside ? (
+            <>
+              <text x={lensMid} y={cy + 4} fontSize={52} fontWeight={600} fontFamily="var(--font-serif)" paintOrder="stroke" stroke="#ffffff" strokeWidth={6} strokeLinejoin="round">
+                {shared}
+              </text>
+              <text x={lensMid} y={cy + 34} fontSize={22} fill="#5d5d66" paintOrder="stroke" stroke="#ffffff" strokeWidth={4}>
+                in common
+              </text>
+            </>
+          ) : (
+            <>
+              {shared > 0 ? (
+                <>
+                  {/* The count sits right over the leader line; the words run on beside it. */}
+                  <text x={calloutX} y={52} fontSize={48} fontWeight={600} fontFamily="var(--font-serif)">
+                    {shared}
+                  </text>
+                  <text x={calloutX + String(shared).length * 13 + 10} y={50} fontSize={24} fill="#5d5d66" textAnchor="start">
+                    in common
+                  </text>
+                </>
+              ) : (
+                <text x={calloutX} y={52} fontSize={24} fill="#5d5d66">
+                  No books in common
+                </text>
+              )}
+              {shared > 0 && (
+                <>
+                  <line x1={calloutX} y1={64} x2={calloutX} y2={cy} stroke="#1b1b1f" strokeWidth={1.5} />
+                  <circle cx={calloutX} cy={cy} r={5} fill="#1b1b1f" />
+                </>
+              )}
+            </>
+          )}
           {onlyA > 0 && (
-            <text x={onlyAX} y={cy + 8} fontSize={26} fontWeight={600} fill="#4a3eb8">
+            <text x={onlyAX} y={cy + 8} fontSize={30} fontWeight={600} fontFamily="var(--font-serif)" fill="#4a3eb8">
               {onlyA}
             </text>
           )}
           {onlyB > 0 && (
-            <text x={onlyBX} y={cy + 8} fontSize={26} fontWeight={600} fill="#a8521f">
+            <text x={onlyBX} y={cy + 8} fontSize={30} fontWeight={600} fontFamily="var(--font-serif)" fill="#a8521f">
               {onlyB}
             </text>
           )}

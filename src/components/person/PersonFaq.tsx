@@ -8,7 +8,7 @@ export function PersonFaq({ heading, items }: { heading: string; items: FaqItem[
   if (items.length === 0) return null;
   return (
     <section className="mb-14" aria-labelledby="faq-h">
-      <h2 id="faq-h" className="text-xl font-bold text-ink mb-5 tracking-tight">
+      <h2 data-reveal id="faq-h" className="type-h2 text-ink mb-5">
         {heading}
       </h2>
       <dl className="grid gap-3 max-w-3xl">
