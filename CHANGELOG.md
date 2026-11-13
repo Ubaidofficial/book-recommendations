@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-13 — Re-check: names with middle initials or titles
+
+- The same-name rule now also accepts a page name with the same first and last name when the only differences are titles, initials or a middle name ("Balaji S. Srinivasan" / "Balaji Srinivasan", "Richard H. Thaler" / "Richard Thaler", "Dr. Andrew Weil").
+- Re-running the re-check found 10 more own-account tweet rows; 2 were already done. 8 were written (batch `index_tweets_20261113r3_b00`), and 2 Thaler rows got the tweet text as their quote at confidence 70.
+
 ## 2026-11-13 — Re-check of the orphaned recommendations: missing index pages
 
 - The re-check now also reads the outside index's own people listing, which names 764 people where its sitemap names 653. The 111 missing person pages were downloaded, plus the 6 person pages (3 on each outside index) that loosely matched our people but had never been downloaded.

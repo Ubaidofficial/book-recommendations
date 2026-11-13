@@ -87,6 +87,12 @@ def same_name(person, page_name):
     if not page_name: return False
     pn,mine=fold(page_name),fold(person['name'])
     if pn and pn==mine: return True
+    # Same first and last name, where one name only adds titles, initials or a middle
+    # name: "Balaji S. Srinivasan" / "Balaji Srinivasan", "Dr. Andrew Weil" / "Andrew Weil",
+    # "Nassim Nicholas Taleb" / "Nassim Taleb". Both need at least two real name tokens.
+    def core(n): return [t for t in toks(n) if t not in STOP and len(t)>1]
+    a,b=core(page_name),core(person['name'])
+    if len(a)>=2 and len(b)>=2 and a[0]==b[0] and a[-1]==b[-1] and (set(a)<=set(b) or set(b)<=set(a)): return True
     return any(pn in {fold(a) for a in g} and (person['slug'] in g or mine in {fold(a) for a in g}) for g in ALIASES)
 
 # previous strict results
