@@ -31,18 +31,23 @@ function decodeHtml(s) {
   return s.replace(/&amp;/g, "&").replace(/&#x2F;/g, "/").replace(/&quot;/g, '"');
 }
 
+// Every outbound Amazon link must carry the tag, not just product/search
+// links: storefronts, short links (amzn.to, a.co) and anything else included.
+// Image/CDN hosts are assets, not links, so they are exempt.
 function isPurchaseAmazonUrl(href) {
   try {
     const u = new URL(href);
     const host = u.hostname.toLowerCase();
-    if (!host.includes("amazon.")) return false;
-    if (host.includes("ssl-images-amazon.com")) return false;
     if (host.includes("images-amazon.com")) return false;
-    return /\/dp\/|\/gp\/product\/|\/[^/]+\/dp\//i.test(u.pathname) || u.pathname === "/s";
+    if (host === "amzn.to" || host === "amzn.com" || host === "a.co") return true;
+    return /(^|\.)amazon(\.[a-z]{2,3}){1,2}$/.test(host);
   } catch {
     return false;
   }
 }
+
+// Associates params other than `tag` itself that tie a click to some account.
+const OTHER_ASSOCIATE_PARAMS = ["ascsubtag", "linkcode", "linkid", "creative", "creativeasin", "camp"];
 
 (async () => {
   console.log("Fetching /lists to dynamically discover valid list seeds...");
@@ -118,7 +123,7 @@ function isPurchaseAmazonUrl(href) {
 
       const emptyHref = /href=""|src=""/.test(body);
 
-      const hrefs = [...body.matchAll(/href="([^"]*amazon[^"]*)"/gi)]
+      const hrefs = [...body.matchAll(/href="([^"]*(?:amazon|amzn\.|\/\/a\.co)[^"]*)"/gi)]
         .map((m) => decodeHtml(m[1]))
         .filter(isPurchaseAmazonUrl);
 
@@ -127,12 +132,19 @@ function isPurchaseAmazonUrl(href) {
 
       for (const href of hrefs) {
         purchaseLinks++;
-        const tag = new URL(href).searchParams.get("tag") || "";
-        if (!tag) {
+        const params = new URL(href).searchParams;
+        // Case-insensitive, and every occurrence: `Tag=` or a second `tag=`
+        // next to ours is a violation just like a missing one.
+        const tags = [...params.entries()]
+          .filter(([k]) => k.toLowerCase() === "tag")
+          .map(([, v]) => v);
+        const hasOtherAssociateParam = [...params.keys()].some((k) =>
+          OTHER_ASSOCIATE_PARAMS.includes(k.toLowerCase())
+        );
+        if (tags.length === 0 || tags.every((t) => !t)) {
           missing.push(href);
           missingTagCount++;
-        }
-        if (tag && tag !== EXPECTED_TAG) {
+        } else if (tags.length !== 1 || tags[0] !== EXPECTED_TAG || hasOtherAssociateParam) {
           wrong.push(href);
           wrongTagCount++;
         }
