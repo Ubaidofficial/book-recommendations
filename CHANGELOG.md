@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-13 — Primary sources for orphaned recommendations: a second outside index
+
+- The orphaned-recommendation search was repeated with a second outside recommendation index, collected once with the project owner's approval (one request at a time, at least 2 s apart, every page cached locally). As before, the index was used only to find where to look. Nothing from it is stored: no link to it, none of its text, no mention of it and no credit. New script: `scripts/rtt_primary_sources.py`. It reuses the matching and checking code of `scripts/find_primary_sources.py`, which now exposes those steps as shared functions; that script's output is unchanged.
+- Scope: the 6,505 orphaned rows minus the 187 already handled on 2026-11-12 (186 written and the one reverted on purpose), so 6,318 rows, checked again against the live tables.
+- The index has a page for 649 of the 1,426 people with orphaned rows, covering 3,228 of the 6,505 rows. Of the 1,043 people the first index had no page for, it covers 329 (1,023 rows). The newest date on any page was March 2023, so the index is no longer updated.
+- Results: 2 strong candidates (the person's own blog), 6 medium (podcast show notes) and 181 weak. 6,129 rows have no candidate: for 3,249 the person has no page in the index, for 1,096 the book is not on their page, 1,779 had only unusable sources (809 tweets from accounts we could not confirm, 152 bookstore or aggregator links, the rest with no sign the person wrote or said it), and 5 now sit on a book with a different title after the merge.
+- Tweets could not be checked this time. The archive service's lookup started refusing requests (too many requests) after about 300 lookups, and its snapshot server did not accept connections at all, so every tweet stayed weak or was rejected.
+- New rule after the hand check: the index sometimes gives a sentence written about the person ("His primary book source on management technique is ...") as their quote. Such sentences are now ignored, so they can neither be stored nor count as the person's own words. This moved 3 rows from a magazine profile to weak.
+- Hand check: 2 of 2 strong candidates were right. All 6 medium candidates were checked: 4 were confirmed (one in the episode's own timestamps, three in the episode transcript). The other 2 came from an episode with two guests whose show notes do not say which guest named the book. Medium precision was 4 of 6, below the 90% bar, so only strong rows could be written.
+- Written to production: **0 rows**, 0 quotes. Both strong rows already carry exactly that source link, and the site already shows it as "Own source", so they were left alone, as in the first run. In all, 29 candidate rows already had their source link (2 strong, 3 medium, 24 weak).
+- Weak candidates are only in a local CSV (`reports/rtt_weak_candidates_20261112.csv`).
+- Checked afterwards: no link to or text from either outside index was added to any recommendation. One older row, outside this work, holds a person's own tweet that mentions the second index's account name.
+
 ## 2026-11-12 — Primary sources for orphaned recommendations
 
 - 6,505 recommendations had a stored source that was a pipe-joined list belonging to other people (the site already hid it). `scripts/find_primary_sources.py` now covers all of them (`--scope all`), not just the 987 of published people. For each row it looks for the person's own tweet, podcast episode, interview, video or blog post, and checks that source itself. An outside recommendation index was used only to find where to look. Nothing from it is stored, and no link to it is stored.

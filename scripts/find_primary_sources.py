@@ -41,6 +41,9 @@ SITE POLICY (checked 2026-11-12, see reports/third_party_cache/_policy/)
                             will not access the Site through automated or
                             non-human means, whether through a bot, script, or
                             otherwise" — NOT FETCHED. Hard-blocked below.
+                            (The owner authorised one separate collection on
+                            2026-11-12 in scripts/rtt_primary_sources.py, which
+                            imports this module; the block here stays.)
 
 POLITENESS
   Generic User-Agent, >= 1.1 s between requests to the same host, every
@@ -661,6 +664,307 @@ comment on table {BACKUP_TABLE} is 'Pre-write copy of book_recommendations rows 
 """
 
 
+# ─── Shared pipeline steps (also imported by scripts/rtt_primary_sources.py) ──
+
+def find_person_page(slug: str, person: dict, own: "Ownership", slug_url: dict, squash_url: dict) -> str | None:
+    """Pointer-site person page for one of our people: our slug, slugified name or an ALIAS_GROUPS slug;
+    else a squashed slug ("j-k-rowling" ~ "jk-rowling", "dominic-d-agostino" ~ "dominic-dagostino"), unique hit only."""
+    cands = [slug, slugify(person["name"])] + sorted(own.group(slug) - {slug})
+    url = next((slug_url[c] for c in cands if c in slug_url), None)
+    if not url:
+        sq_hits = {u for c in (slug, slugify(person["name"])) for u in squash_url.get(squash(c), [])}
+        url = next(iter(sq_hits)) if len(sq_hits) == 1 and len(tokens(person["name"])) >= 2 else None
+    return url
+
+
+def page_names_person(page_name: str, slug: str, person: dict, own: "Ownership", people_by_slug: dict) -> bool:
+    """ALIAS_GROUPS (house script) lists duplicate stubs of one human ("o-shaughnessy" = "patrick-o-shaughnessy"):
+    the page may carry the full name of any member of the group."""
+    alias_names = [person["name"]] + [people_by_slug[s]["name"] for s in sorted(own.group(slug) - {slug}) if s in people_by_slug]
+    return any(person_name_matches(page_name, n) for n in alias_names)
+
+
+def resolve_row(r: dict, person: dict, recs: dict, books: dict, pair_count: Counter):
+    """Plan row → (skip_reason | None, live rec, live book, rebooked). Books were merged after planning."""
+    rec = recs.get(r["row_id"])
+    if not rec:
+        return "row_missing_in_db", None, None, False
+    if rec["person_id"] != person["id"]:
+        return "row_person_changed", rec, None, False
+    book = books.get(rec["book_id"])
+    if not book:
+        return "row_book_missing", rec, None, False
+    rebooked = book["slug"] != r["book_slug"]
+    if rebooked and norm_title(book["title"]) != norm_title(r["book_title"]):
+        return "row_rebooked_ambiguous", rec, book, rebooked  # merged onto a book with a different title: skip
+    if pair_count[(rec["person_id"], rec["book_id"])] > 1:
+        return "row_duplicate_pair_ambiguous", rec, book, rebooked
+    return None, rec, book, rebooked
+
+
+def book_hits(idx: dict, book: dict) -> list[dict]:
+    """Cards whose normalized main title equals ours AND whose authors include our author's surname."""
+    sn = surname(book.get("author_name"))
+    return [c for c in idx.get(norm_title(book["title"]), []) if (sn is None or sn in tokens(c["author"]))]
+
+
+def oembed_url(url, stype):
+    if stype == "tweet":
+        tw = re.sub(r"^https?://(www\.|mobile\.)?(x|twitter)\.com", "https://twitter.com", url.split("?")[0])
+        return "https://publish.twitter.com/oembed?omit_script=1&url=" + urllib.parse.quote(tw, safe="")
+    if stype == "youtube":
+        return "https://www.youtube.com/oembed?format=json&url=" + urllib.parse.quote(url, safe="")
+    return url
+
+
+def page_text(html_text: str) -> tuple[str, str]:
+    """(title, body text) of a fetched page with scripts, readers' comments and the tim.blog sponsor read removed."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html_text, "html.parser")
+    for t in soup(["script", "style", "noscript"]):
+        t.decompose()
+    # readers' comments are not the person's words ("Who recommends The War of Art audiobook?")
+    for t in soup.select("#comments, .comments, .comments-area, .comment-list, .commentlist, #disqus_thread, #wpdcom, .wp-block-comments-wpdiscuz"):
+        t.decompose()
+    ptitle = soup.title.get_text(" ", strip=True) if soup.title else ""
+    return ptitle, SPONSOR_AD.sub(" ", " ".join(soup.get_text(" ").split()))
+
+
+def make_verifier(F: "Fetcher", no_verify: bool = False, tweet_verifier=None):
+    """verify(url, stype) → dict(fetched, text_norm, author_name, title[, author_handle]) from the primary source.
+    tweet_verifier(url), when given, replaces the publish.twitter.com oEmbed lookup for tweets."""
+    verify_cache = {}
+
+    def verify(url, stype):
+        if no_verify:
+            return {"fetched": False, "why": "no_verify"}
+        if url in verify_cache:
+            return verify_cache[url]
+        if stype == "tweet" and tweet_verifier is not None:
+            v = tweet_verifier(url)
+        elif stype == "tweet":
+            res = F.get(oembed_url(url, stype), "primary")
+            if res.get("status") == 200:
+                try:
+                    j = json.loads(res["text"])
+                    body = re.sub(r"&mdash;.*$", "", j.get("html", ""), flags=re.S)
+                    v = {"fetched": True, "text_norm": norm_text(strip_tags(body)), "author_name": j.get("author_name", ""),
+                         "author_handle": (j.get("author_url", "").rstrip("/").rsplit("/", 1)[-1]).lower(), "title": ""}
+                except ValueError:
+                    v = {"fetched": False, "why": "oembed_bad_json"}
+            else:
+                v = {"fetched": False, "why": f"oembed_{res.get('status') or res.get('error')}"}
+        elif stype == "youtube":
+            res = F.get(oembed_url(url, stype), "primary")
+            if res.get("status") == 200:
+                try:
+                    j = json.loads(res["text"])
+                    v = {"fetched": True, "text_norm": "", "title": j.get("title", ""), "author_name": j.get("author_name", "")}
+                except ValueError:
+                    v = {"fetched": False, "why": "oembed_bad_json"}
+            else:
+                v = {"fetched": False, "why": f"oembed_{res.get('status') or res.get('error')}"}
+        else:
+            res = F.get(url, "primary")
+            if res.get("status") == 200 and res.get("text"):
+                ptitle, body_text = page_text(res["text"])
+                v = {"fetched": True, "text_norm": norm_text(body_text), "title": ptitle, "author_name": "",
+                     "final_url": res.get("final_url")}
+            else:
+                v = {"fetched": False, "why": str(res.get("status") or res.get("error") or "non_text")}
+        verify_cache[url] = v
+        return v
+
+    return verify
+
+
+def evaluate_card(card: dict, base: dict, *, slug: str, person: dict, book: dict, rebooked: bool, own: "Ownership",
+                  profile_handles: set, verify_fn, rejected: list, source_date_years: dict | None = None):
+    """Classify every source the pointer site cites for one (person, book) card; return the best candidate or None.
+
+    card: title, author, links, quote, quote_attrib, has_context_only (pointer-site data, never stored).
+    source_date_years: optional {url: year} the pointer site gives for a source, used only to REJECT a
+    source that predates the book (never to accept one). Rejections are appended to `rejected`."""
+    nt = norm_title(book["title"])
+    sn = surname(book.get("author_name"))
+    quote_is_persons = bool(card["quote"]) and squash(card["quote_attrib"]) == squash(person["name"])
+    mrb_quote = card["quote"] if quote_is_persons else ""
+    best = None
+    for url in dict.fromkeys(clean_url(u) for u in card["links"]):
+        notes = ["rebooked_after_merge(same_title)"] if rebooked else []
+        if sn is None:
+            notes.append("author_unknown_title_only_match")
+        if not url.lower().startswith(("http://", "https://")):
+            rejected.append({**base, "primary_source_url": url, "reason": "not_http_url"})
+            continue
+        h = host_of(url)
+        stype = source_type(url)
+        pth = urllib.parse.urlsplit(url).path
+        if any(x in h for x in REJECT_HOSTS) or is_blocked_site(url):
+            rejected.append({**base, "primary_source_url": url, "reason": "bookstore_or_index_or_aggregator_host"})
+            continue
+        # chronology: a source dated 2+ years before the book's first publication cannot be about it
+        sy, fpy = source_year(url), book.get("first_published_year")
+        if not sy and source_date_years:
+            sy = source_date_years.get(url)
+        if sy and fpy and sy < int(fpy) - 1:
+            rejected.append({**base, "primary_source_url": url, "reason": f"source_predates_book:{sy}<{fpy}"})
+            continue
+        # ownership
+        cap, basis = None, None
+        hd = handle_of(url)
+        if hd and own.known_handle(slug, person, hd):
+            cap, basis = "strong", f"handle:{hd}"
+        elif own.personal_domain(slug, url):
+            cap, basis = "strong", "personal_domain"
+        v = verify_fn(url, stype)
+        if stype == "tweet" and v.get("fetched") and hd and v.get("author_handle") and v["author_handle"] != hd:
+            rejected.append({**base, "primary_source_url": url, "reason": f"tweet_author_differs:{hd}->{v['author_handle']}"})
+            continue
+        if not cap and stype == "tweet":
+            if v.get("fetched") and squash(v.get("author_name")) == squash(person["name"]) and hd in profile_handles:
+                cap, basis = "medium", f"tweet_display_name+mrb_profile:{hd}"
+            else:
+                rejected.append({**base, "primary_source_url": url, "reason": f"tweet_by_unverified_account:{hd}"})
+                continue
+        if not cap and hd and stype != "tweet":
+            rejected.append({**base, "primary_source_url": url, "reason": f"social_profile_not_known:{hd}"})
+            continue
+        if not cap and stype == "youtube":
+            if v.get("fetched") and squash(v.get("author_name")) == squash(person["name"]):
+                cap, basis = "medium", "youtube_channel_is_person"
+            elif v.get("fetched") and name_in_tokens(person["name"], tokens(v.get("title"))):
+                # title names the person, but it may be ABOUT them (another speaker) — spot-check found
+                # "Ryan Holiday: Peter Thiel and the Gawker conspiracy", "Marc Benioff on ... Steve Jobs"
+                cap, basis = "weak", "youtube_title_names_person(speaker_unconfirmed)"
+            else:
+                rejected.append({**base, "primary_source_url": url, "reason": "youtube_no_person_evidence" if v.get("fetched") else f"youtube_unverifiable:{v.get('why')}"})
+                continue
+        if not cap:
+            path_toks = tokens(urllib.parse.unquote(pth))
+            if name_in_tokens(person["name"], path_toks) or (("-" in slug) and slug in pth.lower()):
+                if LISTICLE_TOKENS & set(path_toks) and h not in own.interview_hosts:
+                    # "emma-watsons-book-recommendations", "adam-grant-picks-20-leadership-books": a list ABOUT them
+                    cap, basis = "weak", "third_party_list_article_names_person"
+                else:
+                    cap = "medium"
+                    basis = "interview_path_names_person" + ("(interview_host)" if h in own.interview_hosts else "")
+            elif v.get("fetched") and mrb_quote and name_in_tokens(person["name"], v["text_norm"].split()) \
+                    and (title_in(nt, v["text_norm"]) or quote_in(mrb_quote, v["text_norm"])):
+                cap, basis = "weak", "third_party_article_quotes_person"
+            else:
+                rejected.append({**base, "primary_source_url": url, "reason": "no_ownership_evidence" + ("" if v.get("fetched") else f"(primary_unfetched:{v.get('why')})")})
+                continue
+        # verification at primary
+        verified_quote = bool(mrb_quote) and v.get("fetched") and quote_in(mrb_quote, v.get("text_norm", ""))
+        book_named = v.get("fetched") and (title_in(nt, v.get("text_norm", "")) or title_in(nt, norm_text(v.get("title", ""))))
+        strength = cap
+        if cap == "strong":
+            if not v.get("fetched"):
+                strength = "medium"; notes.append(f"primary_unfetched:{v.get('why')}")
+            elif not (verified_quote or book_named):
+                strength = "medium"; notes.append("book_not_named_in_primary_text")
+        elif cap == "medium" and v.get("fetched") and stype not in ("youtube",) and not (verified_quote or book_named):
+            strength = "weak"; notes.append("book_not_found_on_primary_page")
+        elif cap == "medium" and not v.get("fetched"):
+            notes.append(f"primary_unfetched:{v.get('why')}")
+        if strength == "medium" and not (verified_quote or book_named):
+            # Hand check (2026-11-12): with the primary text unreadable (X/Facebook disallow automated
+            # access; YouTube oEmbed gives only a title) the book mention rests on the pointer site
+            # alone, and it was wrong there (a 2015 tweet "everything by [this author]" cited for a
+            # 2020 book). Medium therefore needs the book named, or the quote found, AT the primary.
+            strength = "weak"; notes.append("book_mention_unverified_at_primary")
+        if strength == "medium" and basis == "interview_path_names_person" and not verified_quote:
+            # Hand check: on a general news host a path naming the person is often a story ABOUT them
+            # ("microsoft-satya-nadella-nonviolent-communication", a Variety profile listing a reading
+            # list) — not their own words. Outside the known interview hosts, medium needs the
+            # person's quoted words found on that page.
+            strength = "weak"; notes.append("news_article_about_person(persons_words_not_found)")
+        if strength in ("strong", "medium") and (basis or "").startswith("interview_path") \
+                and name_in_tokens(book.get("author_name") or "", tokens(urllib.parse.unquote(pth))) \
+                and not name_in_tokens(book.get("author_name") or "", tokens(person["name"])):
+            # "reid-hoffman-plus-michael-mccullough" cited for Hoffman's own The Start-up of You: the
+            # book is the co-guest's own work, listed for that reason (house rule path_names_book_author)
+            strength = "weak"; notes.append("path_names_book_author(co_guests_own_book)")
+        if sn is None and strength == "strong":
+            strength = "medium"
+        if basis == "personal_domain" and len([x for x in pth.split("/") if x]) <= 1 and not title_in(nt, norm_text(pth.replace("-", " "))):
+            notes.append("owner_index_page(reading-list/bookshelf, not a per-book recommendation)")
+            if strength == "strong":
+                strength = "medium"
+        if mrb_quote and LUKEWARM.search(mrb_quote):
+            notes.append("lukewarm_or_negative_quote_review")
+            if strength == "strong":
+                strength = "medium"
+        if stype == "tweet" and not v.get("fetched") and "robots" in str(v.get("why")):
+            notes.append("tweet_text_unverifiable(publish.twitter.com robots disallows /oembed)")
+        if not mrb_quote and card["quote"]:
+            notes.append("site_quote_attributed_to_other_name")
+        if not mrb_quote and card["has_context_only"]:
+            notes.append("site_shows_editorial_context_only(not_stored)")
+        if mrb_quote and not verified_quote:
+            notes.append("quote_from_third_party_unverified")
+        if book_named:
+            notes.append("book_named_at_primary")
+        notes.append(f"owner_basis={basis}")
+        cand = {**base, "primary_source_url": url, "primary_source_type": stype if stype != "other" else ("blog" if basis == "personal_domain" else ("interview" if "interview" in (basis or "") else "other")),
+                "quote_text": mrb_quote, "quote_verified_at_primary": bool(verified_quote), "evidence_strength": strength,
+                "notes": ";".join(notes), "_book_named": bool(book_named), "_primary_fetched": bool(v.get("fetched"))}
+        if best is None or candidate_rank(cand) < candidate_rank(best):
+            best = cand
+    return best
+
+
+def candidate_rank(c: dict) -> tuple:
+    """Lower is better: strength first, then a quote verified at the primary."""
+    return ({"strong": 0, "medium": 1, "weak": 2}[c["evidence_strength"]], not c["quote_verified_at_primary"])
+
+
+def prefetch_primary(F: "Fetcher", collected: dict, max_verify: int, workers: int, offline: bool, skip_types=()):
+    """Fetch every uncached primary URL gathered by a collect pass, one thread per host (per-host rate limit)."""
+    todo_urls = [(oembed_url(u, s), u, s) for u, s in collected.items() if s not in skip_types]
+    uncached = [t for t in todo_urls if not F._cache_path(t[0], "primary").exists()]
+    if len(uncached) > max_verify:
+        log(f"verify cap: {len(uncached)} uncached primary URLs, fetching first {max_verify}")
+        uncached = uncached[:max_verify]
+    by_host = defaultdict(list)
+    for fu, _u, _s in uncached:
+        by_host[host_of(fu)].append(fu)
+    log(f"primary verification: {len(todo_urls)} URLs, {len(uncached)} uncached across {len(by_host)} hosts")
+
+    def run_host(item):
+        _h, urls = item
+        for fu in urls:
+            F.get(fu, "primary")
+
+    from concurrent.futures import ThreadPoolExecutor
+    if not offline:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            list(ex.map(run_host, sorted(by_host.items(), key=lambda kv: -len(kv[1]))))
+
+
+def finalize_candidates(out: list[dict]):
+    """List-URL spot-check, quote to write (verified AND verbatim), confidence and source_name."""
+    # Spot-check: one "list" URL cited for many books is where the site's errors cluster (Obama's 2019-12-28
+    # year-end tweet is cited for 20 books, several of which were on his earlier summer list instead).
+    url_books = Counter(c["primary_source_url"] for c in out)
+    for c in out:
+        n = url_books[c["primary_source_url"]]
+        if n >= 5:
+            c["notes"] += f";same_url_cited_for_{n}_books(check_book_is_on_it)"
+            if c["evidence_strength"] == "strong" and not c["_book_named"]:
+                c["evidence_strength"] = "medium"
+    for c in out:
+        # store only the person's own verbatim words: verified at the primary AND free of the pointer site's
+        # [bracketed] substitutions and ellipses (those edits are the site's text, not the person's)
+        c["_quote_to_write"] = c["quote_text"] if c["quote_verified_at_primary"] and quote_is_verbatim(c["quote_text"]) else None
+        if c["quote_verified_at_primary"] and not c["_quote_to_write"]:
+            c["notes"] += ";quote_verified_but_site_edited(not_stored)"
+        c["_confidence"] = HIGH_CONFIDENCE if c["evidence_strength"] == "strong" else MEDIUM_CONFIDENCE
+        c["_source_name"] = SOURCE_NAMES.get(c["primary_source_type"], host_of(c["primary_source_url"]))
+
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     ap.add_argument("--scope", choices=("published", "all"), default="published",
@@ -718,67 +1022,13 @@ def main():
     for r in want:
         rows_by_person[r["owner_slug"]].append(r)
 
-    verify_cache = {}
     collected = {}  # url → stype, filled by the collect pass
-
-    def oembed_url(url, stype):
-        if stype == "tweet":
-            tw = re.sub(r"^https?://(www\.|mobile\.)?(x|twitter)\.com", "https://twitter.com", url.split("?")[0])
-            return "https://publish.twitter.com/oembed?omit_script=1&url=" + urllib.parse.quote(tw, safe="")
-        if stype == "youtube":
-            return "https://www.youtube.com/oembed?format=json&url=" + urllib.parse.quote(url, safe="")
-        return url
 
     def verify_collect(url, stype):
         collected.setdefault(url, stype)
         return {"fetched": False, "why": "collect_pass"}
 
-    def verify(url, stype):
-        """Return dict(fetched, text_norm, author_name, title) from the primary source (cache only after prefetch)."""
-        if args.no_verify:
-            return {"fetched": False, "why": "no_verify"}
-        if url in verify_cache:
-            return verify_cache[url]
-        if stype == "tweet":
-            res = F.get(oembed_url(url, stype), "primary")
-            if res.get("status") == 200:
-                try:
-                    j = json.loads(res["text"])
-                    body = re.sub(r"&mdash;.*$", "", j.get("html", ""), flags=re.S)
-                    v = {"fetched": True, "text_norm": norm_text(strip_tags(body)), "author_name": j.get("author_name", ""),
-                         "author_handle": (j.get("author_url", "").rstrip("/").rsplit("/", 1)[-1]).lower(), "title": ""}
-                except ValueError:
-                    v = {"fetched": False, "why": "oembed_bad_json"}
-            else:
-                v = {"fetched": False, "why": f"oembed_{res.get('status') or res.get('error')}"}
-        elif stype == "youtube":
-            res = F.get(oembed_url(url, stype), "primary")
-            if res.get("status") == 200:
-                try:
-                    j = json.loads(res["text"])
-                    v = {"fetched": True, "text_norm": "", "title": j.get("title", ""), "author_name": j.get("author_name", "")}
-                except ValueError:
-                    v = {"fetched": False, "why": "oembed_bad_json"}
-            else:
-                v = {"fetched": False, "why": f"oembed_{res.get('status') or res.get('error')}"}
-        else:
-            res = F.get(url, "primary")
-            if res.get("status") == 200 and res.get("text"):
-                from bs4 import BeautifulSoup
-                soup = BeautifulSoup(res["text"], "html.parser")
-                for t in soup(["script", "style", "noscript"]):
-                    t.decompose()
-                # readers' comments are not the person's words ("Who recommends The War of Art audiobook?")
-                for t in soup.select("#comments, .comments, .comments-area, .comment-list, .commentlist, #disqus_thread, #wpdcom, .wp-block-comments-wpdiscuz"):
-                    t.decompose()
-                ptitle = soup.title.get_text(" ", strip=True) if soup.title else ""
-                body_text = SPONSOR_AD.sub(" ", " ".join(soup.get_text(" ").split()))
-                v = {"fetched": True, "text_norm": norm_text(body_text), "title": ptitle, "author_name": "",
-                     "final_url": res.get("final_url")}
-            else:
-                v = {"fetched": False, "why": str(res.get("status") or res.get("error") or "non_text")}
-        verify_cache[url] = v
-        return v
+    verify = make_verifier(F, args.no_verify)
 
     def process(verify_fn):
         out, rejected, person_stats = [], [], {}
@@ -786,12 +1036,7 @@ def main():
         for slug, rows in sorted(rows_by_person.items(), key=lambda kv: -len(kv[1])):
             person = people_by_slug[slug]
             st = person_stats[slug] = Counter(rows=len(rows))
-            cands = [slug, slugify(person["name"])] + sorted(own.group(slug) - {slug})
-            mrb_url = next((mrb_slug_url[c] for c in cands if c in mrb_slug_url), None)
-            if not mrb_url:
-                # "j-k-rowling" ~ "jk-rowling", "dominic-d-agostino" ~ "dominic-dagostino": squashed slug, unique hit only
-                sq_hits = {u for c in (slug, slugify(person["name"])) for u in mrb_squash_url.get(squash(c), [])}
-                mrb_url = next(iter(sq_hits)) if len(sq_hits) == 1 and len(tokens(person["name"])) >= 2 else None
+            mrb_url = find_person_page(slug, person, own, mrb_slug_url, mrb_squash_url)
             if not mrb_url:
                 st["no_mrb_page"] = len(rows)
                 continue
@@ -806,10 +1051,7 @@ def main():
                 st["mrb_fetch_failed"] = len(rows)
                 continue
             page = parse_mrb_person(res["text"])
-            # ALIAS_GROUPS (house script) lists duplicate stubs of one human ("o-shaughnessy" = "patrick-o-shaughnessy"):
-            # the page may carry the full name of any member of the group
-            alias_names = [person["name"]] + [people_by_slug[s]["name"] for s in sorted(own.group(slug) - {slug}) if s in people_by_slug]
-            if not any(person_name_matches(page["name"], n) for n in alias_names):
+            if not page_names_person(page["name"], slug, person, own, people_by_slug):
                 st["mrb_name_mismatch"] = len(rows)
                 log(f"  skip {slug}: MRB page name {page['name']!r} != {person['name']!r}")
                 continue
@@ -820,164 +1062,25 @@ def main():
                 idx[norm_title(c["title"])].append(c)
 
             for r in rows:
-                rec = recs.get(r["row_id"])
-                if not rec:
-                    st["row_missing_in_db"] += 1
+                why, rec, book, rebooked = resolve_row(r, person, recs, books, pair_count)
+                if why:
+                    st[why] += 1
                     continue
-                if rec["person_id"] != person["id"]:
-                    st["row_person_changed"] += 1
-                    continue
-                book = books.get(rec["book_id"])
-                if not book:
-                    st["row_book_missing"] += 1
-                    continue
-                rebooked = book["slug"] != r["book_slug"]
-                if rebooked and norm_title(book["title"]) != norm_title(r["book_title"]):
-                    st["row_rebooked_ambiguous"] += 1  # merged onto a book with a different title: skip
-                    continue
-                if pair_count[(rec["person_id"], rec["book_id"])] > 1:
-                    st["row_duplicate_pair_ambiguous"] += 1
-                    continue
-                our_title = book["title"]
-                nt = norm_title(our_title)
-                sn = surname(book.get("author_name"))
-                hits = [c for c in idx.get(nt, []) if (sn is None or sn in tokens(c["author"]))]
+                hits = book_hits(idx, book)
                 if not hits:
                     st["unmatched_not_on_mrb_page"] += 1
                     continue
                 card = next((c for c in hits if c["quote"]), hits[0])
                 base = {
                     "rec_id": r["row_id"], "person_slug": slug, "person_status": person["index_status"],
-                    "book_slug": book["slug"], "book_title": our_title, "book_author": book.get("author_name") or "",
+                    "book_slug": book["slug"], "book_title": book["title"], "book_author": book.get("author_name") or "",
                     "site": "mostrecommendedbooks.com", "site_page_url": mrb_url,
                     "_book_id": rec["book_id"], "_person_id": rec["person_id"], "_fingerprint": fingerprint(rec),
                     "_snapshot": snapshot_md5(rec.get("source_url"), rec.get("quote")),
                     "_rebooked": rebooked,
                 }
-                quote_is_persons = bool(card["quote"]) and squash(card["quote_attrib"]) == squash(person["name"])
-                mrb_quote = card["quote"] if quote_is_persons else ""
-                best = None
-                for url in dict.fromkeys(clean_url(u) for u in card["links"]):
-                    notes = ["rebooked_after_merge(same_title)"] if rebooked else []
-                    if sn is None:
-                        notes.append("author_unknown_title_only_match")
-                    if not url.lower().startswith(("http://", "https://")):
-                        rejected.append({**base, "primary_source_url": url, "reason": "not_http_url"})
-                        continue
-                    h = host_of(url)
-                    stype = source_type(url)
-                    pth = urllib.parse.urlsplit(url).path
-                    if any(x in h for x in REJECT_HOSTS) or is_blocked_site(url):
-                        rejected.append({**base, "primary_source_url": url, "reason": "bookstore_or_index_or_aggregator_host"})
-                        continue
-                    # chronology: a source dated 2+ years before the book's first publication cannot be about it
-                    sy, fpy = source_year(url), book.get("first_published_year")
-                    if sy and fpy and sy < int(fpy) - 1:
-                        rejected.append({**base, "primary_source_url": url, "reason": f"source_predates_book:{sy}<{fpy}"})
-                        continue
-                    # ownership
-                    cap, basis = None, None
-                    hd = handle_of(url)
-                    if hd and own.known_handle(slug, person, hd):
-                        cap, basis = "strong", f"handle:{hd}"
-                    elif own.personal_domain(slug, url):
-                        cap, basis = "strong", "personal_domain"
-                    v = verify_fn(url, stype)
-                    if stype == "tweet" and v.get("fetched") and hd and v.get("author_handle") and v["author_handle"] != hd:
-                        rejected.append({**base, "primary_source_url": url, "reason": f"tweet_author_differs:{hd}->{v['author_handle']}"})
-                        continue
-                    if not cap and stype == "tweet":
-                        if v.get("fetched") and squash(v.get("author_name")) == squash(person["name"]) and hd in page["profile_handles"]:
-                            cap, basis = "medium", f"tweet_display_name+mrb_profile:{hd}"
-                        else:
-                            rejected.append({**base, "primary_source_url": url, "reason": f"tweet_by_unverified_account:{hd}"})
-                            continue
-                    if not cap and hd and stype != "tweet":
-                        rejected.append({**base, "primary_source_url": url, "reason": f"social_profile_not_known:{hd}"})
-                        continue
-                    if not cap and stype == "youtube":
-                        if v.get("fetched") and squash(v.get("author_name")) == squash(person["name"]):
-                            cap, basis = "medium", "youtube_channel_is_person"
-                        elif v.get("fetched") and name_in_tokens(person["name"], tokens(v.get("title"))):
-                            # title names the person, but it may be ABOUT them (another speaker) — spot-check found
-                            # "Ryan Holiday: Peter Thiel and the Gawker conspiracy", "Marc Benioff on ... Steve Jobs"
-                            cap, basis = "weak", "youtube_title_names_person(speaker_unconfirmed)"
-                        else:
-                            rejected.append({**base, "primary_source_url": url, "reason": "youtube_no_person_evidence" if v.get("fetched") else f"youtube_unverifiable:{v.get('why')}"})
-                            continue
-                    if not cap:
-                        path_toks = tokens(urllib.parse.unquote(pth))
-                        if name_in_tokens(person["name"], path_toks) or (("-" in slug) and slug in pth.lower()):
-                            if LISTICLE_TOKENS & set(path_toks) and h not in interview_hosts:
-                                # "emma-watsons-book-recommendations", "adam-grant-picks-20-leadership-books": a list ABOUT them
-                                cap, basis = "weak", "third_party_list_article_names_person"
-                            else:
-                                cap = "medium"
-                                basis = "interview_path_names_person" + ("(interview_host)" if h in interview_hosts else "")
-                        elif v.get("fetched") and mrb_quote and name_in_tokens(person["name"], v["text_norm"].split()) \
-                                and (title_in(nt, v["text_norm"]) or quote_in(mrb_quote, v["text_norm"])):
-                            cap, basis = "weak", "third_party_article_quotes_person"
-                        else:
-                            rejected.append({**base, "primary_source_url": url, "reason": "no_ownership_evidence" + ("" if v.get("fetched") else f"(primary_unfetched:{v.get('why')})")})
-                            continue
-                    # verification at primary
-                    verified_quote = bool(mrb_quote) and v.get("fetched") and quote_in(mrb_quote, v.get("text_norm", ""))
-                    book_named = v.get("fetched") and (title_in(nt, v.get("text_norm", "")) or title_in(nt, norm_text(v.get("title", ""))))
-                    strength = cap
-                    if cap == "strong":
-                        if not v.get("fetched"):
-                            strength = "medium"; notes.append(f"primary_unfetched:{v.get('why')}")
-                        elif not (verified_quote or book_named):
-                            strength = "medium"; notes.append("book_not_named_in_primary_text")
-                    elif cap == "medium" and v.get("fetched") and stype not in ("youtube",) and not (verified_quote or book_named):
-                        strength = "weak"; notes.append("book_not_found_on_primary_page")
-                    elif cap == "medium" and not v.get("fetched"):
-                        notes.append(f"primary_unfetched:{v.get('why')}")
-                    if strength == "medium" and not (verified_quote or book_named):
-                        # Hand check (2026-11-12): with the primary text unreadable (X/Facebook disallow automated
-                        # access; YouTube oEmbed gives only a title) the book mention rests on the pointer site
-                        # alone, and it was wrong there (a 2015 tweet "everything by [this author]" cited for a
-                        # 2020 book). Medium therefore needs the book named, or the quote found, AT the primary.
-                        strength = "weak"; notes.append("book_mention_unverified_at_primary")
-                    if strength == "medium" and basis == "interview_path_names_person" and not verified_quote:
-                        # Hand check: on a general news host a path naming the person is often a story ABOUT them
-                        # ("microsoft-satya-nadella-nonviolent-communication", a Variety profile listing a reading
-                        # list) — not their own words. Outside the known interview hosts, medium needs the
-                        # person's quoted words found on that page.
-                        strength = "weak"; notes.append("news_article_about_person(persons_words_not_found)")
-                    if strength in ("strong", "medium") and (basis or "").startswith("interview_path") \
-                            and name_in_tokens(book.get("author_name") or "", tokens(urllib.parse.unquote(pth))) \
-                            and not name_in_tokens(book.get("author_name") or "", tokens(person["name"])):
-                        # "reid-hoffman-plus-michael-mccullough" cited for Hoffman's own The Start-up of You: the
-                        # book is the co-guest's own work, listed for that reason (house rule path_names_book_author)
-                        strength = "weak"; notes.append("path_names_book_author(co_guests_own_book)")
-                    if sn is None and strength == "strong":
-                        strength = "medium"
-                    if basis == "personal_domain" and len([x for x in pth.split("/") if x]) <= 1 and not title_in(nt, norm_text(pth.replace("-", " "))):
-                        notes.append("owner_index_page(reading-list/bookshelf, not a per-book recommendation)")
-                        if strength == "strong":
-                            strength = "medium"
-                    if mrb_quote and LUKEWARM.search(mrb_quote):
-                        notes.append("lukewarm_or_negative_quote_review")
-                        if strength == "strong":
-                            strength = "medium"
-                    if stype == "tweet" and not v.get("fetched") and "robots" in str(v.get("why")):
-                        notes.append("tweet_text_unverifiable(publish.twitter.com robots disallows /oembed)")
-                    if not mrb_quote and card["quote"]:
-                        notes.append("site_quote_attributed_to_other_name")
-                    if not mrb_quote and card["has_context_only"]:
-                        notes.append("site_shows_editorial_context_only(not_stored)")
-                    if mrb_quote and not verified_quote:
-                        notes.append("quote_from_third_party_unverified")
-                    if book_named:
-                        notes.append("book_named_at_primary")
-                    notes.append(f"owner_basis={basis}")
-                    cand = {**base, "primary_source_url": url, "primary_source_type": stype if stype != "other" else ("blog" if basis == "personal_domain" else ("interview" if "interview" in (basis or "") else "other")),
-                            "quote_text": mrb_quote, "quote_verified_at_primary": bool(verified_quote), "evidence_strength": strength,
-                            "notes": ";".join(notes), "_book_named": bool(book_named), "_primary_fetched": bool(v.get("fetched"))}
-                    rank = {"strong": 0, "medium": 1, "weak": 2}
-                    if best is None or (rank[strength], not verified_quote) < (rank[best["evidence_strength"]], not best["quote_verified_at_primary"]):
-                        best = cand
+                best = evaluate_card(card, base, slug=slug, person=person, book=book, rebooked=rebooked, own=own,
+                                     profile_handles=page["profile_handles"], verify_fn=verify_fn, rejected=rejected)
                 if best:
                     out.append(best)
                     st[best["evidence_strength"]] += 1
@@ -989,48 +1092,14 @@ def main():
     try:
         if not args.no_verify:
             process(verify_collect)
-            todo_urls = [(oembed_url(u, s), u, s) for u, s in collected.items()]
-            uncached = [t for t in todo_urls if not F._cache_path(t[0], "primary").exists()]
-            if len(uncached) > args.max_verify:
-                log(f"verify cap: {len(uncached)} uncached primary URLs, fetching first {args.max_verify}")
-                uncached = uncached[: args.max_verify]
-            by_host = defaultdict(list)
-            for fu, _u, _s in uncached:
-                by_host[host_of(fu)].append(fu)
-            log(f"primary verification: {len(todo_urls)} URLs, {len(uncached)} uncached across {len(by_host)} hosts")
-
-            def run_host(item):
-                _h, urls = item
-                for fu in urls:
-                    F.get(fu, "primary")
-
-            from concurrent.futures import ThreadPoolExecutor
-            if not args.offline:
-                with ThreadPoolExecutor(max_workers=args.workers) as ex:
-                    list(ex.map(run_host, sorted(by_host.items(), key=lambda kv: -len(kv[1]))))
+            prefetch_primary(F, collected, args.max_verify, args.workers, args.offline)
         # 3b. Real pass over cached data
         out, rejected, person_stats = process(verify)
     except StopRun as e:
         log(f"\nSTOPPED: {e}\nnetwork requests: {dict(F.network_requests)}")
         sys.exit(2)
 
-    # Spot-check: one "list" URL cited for many books is where the site's errors cluster (Obama's 2019-12-28
-    # year-end tweet is cited for 20 books, several of which were on his earlier summer list instead).
-    url_books = Counter(c["primary_source_url"] for c in out)
-    for c in out:
-        n = url_books[c["primary_source_url"]]
-        if n >= 5:
-            c["notes"] += f";same_url_cited_for_{n}_books(check_book_is_on_it)"
-            if c["evidence_strength"] == "strong" and not c["_book_named"]:
-                c["evidence_strength"] = "medium"
-    for c in out:
-        # store only the person's own verbatim words: verified at the primary AND free of the pointer site's
-        # [bracketed] substitutions and ellipses (those edits are the site's text, not the person's)
-        c["_quote_to_write"] = c["quote_text"] if c["quote_verified_at_primary"] and quote_is_verbatim(c["quote_text"]) else None
-        if c["quote_verified_at_primary"] and not c["_quote_to_write"]:
-            c["notes"] += ";quote_verified_but_site_edited(not_stored)"
-        c["_confidence"] = HIGH_CONFIDENCE if c["evidence_strength"] == "strong" else MEDIUM_CONFIDENCE
-        c["_source_name"] = SOURCE_NAMES.get(c["primary_source_type"], host_of(c["primary_source_url"]))
+    finalize_candidates(out)
 
     # 4. Outputs
     cols = ["rec_id", "person_slug", "person_status", "book_slug", "book_title", "book_author", "site", "site_page_url",
