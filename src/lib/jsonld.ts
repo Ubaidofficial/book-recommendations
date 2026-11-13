@@ -123,14 +123,11 @@ export function bookJsonLd(book: Book | null, slug?: string): Record<string, unk
   // sameAs: assert this Book node's identity against its Amazon listing.
   // Safe where aggregateRating (removed below) is not — sameAs only claims
   // "this page and that URL describe the same thing," with no numeric value
-  // to misrepresent. Stripped of the `tag` param so this identity link stays
-  // stable regardless of Associates-tag configuration — the monetized CTA
-  // href on the page itself is where the tag belongs, not here.
+  // to misrepresent. Site rule: every Amazon URL we emit carries our Associates
+  // tag (normalizeAmazonUrl adds it), including this one.
   const amazonUrl = normalizeAmazonUrl(book.amazon_url);
   if (amazonUrl) {
-    const clean = new URL(amazonUrl);
-    clean.searchParams.delete("tag");
-    mainEntity.sameAs = [clean.toString()];
+    mainEntity.sameAs = [amazonUrl];
   }
 
   // No aggregateRating/Review markup here by design. `book.rating` and

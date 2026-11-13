@@ -36,7 +36,7 @@ import {
   coverAltText,
   cleanQuoteText,
 } from "@/lib/dataQuality";
-import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
+import { AmazonCoverLink, Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
 
 // Detail-page cover fallback — calmer than the previous oversized-purple version.
 // Subtle neutral gradient, small icon, readable but non-dominant title, "Cover unavailable" caption.
@@ -587,6 +587,7 @@ export default async function BookDetailPage({ params }: Props) {
           {/* Left sticky rail (desktop only) */}
           <aside className="hidden lg:flex lg:flex-col lg:sticky lg:top-24 lg:self-start lg:w-[320px] gap-5 shrink-0">
             <div className="w-[300px] max-w-[300px] mx-auto rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.3)] bg-subtle aspect-[2/3] ring-1 ring-ink/10 transition-transform duration-300 hover:scale-[1.02]">
+              <AmazonCoverLink href={normalizedAmazonUrl} title={displayBookTitle(book.title)} slug={book.slug} section="cover-desktop">
               {hasCover ? (
                 <SafeImage
                   src={book.cover_image_url}
@@ -601,6 +602,7 @@ export default async function BookDetailPage({ params }: Props) {
               ) : (
                 <DetailCoverFallback title={displayBookTitle(book.title)} />
               )}
+              </AmazonCoverLink>
             </div>
             {normalizedAmazonUrl && (
               <div className="w-[300px] mx-auto text-center p-4.5 rounded-2xl border border-amber-200/60 bg-amber-50/15 shadow-[0_8px_30px_rgba(245,158,11,0.04)]">
@@ -655,6 +657,7 @@ export default async function BookDetailPage({ params }: Props) {
             {/* Mobile/Tablet Cover (hidden on desktop) */}
             <div className="mb-6 flex justify-center lg:hidden">
               <div className="w-[200px] max-w-[200px] rounded-2xl overflow-hidden shadow-[0_15px_35px_rgba(0,0,0,0.2)] bg-subtle aspect-[2/3] ring-1 ring-ink/10">
+                <AmazonCoverLink href={normalizedAmazonUrl} title={displayBookTitle(book.title)} slug={book.slug} section="cover-mobile">
                 {hasCover ? (
                   <SafeImage
                     src={book.cover_image_url}
@@ -665,6 +668,7 @@ export default async function BookDetailPage({ params }: Props) {
                 ) : (
                   <DetailCoverFallback title={displayBookTitle(book.title)} />
                 )}
+                </AmazonCoverLink>
               </div>
             </div>
 
@@ -1763,6 +1767,7 @@ export default async function BookDetailPage({ params }: Props) {
           role="region"
           aria-label="Buy this book"
         >
+          <AmazonCoverLink href={normalizedAmazonUrl} title={displayBookTitle(book.title)} slug={book.slug} section="cover-sticky-mobile" className="block shrink-0">
           {hasCover ? (
             <SafeImage
               src={book.cover_image_url}
@@ -1773,6 +1778,7 @@ export default async function BookDetailPage({ params }: Props) {
           ) : (
             <div className="w-10 h-14 bg-subtle rounded shrink-0" aria-hidden />
           )}
+          </AmazonCoverLink>
           <p className="text-xs font-semibold text-ink line-clamp-1 flex-1 min-w-0">
             {displayBookTitle(book.title)}
           </p>
