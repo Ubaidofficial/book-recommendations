@@ -558,7 +558,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
 
       <div className="mb-10 pb-6 border-b border-border/60">
         <div className="flex items-start gap-3 flex-wrap mb-3">
-          <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight">{displayListTitleFull(list.title, list.slug)}</h1>
+          <h1 className="type-h1 text-ink">{displayListTitleFull(list.title, list.slug)}</h1>
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-subtle text-muted text-[11px] font-medium shrink-0 mt-2">
             {listKindLabel(kind)}
           </span>
@@ -580,7 +580,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
         </div>
         {takeaways.length >= 3 && (
           <section className="mb-5 rounded-2xl border border-border bg-surface p-5 max-w-3xl" aria-labelledby="key-takeaways">
-            <h2 id="key-takeaways" className="text-lg font-bold text-ink mb-2 tracking-tight">Key Takeaways</h2>
+            <h2 id="key-takeaways" className="type-h3 text-ink mb-2">Key Takeaways</h2>
             <ul className="list-disc pl-5 space-y-1.5 text-sm text-ink leading-relaxed">
               {takeaways.map((t) => (
                 <li key={t}>{t}</li>
@@ -633,10 +633,10 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
 
       {startHere.length >= 3 && (
         <section className="mb-12" aria-labelledby="start-here">
-          <h2 id="start-here" className="text-xl font-bold text-ink mb-1 tracking-tight">
+          <h2 data-reveal id="start-here" className="type-h2 text-ink mb-1">
             What are the most recommended {topic}?
           </h2>
-          <p className="text-sm text-muted mb-5 max-w-2xl leading-relaxed">
+          <p data-reveal className="text-sm text-muted mb-5 max-w-2xl leading-relaxed">
             The most recommended {topic} are {joinNames(startHere.slice(0, 3).map((b) => `${b.title} (${b.recommendation_count})`))}, ranked by how many of the {personStats.size.toLocaleString()} people behind this list recommended each one.
           </p>
           {/* A real <table>: ranked, comparable columns for the books people
@@ -679,7 +679,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
 
       {hasBooks ? (
         <>
-        <div className="grid grid-cols-1 gap-6 md:gap-8 mb-14">
+        <div data-reveal-stagger className="grid grid-cols-1 gap-6 md:gap-8 mb-14">
           {primaryBooks.map((book, i) => renderBook(book, i))}
         </div>
         {moreBooks.length > 0 && (
@@ -703,7 +703,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
           real content (their own picks from this list) and internal links. */}
       {personSections.filter((p) => p.picks.length > 0).map((p) => (
         <section key={p.slug} className="mb-10" aria-labelledby={`by-${p.slug}`}>
-          <h2 id={`by-${p.slug}`} className="text-lg font-bold text-ink mb-1 tracking-tight">
+          <h2 id={`by-${p.slug}`} className="type-h3 text-ink mb-1">
             Which {topic} does {p.name} recommend?
           </h2>
           <p className="text-sm text-muted mb-3">
@@ -723,7 +723,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
 
       {faq.length > 0 && (
         <section className="mt-12 mb-12" aria-labelledby="faq">
-          <h2 id="faq" className="text-lg font-bold text-ink mb-4 tracking-tight">{topic}: common questions</h2>
+          <h2 id="faq" className="type-h3 text-ink mb-4">{topic}: common questions</h2>
           <dl className="space-y-4">
             {faq.map((f) => (
               <div key={f.q}>
@@ -779,8 +779,8 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
       {/* Related Lists */}
       {hasRelated && (
         <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Explore more lists</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <h2 data-reveal className="type-h2 text-ink mb-5">Explore more lists</h2>
+          <div data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {relatedLists.map((rl) => (
               <Link
                 key={rl.id}
@@ -811,7 +811,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
           list and contributed to the "templated feel" the live-readiness
           audit flagged. */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
-        <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">How is the {topic} list built?</h2>
+        <h2 className="type-h3 text-ink mb-2">How is the {topic} list built?</h2>
         <p className="text-sm text-muted leading-relaxed">
           The {topic} list is built from public recommendation sources and
           category memberships. Books are ranked by how many distinct people
@@ -833,13 +833,13 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
       */}
       {listRecommenders.length > 0 && (
         <section className="mt-10 pt-8 border-t border-border">
-          <h2 className="text-lg font-bold text-ink mb-1 tracking-tight">
+          <h2 className="type-h3 text-ink mb-1">
             Who recommends {topic}?
           </h2>
           <p className="text-sm text-muted mb-5">
             {topic} are recommended by the people below, including {joinNames(listRecommenders.slice(0, 3).map((r) => r.name))}. Open a profile to see everything they recommend, with the source behind each pick.
           </p>
-          <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <ul data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {listRecommenders.map((r) => (
               <li key={r.slug}>
                 <Link

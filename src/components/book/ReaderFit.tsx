@@ -29,10 +29,10 @@ export function ReaderFit({
       <div className="mb-4">
         <DraftNotesLabel reviewed={reviewed} dated={dated} />
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div data-reveal-stagger className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {bestFor.length > 0 && (
           <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
-            <h3 className="font-serif text-xl md:text-[22px] font-medium text-ink mb-4">Read it if you are…</h3>
+            <h3 className="type-h3 text-ink mb-4">Read it if you are…</h3>
             <ul className="space-y-3">
               {bestFor.map((item, i) => (
                 <li key={i} className="grid grid-cols-[20px_minmax(0,1fr)] gap-2 text-[15px] leading-relaxed text-ink/90">
@@ -47,7 +47,7 @@ export function ReaderFit({
         )}
         {notFor.length > 0 && (
           <div className="rounded-2xl border border-border bg-surface p-5 md:p-6">
-            <h3 className="font-serif text-xl md:text-[22px] font-medium text-ink mb-4">Skip it if…</h3>
+            <h3 className="type-h3 text-ink mb-4">Skip it if…</h3>
             <ul className="space-y-3">
               {notFor.map((item, i) => (
                 <li key={i} className="grid grid-cols-[20px_minmax(0,1fr)] gap-2 text-[15px] leading-relaxed text-ink/90">

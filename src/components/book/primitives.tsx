@@ -11,8 +11,8 @@ export function BookSectionHeading({
   dek?: ReactNode;
 }) {
   return (
-    <div className="mb-6">
-      <h2 id={id} className="font-serif text-[26px] md:text-[32px] leading-tight font-medium text-ink tracking-tight">
+    <div className="mb-6" data-reveal>
+      <h2 id={id} className="type-h2 text-ink">
         {title}
       </h2>
       {dek && <p className="mt-2 text-sm md:text-base text-muted leading-relaxed max-w-2xl">{dek}</p>}

@@ -40,6 +40,7 @@ import {
   getProofDisplaySafety,
 } from "@/lib/dataQuality";
 import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
+import { photoCredit } from "@/lib/photoCredit";
 
 /**
  * Incremental static regeneration.
@@ -157,6 +158,7 @@ export default async function PersonDetailPage({ params }: Props) {
   // surfaces where the stricter 80-char + English + junk-pattern gate is
   // intentionally retained.
   const hasBio = isUsefulPersonBio(person.bio);
+  const credit = hasAvatar ? photoCredit(person) : null;
 
   const recommendationProofWithSafety = recommendationProof.map((p) => ({
     ...p,
@@ -182,142 +184,148 @@ export default async function PersonDetailPage({ params }: Props) {
       {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "People", href: "/people" }, { label: person.name }]} />
 
-      <div className="flex flex-col sm:flex-row items-start gap-6 mb-8">
-        <div className="flex flex-col items-center shrink-0 gap-1.5">
-          <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-subtle overflow-hidden ring-3 ring-border flex items-center justify-center">
-            {hasAvatar ? (
-              <SafeImage
-                src={person.avatar_url}
-                // A bare name repeats the H1 directly above it. Naming what
-                // the image is, and the page it sits on, describes it for
-                // image search instead.
-                alt={`${person.name}${person.role ? `, ${person.role}` : ""} — book recommendations`}
-                className="w-full h-full object-cover"
-                fallback={<span className="text-2xl font-bold text-muted/40">{person.name.charAt(0)}</span>}
-              />
-            ) : (
-              <span className="text-2xl font-bold text-muted/40">{person.name.charAt(0)}</span>
+      {/* Hero: portrait and who they are on the left, the shelf at a glance
+          on the right, so the line is balanced at desktop widths. */}
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-12 items-start mt-2 mb-10">
+        <div className="flex flex-col sm:flex-row items-start gap-6 md:gap-8 min-w-0">
+          <figure className="m-0 flex flex-col items-center shrink-0 gap-2">
+            <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-subtle overflow-hidden ring-1 ring-border ring-offset-4 ring-offset-bg flex items-center justify-center">
+              {hasAvatar ? (
+                <SafeImage
+                  src={person.avatar_url}
+                  // A bare name repeats the H1 directly above it. Naming what
+                  // the image is, and the page it sits on, describes it for
+                  // image search instead.
+                  alt={`${person.name}${person.role ? `, ${person.role}` : ""} — book recommendations`}
+                  className="w-full h-full object-cover"
+                  loading="eager"
+                  width={128}
+                  height={128}
+                  fallback={<span className="font-serif text-3xl text-muted/50">{person.name.charAt(0)}</span>}
+                />
+              ) : (
+                <span className="font-serif text-3xl text-muted/50">{person.name.charAt(0)}</span>
+              )}
+            </div>
+            {/* Licence credit for CC BY / CC BY-SA portraits: author and the
+                source's host name, linked to the source (src/lib/photoCredit).
+                Public-domain photos with no author or licence get no line. */}
+            {credit && (
+              <figcaption className="text-[11px] leading-snug text-muted text-center max-w-[10rem]">
+                {credit.href ? (
+                  <a
+                    href={credit.href}
+                    target="_blank"
+                    rel={outboundLinkRel(credit.href)}
+                    className="hover:text-accent hover:underline underline-offset-2"
+                    title={credit.full}
+                  >
+                    {credit.text}
+                  </a>
+                ) : (
+                  <span title={credit.full}>{credit.text}</span>
+                )}
+              </figcaption>
             )}
-          </div>
-          {/* Wikimedia Commons attribution micro-credit — required by
-              CC BY / CC BY-SA license terms when the image is shown
-              publicly. Renders ONLY when:
-                (a) avatar_url is a real http(s) URL (no attribution on the
-                    initials-fallback case), AND
-                (b) at least one attribution field is populated.
-              Falls through a small precedence chain so we always show the
-              most informative line we have:
-                1. avatar_attribution (pre-composed credit string)
-                2. "Photo: <author> (<license>)" when both are present
-                3. "Photo via <license>" when only license is known
-                4. plain "Source" link when only the Commons page URL is
-                   known (rare; conservative fallback)
-              Wrapped in an anchor that links to the Commons file page
-              when avatar_source_url is a valid URL; uses outboundLinkRel
-              so the rel attribute is set correctly. Public-domain photos
-              that ship with neither author nor license render no line —
-              attribution is not required for PD. */}
-          {hasAvatar && (() => {
-            const attr = (person.avatar_attribution || "").trim();
-            const author = (person.avatar_author || "").trim();
-            const license = (person.avatar_license || "").trim();
-            const text = attr
-              ? attr
-              : author && license
-                ? `Photo: ${author} (${license})`
-                : license
-                  ? `Photo via ${license}`
-                  : isValidHttpUrl(person.avatar_source_url)
-                    ? "Image source"
-                    : "";
-            if (!text) return null;
-            const className = "text-[10px] text-muted/60 leading-snug text-center max-w-[7rem] line-clamp-2";
-            const avatarSourceHref = normalizeOutboundUrl(person.avatar_source_url);
-            if (avatarSourceHref) {
-              return (
-                <a
-                  href={avatarSourceHref}
+          </figure>
+          <div className="min-w-0">
+            <p className="eyebrow text-accent mb-3">Reading list</p>
+            {/*
+              The H1 is the page's strongest on-page signal and a bare name
+              spends it on a term this page does not compete for — nobody
+              searches "Bill Gates" hoping for a reading list. The searched
+              phrase is "<name> recommended books", so the heading states what
+              the page actually is. The name stays first for readability.
+
+              Two visual lines, one phrase: the space between them keeps the
+              text content "<name> Recommended Books" for screen readers,
+              search and copy-paste.
+            */}
+            <h1 className="type-h1 text-ink">
+              {person.name}{" "}
+              <span className="block mt-1 font-sans text-base md:text-lg font-medium tracking-normal text-muted-strong">
+                Recommended Books
+              </span>
+            </h1>
+            {person.role && person.role.trim().length > 0 && (
+              <p className="mt-4 text-sm text-accent font-semibold">{person.role}</p>
+            )}
+            {hasBio && <p className="mt-2 prose-body text-muted-strong">{person.bio}</p>}
+            <LastUpdated modified={contentDates(person).modified} className="mt-3 text-xs text-muted" />
+            <div className="mt-6 pt-5 border-t border-border flex flex-col gap-2.5 max-w-[60ch]">
+              {normalizeOutboundUrl(person.source_url) && (
+                <Link
+                  href={normalizeOutboundUrl(person.source_url)!}
                   target="_blank"
-                  rel={outboundLinkRel(avatarSourceHref)}
-                  className={className + " hover:text-accent hover:underline"}
-                  title={text}
+                  rel={outboundLinkRel(person.source_url)}
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-accent hover:underline w-fit"
                 >
-                  {text}
-                </a>
-              );
-            }
-            return <p className={className} title={text}>{text}</p>;
-          })()}
-        </div>
-        <div>
-          {/*
-            The H1 is the page's strongest on-page signal and a bare name
-            spends it on a term this page does not compete for — nobody
-            searches "Bill Gates" hoping for a reading list. The searched
-            phrase is "<name> recommended books", so the heading states what
-            the page actually is. The name stays first for readability.
-
-            Rendered as a two-part heading so the visual hierarchy still leads
-            with the person while the heading text reads as one phrase.
-          */}
-          <h1 className="text-2xl md:text-3xl font-bold text-ink mb-1 tracking-tight">
-            {person.name}
-            <span className="block text-base md:text-lg font-semibold text-muted mt-0.5">
-              Recommended Books
-            </span>
-          </h1>
-          {person.role && person.role.trim().length > 0 && (
-            <p className="text-sm text-accent font-semibold mb-3">{person.role}</p>
-          )}
-          {hasBio && <p className="text-base text-muted max-w-2xl leading-relaxed mb-3">{person.bio}</p>}
-          <LastUpdated modified={contentDates(person).modified} className="text-xs text-muted mb-3" />
-          <div className="flex flex-wrap gap-3">
-            {recommendedCount > 0 && (
-              <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-accent-light text-accent text-sm font-semibold">
-                {recommendedCount} {recommendedCount === 1 ? "book" : "books"} recommended
-              </span>
-            )}
-            {writtenCount > 0 && (
-              <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-subtle text-ink text-sm font-medium">
-                {writtenCount} {writtenCount === 1 ? "book" : "books"} written
-              </span>
-            )}
+                  Profile source →
+                </Link>
+              )}
+              {/* Compact trust note — surfaces methodology near the top so the
+                  reader frames the page's recommendations correctly before
+                  scrolling. Conservative language ("sourced from") avoids
+                  overclaiming accuracy. */}
+              <p className="flex items-start gap-2 text-xs text-muted leading-relaxed">
+                <svg className="w-4 h-4 text-accent shrink-0 mt-px" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span>
+                  Recommendations are sourced from public posts, interviews, and reading lists. Books with available evidence include proof links below.
+                </span>
+              </p>
+            </div>
           </div>
-          {normalizeOutboundUrl(person.source_url) && (
-            <Link
-              href={normalizeOutboundUrl(person.source_url)!}
-              target="_blank"
-              rel={outboundLinkRel(person.source_url)}
-              className="inline-flex items-center gap-1 text-xs text-accent hover:underline mt-3"
-            >
-              Profile source →
-            </Link>
-          )}
-          {/* Compact trust note — surfaces methodology near the top so the
-              reader frames the page's recommendations correctly before
-              scrolling. Same wording approved in the audit; conservative
-              language ("sourced from") avoids overclaiming accuracy. */}
-          <p className="mt-3 text-xs text-muted/70 leading-relaxed">
-            Recommendations are sourced from public posts, interviews, and reading lists.
-          </p>
         </div>
-      </div>
 
-      {/* Top Trust Panel */}
-      <div className="mb-8 p-3.5 rounded-xl border border-border bg-subtle/30 text-xs text-muted leading-relaxed max-w-3xl flex items-start gap-2.5">
-        <svg className="w-4.5 h-4.5 text-accent shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-        </svg>
-        <span>
-          BookMentions tracks public recommendations from interviews, posts, reading lists, and source references. Books with available evidence include proof links below.
-        </span>
+        <aside aria-label={`${person.name}’s shelf at a glance`} className="rounded-2xl border border-border bg-surface p-6 shadow-[0_30px_60px_-40px_rgba(58,40,28,0.35)]">
+          <p className="eyebrow text-muted">At a glance</p>
+          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5">
+            <div className="flex flex-col-reverse">
+              <dt className="mt-1.5 text-xs text-muted">{recommendedCount === 1 ? "book recommended" : "books recommended"}</dt>
+              <dd className="stat-num text-4xl text-accent">{recommendedCount.toLocaleString("en-US")}</dd>
+            </div>
+            <div className="flex flex-col-reverse">
+              <dt className="mt-1.5 text-xs text-muted">{writtenCount === 1 ? "book written" : "books written"}</dt>
+              <dd className="stat-num text-4xl text-ink">{writtenCount.toLocaleString("en-US")}</dd>
+            </div>
+            {topics.length > 0 && (
+              <div className="col-span-2 border-t border-border pt-4">
+                <dt className="text-xs text-muted">Reads most about</dt>
+                <dd className="mt-2 flex flex-wrap gap-1.5">
+                  {topics.slice(0, 3).map((t) => (
+                    <Link
+                      key={t.slug}
+                      href={`/lists/${t.slug}`}
+                      className="inline-flex items-center rounded-full border border-border px-2.5 py-1 text-xs font-medium text-ink hover:border-accent/40 hover:text-accent transition-colors"
+                    >
+                      {t.title}
+                    </Link>
+                  ))}
+                </dd>
+              </div>
+            )}
+            {similar.length > 0 && (
+              <div className="col-span-2 border-t border-border pt-4">
+                <dt className="text-xs text-muted">Closest shelf</dt>
+                <dd className="mt-1 text-sm text-ink">
+                  <Link href={`/people/${similar[0].slug}`} className="font-semibold hover:text-accent transition-colors">
+                    {similar[0].name}
+                  </Link>
+                  <span className="text-muted"> · <span className="tabular-nums">{similar[0].shared}</span> {similar[0].shared === 1 ? "book" : "books"} in common</span>
+                </dd>
+              </div>
+            )}
+          </dl>
+        </aside>
       </div>
 
       {/* On the shelf — the person's most-recommended picks as spines. */}
       {spines.length >= 3 && (
         <section className="mb-14" aria-labelledby="shelf-h">
-          <h2 id="shelf-h" className="text-xl font-bold text-ink mb-1.5 tracking-tight">On the shelf</h2>
-          <p className="text-sm text-muted max-w-2xl mb-5">
+          <h2 data-reveal id="shelf-h" className="type-h2 text-ink mb-1.5">On the shelf</h2>
+          <p data-reveal className="text-sm text-muted max-w-2xl mb-5">
             {spines.length === shelf.length
               ? `All ${shelf.length} of ${firstName}’s picks. Choose a book to take it off the shelf.`
               : `The ${spines.length} of ${firstName}’s ${shelf.length.toLocaleString("en-US")} picks that the most people recommend. Choose a book to take it off the shelf.`}
@@ -329,8 +337,8 @@ export default async function PersonDetailPage({ params }: Props) {
       {/* Recommended Books */}
       {hasRecommendations ? (
         <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-1.5 tracking-tight">Recommended Books</h2>
-          <p className="text-xs text-muted/70 max-w-2xl mb-5">
+          <h2 data-reveal className="type-h2 text-ink mb-1.5">Recommended Books</h2>
+          <p data-reveal className="text-xs text-muted max-w-2xl mb-5">
             These books include Amazon options and source proof where available.
           </p>
           {/* Density: lg:grid-cols-5 (was lg:grid-cols-6) loosens the
@@ -338,7 +346,7 @@ export default async function PersonDetailPage({ params }: Props) {
               (grid-cols-2) and the intermediate sm/md breakpoints are
               unchanged. lg:gap-6 widens the between-card spacing to
               match the new column width. */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5 lg:gap-6">
+          <div data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5 lg:gap-6">
             {recommendationProof.map((p, i) => {
               const matchedProof = proofList.find((pl) => pl.book.id === p.book.id);
               const cardCue = matchedProof ? matchedProof.safety.cardCue : "none";
@@ -383,7 +391,7 @@ export default async function PersonDetailPage({ params }: Props) {
         </section>
       ) : (
         <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Recommended Books</h2>
+          <h2 data-reveal className="type-h2 text-ink mb-5">Recommended Books</h2>
           <div className="rounded-xl border border-border bg-surface p-6 text-center">
             <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-subtle flex items-center justify-center">
               <svg className="w-5 h-5 text-muted/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -401,8 +409,8 @@ export default async function PersonDetailPage({ params }: Props) {
       {/* Books Written */}
       {hasWritten && (
         <section className="mb-14">
-          <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">Books by {person.name}</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
+          <h2 data-reveal className="type-h2 text-ink mb-5">Books by {person.name}</h2>
+          <div data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
             {safeWrittenBooks.map((book) => (
               <BookCard
                 key={book.id}
@@ -422,9 +430,9 @@ export default async function PersonDetailPage({ params }: Props) {
 
       {/* Source & Proof / Recommendation Signals */}
       <section className="mb-14">
-        <h2 className="text-xl font-bold text-ink mb-5 tracking-tight">{proofHeading}</h2>
+        <h2 data-reveal className="type-h2 text-ink mb-5">{proofHeading}</h2>
         {proofList.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div data-reveal-stagger className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {proofList.map((p, i) => {
               const sourceUrls = parseSourceUrls(p.source_url);
               const hasSource = sourceUrls.length > 0;
@@ -542,7 +550,7 @@ export default async function PersonDetailPage({ params }: Props) {
 
       {/* How this profile is built */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
-        <h2 className="text-lg font-bold text-ink mb-2 tracking-tight">How this profile is built</h2>
+        <h2 className="type-h3 text-ink mb-2">How this profile is built</h2>
         <p className="text-sm text-muted leading-relaxed">
           This profile tracks book recommendations and authored books for {person.name}. We compile recommendations from public sources such as interviews, articles, social posts, and reading lists, and link to the original source wherever we have one. Some recommendations don&apos;t have a source link yet; those are shown without one. If a recommendation looks wrong or wrongly attributed, please report it.
         </p>
@@ -560,11 +568,11 @@ export default async function PersonDetailPage({ params }: Props) {
       */}
       {otherPeople.length > 0 && (
         <section className="mt-10 pt-8 border-t border-border">
-          <h2 className="text-lg font-bold text-ink mb-1 tracking-tight">Other recommenders</h2>
+          <h2 className="type-h3 text-ink mb-1">Other recommenders</h2>
           <p className="text-sm text-muted mb-5">
             More reading lists from people whose recommendations we track.
           </p>
-          <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <ul data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {otherPeople.map((p) => (
               <li key={p.slug}>
                 <Link

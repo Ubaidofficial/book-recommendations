@@ -94,7 +94,7 @@ export default async function SeriesPage({ searchParams }: Props) {
       )}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Series" }]} />
       <div className="mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Book Series</h1>
+        <h1 className="type-h1 text-ink mb-2">Book Series</h1>
         <p className="text-base text-muted">
           {q ? `Results for "${q}"` : "Complete book series in reading order."}
         </p>
@@ -113,7 +113,7 @@ export default async function SeriesPage({ searchParams }: Props) {
       {seriesList.length === 0 ? (
         <EmptyState message={q ? `No series match "${q}".` : "No series found."} />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div data-reveal-stagger className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {seriesList.map((series) => (
             <SeriesCard key={series.id} title={series.title} slug={series.slug} description={series.description} bookCount={series.book_count} />
           ))}

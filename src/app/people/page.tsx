@@ -156,7 +156,7 @@ export default async function PeoplePage({ searchParams }: Props) {
       )}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "People" }]} />
       <div className="mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">
+        <h1 className="type-h1 text-ink mb-2">
           {isSearching ? "People" : "Books Recommended by Famous People"}
         </h1>
         <p className="text-base text-muted">
@@ -178,7 +178,7 @@ export default async function PeoplePage({ searchParams }: Props) {
       {shown.length === 0 ? (
         <EmptyState message={isSearching ? `No people match "${q}".` : "No people found."} />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {shown.map((person) => (
             <PersonCard
               key={person.id}

@@ -91,8 +91,8 @@ function Section({
     if (!empty) return null;
     return (
       <section className="mb-12">
-        <h2 className="text-xl font-bold text-ink mb-2 tracking-tight">{title}</h2>
-        <p className="text-sm text-muted">{empty}</p>
+        <h2 data-reveal className="type-h2 text-ink mb-2">{title}</h2>
+        <p data-reveal className="text-sm text-muted">{empty}</p>
       </section>
     );
   }
@@ -100,7 +100,7 @@ function Section({
     <section className="mb-12">
       <div className="flex items-baseline justify-between mb-4">
         <div>
-          <h2 className="text-xl font-bold text-ink tracking-tight">{title}</h2>
+          <h2 data-reveal className="type-h2 text-ink">{title}</h2>
           {subtitle && <p className="text-sm text-muted mt-1">{subtitle}</p>}
         </div>
         {href && (
@@ -109,7 +109,7 @@ function Section({
           </Link>
         )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div data-reveal-stagger className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {lists.map((list) => (
           <ListCard
             key={list.id}
@@ -141,7 +141,7 @@ export default async function ListsPage({ searchParams }: Props) {
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
         <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Lists", href: "/lists" }, { label: `"${q}"` }]} />
         <div className="mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Search results</h1>
+          <h1 className="type-h1 text-ink mb-2">Search results</h1>
           <p className="text-base text-muted">Results for &ldquo;{q}&rdquo;</p>
         </div>
         <div className="mb-6">
@@ -151,7 +151,7 @@ export default async function ListsPage({ searchParams }: Props) {
         {results.length === 0 ? (
           <EmptyState message={`No lists match "${q}".`} />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div data-reveal-stagger className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {results.map((list) => (
               <ListCard
                 key={list.id}
@@ -184,7 +184,7 @@ export default async function ListsPage({ searchParams }: Props) {
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
         <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Lists", href: "/lists" }, { label: `All lists (page ${page})` }]} />
         <div className="mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Browse all lists</h1>
+          <h1 className="type-h1 text-ink mb-2">Browse all lists</h1>
           <p className="text-base text-muted">{total.toLocaleString()} lists total — page {page} of {totalPages}.</p>
         </div>
         <div className="mb-6">
@@ -211,7 +211,7 @@ export default async function ListsPage({ searchParams }: Props) {
         {lists.length === 0 ? (
           <EmptyState message="No lists on this page." />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div data-reveal-stagger className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {lists.map((list) => (
               <ListCard
                 key={list.id}
@@ -320,7 +320,7 @@ export default async function ListsPage({ searchParams }: Props) {
       )}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Lists" }]} />
       <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Book Lists</h1>
+        <h1 className="type-h1 text-ink mb-2">Book Lists</h1>
         <p className="text-base text-muted">Curated collections — broad categories, specific topics, and the most recommended books.</p>
       </div>
       <div className="mb-10">
@@ -343,8 +343,8 @@ export default async function ListsPage({ searchParams }: Props) {
         <section className="mb-12">
           <div className="flex items-baseline justify-between mb-4">
             <div>
-              <h2 className="text-xl font-bold text-ink tracking-tight">Featured</h2>
-              <p className="text-sm text-muted mt-1">A meta-list of the books that show up most often across every source we track.</p>
+              <h2 data-reveal className="type-h2 text-ink">Featured</h2>
+              <p data-reveal className="text-sm text-muted mt-1">A meta-list of the books that show up most often across every source we track.</p>
             </div>
           </div>
           <Link

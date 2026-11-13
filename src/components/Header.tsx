@@ -266,12 +266,14 @@ export function Header({ nav }: { nav: SiteNav }) {
   };
 
   return (
-    <header className="border-b border-border bg-surface sticky top-0 z-50">
+    <header className="border-b border-border bg-surface/90 backdrop-blur-md sticky top-0 z-50">
       <div ref={barRef} className="relative max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center gap-4 lg:gap-6">
-        <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-ink shrink-0">
+        <Link href="/" className="flex items-center gap-2.5 font-serif text-[1.375rem] font-semibold tracking-[-0.015em] text-ink shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
           <img
             src="/bookmentions-logo.png"
-            alt="BookMentions"
+            // The wordmark beside it names the link; a repeated alt made the
+            // link read "BookMentions BookMentions".
+            alt=""
             className="h-8 w-8 rounded-full object-cover"
             // Intrinsic size reserves the box before the file lands, so the
             // header does not shift the page under it on first paint.

@@ -61,10 +61,11 @@ export function ConsensusShelf({ books }: { books: NavBook[] }) {
       <div className="max-w-7xl mx-auto">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
           <div className="max-w-2xl">
-            <h2 id="consensus-heading" className="text-2xl md:text-3xl font-bold text-ink tracking-tight">
+            <p data-reveal className="eyebrow text-accent mb-2">The consensus shelf</p>
+            <h2 data-reveal id="consensus-heading" className="type-h2 text-ink">
               The books most people agree on
             </h2>
-            <p className="mt-2 text-sm md:text-base text-muted leading-relaxed">
+            <p data-reveal className="mt-2 text-sm md:text-base text-muted leading-relaxed">
               Each spine is as tall as the number of people on BookMentions who recommend that book. Pick one to take it off the shelf.
             </p>
           </div>
@@ -77,7 +78,7 @@ export function ConsensusShelf({ books }: { books: NavBook[] }) {
         </div>
 
         <div className="cs-grid">
-          <div className="cs-case">
+          <div className="cs-case" data-reveal-shelf>
             <div className="cs-scroll">
               <div
                 role="toolbar"
@@ -97,6 +98,7 @@ export function ConsensusShelf({ books }: { books: NavBook[] }) {
                     "--w": `${width}px`,
                     "--cloth": c.cloth,
                     "--ink": c.ink,
+                    "--si": i,
                   } as CSSProperties;
                   const isSelected = i === selected;
                   return (
@@ -153,11 +155,11 @@ export function ConsensusShelf({ books }: { books: NavBook[] }) {
               />
             </div>
             <div>
-              <p className="text-4xl font-bold text-accent leading-none tabular-nums">{current.count}</p>
+              <p className="stat-num text-5xl text-accent">{current.count}</p>
               <p className="mt-1 text-xs text-muted">people recommend it</p>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-ink leading-snug">{current.title}</h3>
+              <h3 className="type-h3 text-ink">{current.title}</h3>
               <p className="mt-0.5 text-xs text-muted">
                 {current.author ? `by ${current.author} · ` : ""}#{currentIdx + 1} on this shelf
               </p>

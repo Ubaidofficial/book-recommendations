@@ -24,7 +24,7 @@ export default async function AuthorsIndexPage() {
       />
 
       <div className="mb-10">
-        <h1 className="text-2xl md:text-3xl font-bold text-ink tracking-tight mb-2">
+        <h1 className="type-h1 text-ink mb-2">
           Authors
         </h1>
         <p className="text-base text-muted max-w-2xl leading-relaxed">
@@ -33,7 +33,7 @@ export default async function AuthorsIndexPage() {
       </div>
 
       {authors.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-14">
+        <div data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-14">
           {authors.map((author) => (
             <Link
               key={author.slug}

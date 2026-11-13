@@ -1,10 +1,46 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import localFont from "next/font/local";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { websiteJsonLd, organizationJsonLd } from "@/lib/jsonld";
 import { getSiteNav } from "@/lib/siteNav";
+import { Reveal } from "@/components/Reveal";
 import "./globals.css";
+
+/*
+ * Self-hosted variable fonts from @fontsource-variable (OFL-1.1), served by
+ * next/font/local: no request to a font CDN at build or run time, automatic
+ * preload, display: swap, and a size-adjusted local fallback so the swap does
+ * not shift layout. Latin subset and the weight axis only (Newsreader's
+ * optical-size file is 132 KB against 58 KB for weight only).
+ */
+const newsreader = localFont({
+  src: "../../node_modules/@fontsource-variable/newsreader/files/newsreader-latin-wght-normal.woff2",
+  weight: "200 800",
+  style: "normal",
+  display: "swap",
+  variable: "--font-newsreader",
+  fallback: ["Iowan Old Style", "Georgia", "Times New Roman", "serif"],
+  adjustFontFallback: "Times New Roman",
+});
+const inter = localFont({
+  src: "../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2",
+  weight: "100 900",
+  style: "normal",
+  display: "swap",
+  variable: "--font-inter",
+  fallback: ["system-ui", "-apple-system", "Segoe UI", "Roboto", "Arial", "sans-serif"],
+  adjustFontFallback: "Arial",
+});
+
+/*
+ * Runs before first paint. Scroll reveals only hide content once this has
+ * marked the page, so without JS (or with reduced motion) everything is
+ * simply visible. If the reveal script has not started within 4 s (a failed
+ * or very slow hydration), the class is dropped and content shows at once.
+ */
+const REVEAL_BOOT = `!function(d){try{if(!matchMedia("(prefers-reduced-motion: reduce)").matches){d.classList.add("js-reveal");setTimeout(function(){window.__reveal||d.classList.remove("js-reveal")},4000)}}catch(e){}}(document.documentElement);`;
 
 export const metadata: Metadata = {
   title: "BookMentions | Source-Backed Book Recommendations",
@@ -52,8 +88,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const nav = await getSiteNav();
 
   return (
-    <html lang="en">
+    <html lang="en" className={`${newsreader.variable} ${inter.variable}`} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: REVEAL_BOOT }} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
@@ -93,6 +130,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Header nav={nav} />
         <main className="flex-1">{children}</main>
         <Footer nav={nav} />
+        <Reveal />
       </body>
     </html>
   );

@@ -68,7 +68,7 @@ export function PersonShelf({
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] items-start">
       <div className="min-w-0">
-        <div className="rounded-2xl border border-border bg-gradient-to-b from-subtle/40 to-[#ebe5db] overflow-hidden">
+        <div className="rounded-2xl border border-border bg-gradient-to-b from-subtle/40 to-[#ebe5db] overflow-hidden" data-reveal-shelf>
           <div
             role="group"
             aria-label={`${firstName}’s shelf: pick a book`}
@@ -100,10 +100,11 @@ export function PersonShelf({
                         backgroundImage:
                           "linear-gradient(90deg, rgba(0,0,0,.30), rgba(0,0,0,.04) 22%, rgba(255,255,255,.16) 44%, rgba(0,0,0,.04) 70%, rgba(0,0,0,.28))",
                         color: b.ink,
+                        "--si": i,
                       } as CSSProperties
                     }
                     className={[
-                      "relative shrink-0 rounded-t-[3px] rounded-b-[1px] flex items-center justify-center overflow-hidden",
+                      "ps-spine relative shrink-0 rounded-t-[3px] rounded-b-[1px] flex items-center justify-center overflow-hidden",
                       "shadow-[inset_3px_0_0_rgba(0,0,0,0.18),inset_-3px_0_0_rgba(0,0,0,0.22),0_1px_0_rgba(0,0,0,0.15)]",
                       "motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out",
                       "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -117,7 +118,7 @@ export function PersonShelf({
                     <span aria-hidden="true" className="absolute inset-x-0 bottom-3 h-[2px] opacity-40" style={{ backgroundColor: b.ink }} />
                     <span
                       aria-hidden="true"
-                      className="[writing-mode:vertical-rl] rotate-180 whitespace-nowrap overflow-hidden text-ellipsis font-serif font-semibold text-[12px] leading-none tracking-tight"
+                      className="[writing-mode:vertical-rl] rotate-180 whitespace-nowrap overflow-hidden text-ellipsis font-serif font-semibold text-[12.5px] leading-none"
                       style={{ maxHeight: b.height - 30 }}
                     >
                       {b.title}
@@ -153,7 +154,7 @@ export function PersonShelf({
           />
         </div>
         <div>
-          <h3 className="text-lg font-bold text-ink leading-snug">{book.title}</h3>
+          <h3 className="type-h3 text-ink">{book.title}</h3>
           {book.author && <p className="text-sm text-muted mt-0.5">by {book.author}</p>}
         </div>
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted">

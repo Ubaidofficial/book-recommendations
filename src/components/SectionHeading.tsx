@@ -4,14 +4,22 @@ interface SectionHeadingProps {
   title: string;
   href?: string;
   linkLabel?: string;
+  /** Small uppercase label above the title. */
+  eyebrow?: string;
 }
 
-export function SectionHeading({ title, href, linkLabel }: SectionHeadingProps) {
+export function SectionHeading({ title, href, linkLabel, eyebrow }: SectionHeadingProps) {
   return (
-    <div className="flex items-end justify-between mb-6">
-      <h2 className="text-xl font-bold text-ink tracking-tight">{title}</h2>
+    <div className="flex items-end justify-between gap-4 mb-6" data-reveal>
+      <div className="min-w-0">
+        {eyebrow && <p className="eyebrow text-accent mb-2">{eyebrow}</p>}
+        <h2 className="type-h2 text-ink">{title}</h2>
+      </div>
       {href && (
-        <Link href={href} className="text-sm font-medium text-accent hover:text-accent-hover transition-colors">
+        <Link
+          href={href}
+          className="shrink-0 whitespace-nowrap pb-1 text-sm font-semibold text-accent hover:text-accent-hover transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+        >
           {linkLabel || "View all →"}
         </Link>
       )}

@@ -258,7 +258,7 @@ export default async function BooksPage({ searchParams }: Props) {
       {isDefaultLanding ? (
         <section className="mb-10 p-6 md:p-8 rounded-2xl border border-border bg-gradient-to-br from-subtle/60 to-subtle/20">
           <div className="max-w-3xl">
-            <h1 className="text-3xl md:text-4xl font-bold text-ink mb-3 tracking-tight">
+            <h1 className="type-h1 text-ink mb-3">
               Discover books recommended by notable people
             </h1>
             <p className="text-base text-muted mb-6 leading-relaxed">
@@ -346,7 +346,7 @@ export default async function BooksPage({ searchParams }: Props) {
       ) : (
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-ink mb-2 tracking-tight">Browse Books</h1>
+            <h1 className="type-h1 text-ink mb-2">Browse Books</h1>
             <p className="text-base text-muted">{subtitle}</p>
           </div>
           <Link
@@ -489,7 +489,7 @@ export default async function BooksPage({ searchParams }: Props) {
           />
         )
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
+        <div data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-5">
           {books.map((book) => (
             <BookCard
               key={book.id}

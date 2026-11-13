@@ -11,34 +11,34 @@ export const metadata: Metadata = pageMetadata({
 export default function MethodologyPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 md:px-6 py-12">
-      <h1 className="text-3xl font-bold text-ink mb-4 tracking-tight">Methodology</h1>
+      <h1 className="type-h1 text-ink mb-4">Methodology</h1>
 
-      <div className="prose prose-base text-muted max-w-none space-y-5 leading-relaxed">
-        <h2 className="text-xl font-bold text-ink mt-8">Platform Scale</h2>
+      <div className="prose-body text-muted-strong space-y-5">
+        <h2 data-reveal className="type-h2 text-ink mt-8">Platform Scale</h2>
         <p>
           BookMentions currently tracks over <strong>98,000 books</strong>, more than <strong>2,000 notable people</strong>,
           over <strong>350 curated lists</strong>, and <strong>3,500+ book series</strong>. Every entry is linked to
           verified sources where available.
         </p>
 
-        <h2 className="text-xl font-bold text-ink mt-8">Source Collection</h2>
+        <h2 data-reveal className="type-h2 text-ink mt-8">Source Collection</h2>
         <p>
           We collect book recommendations from public sources including interviews, articles, books, podcasts,
           social media posts, and curated reading lists. Each source is recorded with a URL and retrieval date.
         </p>
-        <h2 className="text-xl font-bold text-ink mt-8">Verification</h2>
+        <h2 data-reveal className="type-h2 text-ink mt-8">Verification</h2>
         <p>
           We prefer recommendations backed by a primary source and link to it wherever we have one. We
           cross-reference claims across multiple sources where available. Some entries, mostly older
           imports, don&apos;t yet have a source link; they are shown without one.
         </p>
-        <h2 className="text-xl font-bold text-ink mt-8">Ranking</h2>
+        <h2 data-reveal className="type-h2 text-ink mt-8">Ranking</h2>
         <p>
           Books are ranked primarily by recommendation count — the number of unique notable people who have
           publicly recommended them. Secondary ranking factors include recency, source quality, and the
           confidence score of each individual recommendation.
         </p>
-        <h2 className="text-xl font-bold text-ink mt-8">Quality Standards</h2>
+        <h2 data-reveal className="type-h2 text-ink mt-8">Quality Standards</h2>
         <p>
           We only surface pages when they have enough useful information, such as clear metadata,
           recommendation evidence, and related books or lists. Incomplete pages are kept out of

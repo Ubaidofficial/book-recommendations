@@ -16,7 +16,7 @@ function Column({
   if (links.length === 0) return null;
   return (
     <div className={`min-w-0 ${className}`}>
-      <h2 className="font-semibold text-ink mb-4 text-sm tracking-tight">{title}</h2>
+      <h2 className="eyebrow text-ink mb-4">{title}</h2>
       <ul className="flex flex-col gap-2.5 text-sm text-muted">
         {links.map((l) => (
           <li key={l.href} className="min-w-0">
@@ -42,11 +42,11 @@ export function Footer({ nav }: { nav: SiteNav }) {
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-12">
         <div className="grid grid-cols-2 lg:grid-cols-[1.2fr_1.3fr_1fr_1fr] gap-x-8 gap-y-10">
           <div className="col-span-2 lg:col-span-1 max-w-sm">
-            <Link href="/" className="inline-flex items-center gap-2 text-base font-bold tracking-tight text-ink">
+            <Link href="/" className="inline-flex items-center gap-2.5 font-serif text-xl font-semibold tracking-[-0.015em] text-ink">
               <img src="/bookmentions-logo.png" alt="" className="h-7 w-7 rounded-full object-cover" width={28} height={28} loading="lazy" />
               BookMentions
             </Link>
-            <p className="mt-3 text-sm text-muted leading-relaxed">
+            <p className="mt-3 font-serif text-lg leading-snug text-muted-strong">
               Books recommended by people you trust, with the source behind each pick when we have it.
             </p>
           </div>

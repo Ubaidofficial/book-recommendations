@@ -63,8 +63,8 @@ export function NewlyPublished({ lists = [], series = [], className = "py-14 px-
     <section className={className} aria-labelledby="newly-published-heading">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
-          <h2 id="newly-published-heading" className="text-xl font-bold text-ink tracking-tight">Newly published</h2>
-          <p className="text-sm text-muted mt-1">The latest lists and series added to BookMentions.</p>
+          <h2 data-reveal id="newly-published-heading" className="type-h2 text-ink">Newly published</h2>
+          <p data-reveal className="text-sm text-muted mt-1">The latest lists and series added to BookMentions.</p>
         </div>
         <div className={both ? "grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12" : "grid grid-cols-1 gap-8"}>
           <Column
