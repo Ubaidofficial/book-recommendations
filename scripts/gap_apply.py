@@ -50,18 +50,44 @@ def get(table, params):
 
 
 _catalogue = None
+_by_author = None
+
+
+def _load_catalogue():
+    global _catalogue, _by_author
+    if _catalogue is not None:
+        return
+    _catalogue, _by_author = {}, {}
+    for b in fps.sb_read_all("books", "id,slug,title,author_name"):
+        _catalogue.setdefault(cm.title_key(b["title"]), []).append(b)
+        for part in fps.tokens(b.get("author_name") or ""):
+            if len(part) >= 3:
+                _by_author.setdefault(fps.squash(part)[:4], []).append(b)
 
 
 def existing_duplicate(title: str, author: str):
-    """A book we already hold under a hyphen/spacing variant of this title and author, else None.
-    Loads the whole catalogue once (it is cheap next to the cost of a duplicate book page)."""
-    global _catalogue
-    if _catalogue is None:
-        _catalogue = {}
-        for b in fps.sb_read_all("books", "id,slug,title,author_name"):
-            _catalogue.setdefault(cm.title_key(b["title"]), []).append(b)
-    hits = [b for b in _catalogue.get(cm.title_key(title), []) if cm.author_matches(author, b.get("author_name"))]
-    return hits[0] if hits else None
+    """A book we already hold under a hyphen/spacing/spelling variant of this title and author, else None.
+    1. same squashed main title and a matching author (surnames compared with a spelling tolerance);
+    2. same author and one title running on into the other ("Wintering" vs "Wintering The Power of Rest...":
+       a subtitle stored without its colon), when the shorter key is at least 7 characters.
+    Loads the whole catalogue once (cheap next to the cost of a duplicate book page)."""
+    _load_catalogue()
+    key = cm.title_key(title)
+    hits = [b for b in _catalogue.get(key, []) if cm.author_matches(author, b.get("author_name"))]
+    if hits:
+        return hits[0]
+    sn = fps.surname(author)
+    if sn:  # alternate titles stored as "UK title / US title": any segment equal to ours is the same book
+        for b in _by_author.get(fps.squash(sn)[:4], []):
+            if "/" in b["title"] and any(cm.title_key(seg) == key for seg in b["title"].split("/")) and cm.author_matches(author, b.get("author_name")):
+                return b
+    if sn and len(key) >= 7:
+        for b in _by_author.get(fps.squash(sn)[:4], []):
+            bk = cm.title_key(b["title"])
+            short, long_ = (key, bk) if len(key) <= len(bk) else (bk, key)
+            if len(short) >= 7 and long_.startswith(short) and cm.author_matches(author, b.get("author_name")):
+                return b
+    return None
 
 
 def confidence(row) -> int:

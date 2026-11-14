@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-14 — Coverage gap closed from two outside indexes; Reddit counts; Amazon tag audit
+
+Data written to the database (all removable through `public.added_rows_20261114`, which lists every row added):
+
+- **562 recommendations** for 259 people on 537 books, and **129 new books**. Each recommendation cites the person's *own* source (their tweet, blog, interview or curated list), never an outside index, and stores a quote only if it was found word for word at that source. Confidence 80 (302 rows) or 60 (260). 464 are tweets, read from Wayback Machine snapshots and checked to be written by the person's own handle.
+- New books are `index_status='noindex'` (they do not publish until the normal enrichment + publish pipeline picks them up), carry Open Library facts only (id, cover, isbn), and were added only because a verified recommendation attaches to them. No outside descriptions or bios were copied.
+- **10,094 Reddit mention rows** (`public.book_reddit_mentions`, migration 007) for 3,885 books, from redditreads.com. The figure is a count of *users* (once per user per subreddit), not votes, and the data ends March 2023; every surface says so and credits Reddit Reads.
+
+What the guards caught (kept in the tooling): five of six "new" books were already in the catalogue with hyphens dropped ("The EMyth Revisited", "Kareem AbdulJabbar"); one more under a misspelt author ("Charlie Gillkey") and was removed again through the ledger; one under an alternate title ("Rivers of London / Midnight Riot"). Matching now ignores hyphens and spacing, tolerates a one-letter author misspelling, compares the subtitle-less main title, and handles "UK / US" alternate titles. People stored twice are resolved to the published record. Hand checks rejected host-written "Selected Links" lists, a guest's own memoir, mixed-sentiment mentions, and tweets that say "I haven't read it yet".
+
+Tooling (`scripts/`): `rtt_gap_finder.py`, `mrb_gap_finder.py`, `mrb_series_gap.py` (read-only coverage gaps), `gap_plan_new_recs.py` (verify at the primary source, enrich new books from Open Library), `gap_screen_tweets.py`, `gap_apply.py` (guarded writer with ledger), `catalog_match.py`, `reddit_reads_collect.py` / `reddit_reads_match.py`, `qa/amazon_tag_audit.js`.
+
+Amazon: **124 pages, 6,255 Amazon URLs, 0 untagged or wrongly tagged** (`bookmention09-20`). The audit reads HTML, JSON-LD and the embedded data for every book on a person page. The stored `amazon_url` values are bare product links by design; the tag is added when the page is built.
+
+Not done, deliberately: no series or people records were created or published (see `docs/series/series-publish-review-2026-11-14.md` and `docs/people/new-people-review-2026-11-14.md`).
+
 ## 2026-11-14 — Person page: the whole list, sort/filter/search, grid/list, richer 3D shelf
 
 - **All books, not 24.** The page read the first 24 recommendations, so Naval Ravikant (200) showed 24 with no way to see the rest (Bill Gates: 24 of 295). `getPersonLibrary` (`src/lib/personInsights.ts`) reads every recommendation with a lean column set (not `books(*)`, which would exceed the 2 MB data-cache entry limit), cached 5 minutes, best-evidenced first. The server HTML still holds the first 24 cards; a collapsed "Index of all N titles" keeps every book linked for crawlers that will not press "Show more".
