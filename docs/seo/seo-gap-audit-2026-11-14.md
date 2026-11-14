@@ -66,3 +66,27 @@ anonymised in Search Console. Treat every ranking figure as directional. Google'
 python3 -I scripts/qa/sitemap_audit.py            # crawl + checks (about a minute)
 # list_support_audit.sql: run in the Supabase SQL editor
 ```
+
+## Addendum (2026-11-14, later): GA4 check and further gaps
+
+**GA4 is not collecting.** Cause found in the live container (`GTM-N8SF996L`): the Google tag's Tag ID field holds the whole pasted
+snippet (`<!-- Google tag (gtag.js) --> <script async src="...gtag/js?id=G-PCTSPWJHR2">...`) instead of the bare ID `G-PCTSPWJHR2`.
+In a real browser the site requests `gtag/js?id=<!-- Google tag (gtag.js) --> <script async src=...` and sends **no** request to
+`google-analytics.com/g/collect`. Clarity and SourceTrack do fire. History before the fix cannot be recovered.
+Fix (about a minute, in the GTM UI; no code change): Tags, "GA4", Tag configuration, Tag ID = `G-PCTSPWJHR2`, Save, Submit, Publish.
+Verify with `NODE_PATH=$(npm root -g) node scripts/qa/ga4_collect_check.js` (PASS/FAIL) and GA4 Realtime.
+The OpenSEO project is not connected to GA4 (separate from the SEO Console link), so its GA4 tools return `ga4_not_connected`.
+
+Other findings in the same pass:
+
+| Finding | Detail | Severity |
+|---|---|---|
+| SourceTrack tracker loads from staging | `src/app/layout.tsx` loads `sourcetrack-api-staging.up.railway.app/tracker.min.js`. In Railway, `sourcetrack-api` has **no domain in production**; the staging domain is the only public one, so this looks like a deliberate pre-launch setup, but the data lands in staging. | Confirm intent |
+| Unknown `/books/<slug>` returns 200 | It serves `noindex, follow` and the generic home title, while `/people/`, `/lists/` and `/series/` return a true 404. Likely a side effect of the streaming `loading.tsx` on book pages (my inference, not tested). | Low |
+| Overlapping lists | `teen-young` (516 books) is entirely contained in `teen-young-adult` (568), and the `adult` list (644) contains all 568 of the young-adult books. Parent/child category lists (nonfiction contains history, business, ...) are expected and fine. | Medium: consolidate one, check what `adult` contains |
+| No brand demand or entity signals | Zero navigational queries in 90 days; `Organization` JSON-LD has name, url and logo only (no `sameAs`, contact or founder). | Low now |
+| Quote accuracy | Your own reminder (fires 2026-11-16) says 1,031 recommendations cite tweet text copied from third-party indexes, not checked against X; 21 wrong pairings were removed on 2026-11-13. I did not verify these numbers. | High for a "source-backed" site |
+| Speed (lab, Pixel 7, no throttling, not real-user data) | LCP: home 1.9 s, list 0.6 s, person 0.4 s, book 2.3 s; CLS about 0; no horizontal scroll. TTFB 0.5-0.9 s everywhere. Fine. | None |
+| Images | About half of the `<img>` tags on list and person pages have empty `alt`. If those are cover images that are the only content of a link, the link has no accessible name. Not checked further. | Low |
+| Bing | IndexNow is working (65 URLs in 24 h) but Bing shows 0 clicks and 5 impressions in 90 days. | Info |
+| Redirects, HSTS, robots.txt, markdown twins | `http` and `www` redirect to the bare HTTPS host, HSTS is set, the markdown twins carry `X-Robots-Tag: noindex`. | None |
