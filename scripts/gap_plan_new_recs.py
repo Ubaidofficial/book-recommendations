@@ -44,6 +44,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import find_primary_sources as fps  # noqa: E402
+import catalog_match as cm  # noqa: E402
 import rtt_primary_sources as rtt  # noqa: E402
 from enrich_books_metadata import extract_open_library_candidate, open_library_search  # noqa: E402
 
@@ -97,6 +98,8 @@ def main():
 
     handle_map, handle_deny, domain_map, alias_groups, interview_hosts = fps.load_house_maps()
     pairs_name, slug_col, suffix = SOURCES[args.source]
+    if args.status != "all":
+        suffix += f"_{args.status}"  # separate runs (missing_pair / missing_book) never overwrite each other
     OUT_CANDS = fps.REPORTS / f"gap_new_recs_candidates{suffix}.csv"
     OUT_PLAN = fps.REPORTS / f"gap_new_recs_plan{suffix}.csv"
     OUT_SUMMARY = fps.REPORTS / f"gap_new_recs_summary{suffix}.json"
@@ -156,7 +159,7 @@ def main():
                     c["quote_attrib"] = person["name"]
                     if c["quote"] and rtt.third_person_quote(c["quote"], person["name"]):
                         c["quote"], c["has_context_only"] = None, True
-                idx[fps.norm_title(c["title"])].append(c)
+                idx[cm.title_key(c["title"])].append(c)
             for r in rows:
                 if r["our_book_slug"] and r["our_book_slug"] in books:
                     book, is_new = books[r["our_book_slug"]], False
@@ -164,7 +167,7 @@ def main():
                     book = {"id": None, "slug": book_slug(r["book_title"], r["book_author"]), "title": r["book_title"],
                             "subtitle": None, "author_name": r["book_author"], "first_published_year": None}
                     is_new = True
-                hits = fps.book_hits(idx, book)
+                hits = [c for c in idx.get(cm.title_key(book["title"]), []) if cm.author_matches(c.get("author"), book.get("author_name"))]
                 if not hits:
                     stats["book_not_on_cached_page"] += 1
                     continue

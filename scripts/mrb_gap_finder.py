@@ -30,6 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import find_primary_sources as fps  # noqa: E402
+import catalog_match as cm  # noqa: E402
 from mrb_series_gap import name_key  # noqa: E402
 
 OUT_PEOPLE = fps.REPORTS / "mrb_gap_people.csv"
@@ -75,7 +76,7 @@ def main():
         by_squash[fps.squash(p["name"])].append(p)
     book_idx = defaultdict(list)
     for b in books:
-        book_idx[fps.norm_title(b["title"])].append(b)
+        book_idx[cm.title_key(b["title"])].append(b)
     shelf = defaultdict(set)
     for r in recs:
         shelf[r["person_id"]].add(r["book_id"])
@@ -96,8 +97,7 @@ def main():
         return uniq[0] if len(uniq) == 1 else None
 
     def our_books_for(card: dict) -> list[dict]:
-        sn = fps.surname(card.get("author"))
-        return [b for b in book_idx.get(fps.norm_title(card["title"]), []) if sn is None or sn in fps.tokens(b.get("author_name") or "")]
+        return [b for b in book_idx.get(cm.title_key(card["title"]), []) if cm.author_matches(card.get("author"), b.get("author_name"))]
 
     F = fps.Fetcher(args.offline)
     sm = F.get(f"{fps.MRB}/people/sitemap.xml", "mrb")
