@@ -33,6 +33,11 @@ interface BookCardProps {
   amazonUrl?: string | null;
   /** Analytics label for the card's Amazon button (data-track-section). */
   trackSection?: string;
+  /**
+   * Up to three people who recommend this book, with portraits. Optional: when
+   * a page does not pass it, the card renders exactly as it always has.
+   */
+  recommenders?: Array<{ slug: string; name: string; avatar: string }>;
 }
 
 export async function BookCard({
@@ -45,6 +50,7 @@ export async function BookCard({
   recommendationCount,
   amazonUrl,
   trackSection = "book-card",
+  recommenders,
 }: BookCardProps) {
   const showCover = isValidHttpUrl(coverUrl);
   const showRating = isValidRating(rating);
@@ -100,6 +106,27 @@ export async function BookCard({
               <span className="text-muted">{recommendationCount.toLocaleString()} recs</span>
             )}
           </div>
+          {recommenders && recommenders.length > 0 && (
+            <div className="mt-2.5 flex items-center gap-2 min-w-0">
+              <span className="flex -space-x-1.5 shrink-0" aria-hidden="true">
+                {recommenders.slice(0, 3).map((r) => (
+                  <SafeImage
+                    key={r.slug}
+                    src={r.avatar}
+                    alt=""
+                    width={24}
+                    height={24}
+                    className="w-6 h-6 rounded-full object-cover bg-subtle ring-2 ring-surface"
+                    fallback={<span className="w-6 h-6 rounded-full bg-accent-light ring-2 ring-surface" />}
+                  />
+                ))}
+              </span>
+              <span className="text-xs text-muted truncate">
+                {recommenders[0].name}
+                {recommendationCount > 1 ? ` + ${(recommendationCount - 1).toLocaleString()} more` : ""}
+              </span>
+            </div>
+          )}
         </div>
 
         {ctaUrl ? (

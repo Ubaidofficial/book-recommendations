@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-14 — Visual pass: cover banner, icons, marquee, hero shelf (additive only)
+
+Nothing was removed from any page; each item adds to what was there.
+
+- **Person pages:** a static strip of the person's top covers across the top, printed as a duotone in their book-cloth colour and faded into the page (`PersonCoverBanner`). Needs five or more covers; whole covers on phones, no sideways scroll.
+- **Category icons** (`CategoryIcon`, Lucide, ISC licence) on category list cards, the header's Topics chips, and a new "Browse by category" row on the home page.
+- **Recommender faces on book cards:** up to three portraits and "Name + N more" on the home page's Popular Books, from one cached, fail-soft query (`getCardRecommendersCached`). Not used on `/books`, where an earlier version of this row was removed for stability.
+- **List pages:** two slow, offset rows of the list's covers below the header (`CoverMarquee`). Decorative, stops under `prefers-reduced-motion`, placed below the H1 so the heading and first paint are unchanged.
+- **Home:** "The 5 books people recommend most", five 3D books on a shelf with rank numerals (`HeroShelf`), CSS only, above the existing consensus shelf.
+- New dependency: `lucide-react` (icons only; keep its ISC notice).
+
 ## 2026-11-14 — SEO pass on published pages (titles, caching, quality)
 
 Full write-up and numbers: `docs/seo/seo-quality-audit-2026-11-14.md`.

@@ -1947,6 +1947,72 @@ export async function getBookRecommenders(
   }
 }
 
+/**
+ * A recommender face for a book card: just enough to draw an avatar and name
+ * one person. No links, no quotes; the book page carries the evidence.
+ */
+export interface CardRecommender {
+  slug: string;
+  name: string;
+  avatar: string;
+}
+
+/**
+ * Up to `perBook` recommenders with a usable portrait for each of the given
+ * books, in ONE query (never one per card). Fail-soft by design: any error
+ * returns what it has (usually {}), so cards simply render without faces.
+ * This mirrors the filters of getBookRecommenders (no placeholder aliases, no
+ * duplicate people) but skips its second round trip for person-wide counts.
+ *
+ * Callers pass a small id list (a page's worth of cards, not a whole index).
+ */
+async function fetchCardRecommenders(bookIds: string[], perBook: number): Promise<Record<string, CardRecommender[]>> {
+  const out: Record<string, CardRecommender[]> = {};
+  if (bookIds.length === 0) return out;
+  try {
+    const { data, error } = await getSupabase()
+      .from("book_recommendations")
+      .select("book_id, confidence_score, people(slug, name, avatar_url, role, bio)")
+      .in("book_id", bookIds)
+      .order("confidence_score", { ascending: false, nullsFirst: false })
+      .limit(Math.min(1000, bookIds.length * 100));
+    if (error) {
+      logQueryError("fetchCardRecommenders", error);
+      return out;
+    }
+    type Row = {
+      book_id: string | null;
+      people: { slug: string | null; name: string | null; avatar_url: string | null; role: string | null; bio: string | null } | null;
+    };
+    const seen = new Map<string, Set<string>>();
+    for (const r of (data || []) as unknown as Row[]) {
+      const p = r.people;
+      if (!r.book_id || !p) continue;
+      const slug = (p.slug || "").trim();
+      const name = repairEncoding(p.name);
+      const avatar = (p.avatar_url || "").trim();
+      if (!slug || slug === "undefined" || slug === "null" || !name) continue;
+      // Faces only: a card of initials says less than the count already does.
+      if (!/^https?:\/\//i.test(avatar)) continue;
+      if (isProfilelessSurnameAlias({ name, role: p.role, bio: p.bio, avatar_url: p.avatar_url })) continue;
+      const have = out[r.book_id] || (out[r.book_id] = []);
+      const dedupe = seen.get(r.book_id) || seen.set(r.book_id, new Set()).get(r.book_id)!;
+      if (have.length >= perBook || dedupe.has(slug)) continue;
+      dedupe.add(slug);
+      have.push({ slug, name, avatar });
+    }
+  } catch (e) {
+    logQueryError("fetchCardRecommenders", e);
+  }
+  return out;
+}
+
+export const getCardRecommendersCached = (bookIds: string[], perBook = 3) =>
+  cachedRead(() => fetchCardRecommenders(bookIds, perBook), ["card-recommenders", String(perBook), ...[...bookIds].sort()], {
+    revalidate: 3600,
+    tags: ["books", "recommenders"],
+  })();
+
 // Phase-4 BookCard recommender row (getBookRecommenderSummaries + the
 // BookRecommenderName / BookRecommenderCardSummary types) was removed here
 // because the additional Supabase round-trips per /books request correlated

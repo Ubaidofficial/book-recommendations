@@ -4,6 +4,7 @@ import {
   getFeaturedPeopleCached,
   getFeaturedListsCached,
   getFeaturedSeriesCached,
+  getCardRecommendersCached,
   getPersonRecommendedCount,
   getPersonWrittenCount,
   getRecentlyPublishedListsCached,
@@ -11,6 +12,8 @@ import {
 } from "@/lib/data";
 import { BookCard, PersonCard, ListCard, SeriesCard, GlobalSearch, SectionHeading, HomepageVisual, NewlyPublished, SafeImage } from "@/components";
 import { ConsensusShelf } from "@/components/ConsensusShelf";
+import { CategoryIcon } from "@/components/CategoryIcon";
+import { HeroShelf } from "@/components/HeroShelf";
 import { getSiteNav } from "@/lib/siteNav";
 
 // noStore() used to sit in the component body and silently defeated this
@@ -46,6 +49,12 @@ export default async function HomePage() {
   } catch (e) {
     console.error("[homepage] QUERY_ERROR: Supabase fetch threw exception:", e);
   }
+
+  // Faces for the Popular Books cards: one cached, fail-soft query. If it
+  // fails the cards render without avatars; nothing else on the page depends on it.
+  const cardRecs = await getCardRecommendersCached(featuredBooks.map((b) => b.id)).catch(
+    () => ({}) as Awaited<ReturnType<typeof getCardRecommendersCached>>,
+  );
 
   const books = (() => {
     if (featuredBooks.length > 0) {
@@ -176,8 +185,37 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* The five most-recommended books standing on a shelf, ranked. */}
+      <HeroShelf books={siteNav.books} />
+
       {/* The books most people agree on: spine height = recommendation count */}
       <ConsensusShelf books={siteNav.books} />
+
+      {/* Browse by category: same topics the header menu links, as icon pills. */}
+      {siteNav.topics.length > 0 && (
+        <section aria-labelledby="home-categories" className="px-4 pb-14">
+          <div className="max-w-7xl mx-auto">
+            <h2 id="home-categories" className="type-h2 text-ink mb-1.5">Browse by category</h2>
+            <p className="text-sm text-muted mb-5 max-w-2xl">The most recommended books in each subject.</p>
+            <ul className="flex flex-wrap gap-2.5">
+              {siteNav.topics.map((t) => (
+                <li key={t.slug}>
+                  <Link
+                    href={`/lists/${t.slug}`}
+                    className="inline-flex items-center gap-2.5 rounded-full border border-border bg-surface pl-1.5 pr-4 py-1.5 text-sm font-medium text-ink hover:border-accent/40 hover:text-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                  >
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-accent-light text-accent" aria-hidden="true">
+                      <CategoryIcon slug={t.slug} size={15} />
+                    </span>
+                    {t.title}
+                    {t.count > 0 && <span className="text-xs font-normal text-muted tabular-nums">{t.count.toLocaleString("en-US")}</span>}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       {/* Trust / Value Strip */}
       <section className="border-y border-border bg-subtle/30 py-6 px-4">
@@ -522,7 +560,7 @@ export default async function HomePage() {
           <SectionHeading title="Popular Books" href="/books" />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5" data-reveal-stagger>
             {books.map((book) => (
-              <BookCard key={book.id} {...book} coverUrl={book.cover_image_url} authorSlug={book.author_slug} recommendationCount={book.recommendation_count} amazonUrl={book.amazon_url} />
+              <BookCard key={book.id} {...book} coverUrl={book.cover_image_url} authorSlug={book.author_slug} recommendationCount={book.recommendation_count} amazonUrl={book.amazon_url} recommenders={cardRecs[book.id]} />
             ))}
           </div>
         </div>

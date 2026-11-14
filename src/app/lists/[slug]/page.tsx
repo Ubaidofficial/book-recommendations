@@ -9,6 +9,8 @@ import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRa
 } from "@/lib/dataQuality";
 import { itemListJsonLd } from "@/lib/jsonld";
 import { getIndexableBookSlugs, bookLinkRel } from "@/lib/indexableBooks";
+import { isDisplayableCover } from "@/lib/siteNav";
+import { CoverMarquee } from "@/components/CoverMarquee";
 import { AmazonCoverLink, Avatar, Breadcrumbs, SafeImage, EmptyState, LastUpdated } from "@/components";
 
 // Declared for consistency with books/[slug] and series/[slug] (all three
@@ -653,6 +655,10 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
           </div>
         )}
       </div>
+
+      {/* Decorative drifting covers of this list. Below the heading on purpose,
+          so the H1 and first paint are unchanged. */}
+      <CoverMarquee covers={books.map((b) => b.cover_image_url).filter((u): u is string => isDisplayableCover(u))} />
 
       {startHere.length >= 3 && (
         <section className="mb-12" aria-labelledby="start-here">

@@ -27,6 +27,7 @@ import {
   type SimilarShelf,
 } from "@/lib/personInsights";
 import { PersonShelf } from "@/components/person/PersonShelf";
+import { PersonCoverBanner } from "@/components/person/PersonCoverBanner";
 import { PersonLibrary, type LibraryItem, type LibraryTopic, type LibraryRecommender } from "@/components/person/PersonLibrary";
 import { ShareButton } from "@/components/person/ShareButton";
 import { PersonTopics } from "@/components/person/PersonTopics";
@@ -303,6 +304,9 @@ export default async function PersonDetailPage({ params }: Props) {
   });
 
   return (
+    <>
+    {/* Cover strip across the top of the page: decorative, static, additive. */}
+    <PersonCoverBanner slug={person.slug} covers={spines.map((s) => s.coverUrl)} />
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
       {jsonld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonld) }} />}
       {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />}
@@ -728,5 +732,6 @@ export default async function PersonDetailPage({ params }: Props) {
         </Link>
       </div>
     </div>
+    </>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CategoryIcon } from "./CategoryIcon";
 import { displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel, type ListKind } from "@/lib/display";
 
 interface ListCardProps {
@@ -34,8 +35,14 @@ export function ListCard({ title, slug, description, bookCount, curator, kind, h
       className="group block rounded-2xl border border-border bg-surface p-5 hover:border-accent/20 motion-card-hover"
     >
       <div className="flex items-start justify-between gap-3 mb-2">
-        <h3 className="font-semibold text-base text-ink group-hover:text-accent transition-colors leading-snug">
-          {displayName}
+        <h3 className="font-semibold text-base text-ink group-hover:text-accent transition-colors leading-snug flex items-start gap-2.5">
+          {/* Subject icon on category lists only; topic and meta lists keep the plain title. */}
+          {resolvedKind === "category" && (
+            <span className="mt-px inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-light text-accent" aria-hidden="true">
+              <CategoryIcon slug={slug} size={15} />
+            </span>
+          )}
+          <span>{displayName}</span>
         </h3>
         {bookCount > 0 && (
           <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium shrink-0">
