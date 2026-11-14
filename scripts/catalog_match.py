@@ -8,6 +8,8 @@ helpers compare the SQUASHED forms (letters and digits only) instead.
 """
 from __future__ import annotations
 
+import difflib
+
 import find_primary_sources as fps
 
 
@@ -17,8 +19,16 @@ def title_key(title: str) -> str:
 
 
 def author_matches(card_author: str | None, our_author: str | None) -> bool:
-    """The card author's surname, squashed, appears inside our squashed author string (or no author to compare)."""
+    """The card author's surname matches ours: squashed containment, or a near spelling of one of our name
+    parts (Gilkey ~ Gillkey, Abdul-Jabbar ~ AbdulJabbar). No author to compare counts as a match."""
     sn = fps.surname(card_author)
     if sn is None:
         return True
-    return fps.squash(sn) in fps.squash(our_author or "")
+    want = fps.squash(sn)
+    ours = fps.squash(our_author or "")
+    if want in ours:
+        return True
+    for part in fps.tokens(our_author or ""):
+        if len(want) >= 5 and len(part) >= 5 and difflib.SequenceMatcher(None, want, fps.squash(part)).ratio() >= 0.86:
+            return True
+    return False
