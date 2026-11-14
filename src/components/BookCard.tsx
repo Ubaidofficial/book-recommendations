@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SafeImage } from "./SafeImage";
+import { getIndexableBookSlugs, bookLinkRel } from "@/lib/indexableBooks";
 import { isValidHttpUrl, isValidRating, formatRating, amazonCtaUrl, coverAltText } from "@/lib/dataQuality";
 
 // Cleaner missing-cover placeholder: subtle book-stack icon, readable title,
@@ -34,7 +35,7 @@ interface BookCardProps {
   trackSection?: string;
 }
 
-export function BookCard({
+export async function BookCard({
   title,
   slug,
   author,
@@ -48,12 +49,14 @@ export function BookCard({
   const showCover = isValidHttpUrl(coverUrl);
   const showRating = isValidRating(rating);
   const ctaUrl = amazonCtaUrl({ title, author, amazon_url: amazonUrl });
+  // Links to book pages that are not indexable are nofollow (see lib/indexableBooks.ts).
+  const rel = bookLinkRel(await getIndexableBookSlugs(), slug);
 
   return (
     <div
       className="group flex flex-col h-full rounded-2xl border border-border bg-surface overflow-hidden motion-card-hover hover:border-accent/20"
     >
-      <Link href={`/books/${slug}`} className="book-cover-tilt block aspect-[2/3] bg-subtle overflow-hidden">
+      <Link href={`/books/${slug}`} rel={rel} className="book-cover-tilt block aspect-[2/3] bg-subtle overflow-hidden">
         {/* Inner wrapper takes the hover tilt so the Link's overflow clip stays
             square to the card. */}
         <span className="book-cover-tilt-inner block relative w-full h-full">
@@ -76,7 +79,7 @@ export function BookCard({
       </Link>
       <div className="p-4 flex flex-col flex-1 justify-between">
         <div className="mb-3">
-          <Link href={`/books/${slug}`} className="block">
+          <Link href={`/books/${slug}`} rel={rel} className="block">
             <h3 className="font-semibold text-sm text-ink leading-snug mb-1 group-hover:text-accent transition-colors line-clamp-2">
               {title}
             </h3>
@@ -117,6 +120,7 @@ export function BookCard({
             </a>
             <Link
               href={`/books/${slug}`}
+              rel={rel}
               className="text-[11px] text-muted hover:text-accent hover:underline text-center font-medium transition-colors"
             >
               View recommendations →
@@ -126,6 +130,7 @@ export function BookCard({
           <div className="pt-2 border-t border-border/40 mt-auto">
             <Link
               href={`/books/${slug}`}
+              rel={rel}
               className="w-full inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-subtle hover:bg-border/30 text-ink text-xs font-semibold transition-colors text-center"
             >
               View details
