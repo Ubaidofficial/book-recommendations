@@ -7,6 +7,7 @@ import type { NavBook, NavList, NavPerson, SiteNav } from "@/lib/siteNav";
 import { spineColour } from "@/lib/spinePalette";
 import { GlobalSearch } from "./GlobalSearch";
 import { SafeImage } from "./SafeImage";
+import { CategoryIcon } from "./CategoryIcon";
 
 type MenuId = "books" | "people" | "lists";
 
@@ -82,7 +83,7 @@ function PanelHeading({ children }: { children: ReactNode }) {
   return <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted">{children}</p>;
 }
 
-function ChipLinks({ lists, onNavigate, showCount }: { lists: NavList[]; onNavigate: () => void; showCount?: boolean }) {
+function ChipLinks({ lists, onNavigate, showCount, icons }: { lists: NavList[]; onNavigate: () => void; showCount?: boolean; icons?: boolean }) {
   return (
     <ul className="flex flex-wrap gap-1.5">
       {lists.map((l) => {
@@ -94,6 +95,7 @@ function ChipLinks({ lists, onNavigate, showCount }: { lists: NavList[]; onNavig
               onClick={onNavigate}
               className={`inline-flex items-baseline gap-1.5 rounded-lg border border-border px-2.5 py-1 text-[13px] text-ink hover:border-accent hover:text-accent transition-colors ${FOCUS_RING}`}
             >
+              {icons && <CategoryIcon slug={l.slug} size={14} className="self-center text-accent" />}
               {l.title}
               {n && <span className="text-xs text-muted">{n}</span>}
             </Link>
@@ -134,7 +136,7 @@ function BooksPanel({ nav, onNavigate }: { nav: SiteNav; onNavigate: () => void 
       </div>
       <div className="min-w-0">
         <PanelHeading>Topics</PanelHeading>
-        <ChipLinks lists={nav.topics} onNavigate={onNavigate} />
+        <ChipLinks lists={nav.topics} onNavigate={onNavigate} icons />
       </div>
       <PanelFoot note="Ranked by how many people recommend each book" href="/books" label="All books →" onNavigate={onNavigate} />
     </>

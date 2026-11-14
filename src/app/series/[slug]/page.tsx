@@ -60,7 +60,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!series) return { robots: "noindex, follow" };
   const base = seriesBaseName(series.title);
   // "<author> books in order" queries are where these pages rank (and where
-  // mostrecommendedbooks.com gets most of its traffic), so the title carries
+  // competing book sites get much of their traffic), so the title carries
   // that wording — but ONLY when the page holds a real order: verified
   // positions, or verified first-publication years for most of the books.
   const { order, books } = await loadSeriesView(series.id);
