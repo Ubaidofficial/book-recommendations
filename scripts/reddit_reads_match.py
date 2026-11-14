@@ -52,6 +52,19 @@ def isbn10_to_13(s: str) -> str | None:
     return core + str(chk)
 
 
+def title_agrees(card_title: str, our_title: str) -> bool:
+    """Guard for every tier: the source title and ours must be the same book's title, ignoring punctuation,
+    spacing, a leading article and a subtitle. An ASIN/ISBN can point at the wrong book in our table; a title that
+    disagrees means the key cannot be trusted."""
+    a, b = fps.squash(fps.norm_title(card_title)), fps.squash(fps.norm_title(our_title))
+    if not a or not b:
+        return False
+    if a == b or (min(len(a), len(b)) >= 6 and (a in b or b in a)):
+        return True
+    ta, tb = set(fps.tokens(fps.norm_title(card_title))), set(fps.tokens(fps.norm_title(our_title)))
+    return bool(ta and tb) and len(ta & tb) / len(ta | tb) >= 0.6
+
+
 def sql_lit(v) -> str:
     return "'" + str(v).replace("'", "''") + "'"
 
@@ -113,6 +126,10 @@ def main():
             unmatched.append({"sub": c["sub"], "title": c["title"], "users": c["users"], "asin": c["asin"] or "", "isbn13": c["isbn13"] or "", "why": f"ambiguous_{len(ids)}"})
             continue
         bid = next(iter(ids))
+        if not title_agrees(c["title"], meta[bid]["title"]):
+            stats["title_disagree"] += 1
+            unmatched.append({"sub": c["sub"], "title": c["title"], "users": c["users"], "asin": c["asin"] or "", "isbn13": c["isbn13"] or "", "why": f"title_disagree({method}):{meta[bid]['title'][:40]}"})
+            continue
         if (meta[bid].get("recommendation_count") or 0) < args.min_recs:
             stats["below_min_recs"] += 1
             continue

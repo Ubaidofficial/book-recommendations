@@ -86,6 +86,9 @@ def main():
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--no-wayback", action="store_true")
     ap.add_argument("--no-enrich", action="store_true", help="skip Open Library lookups (new books are then not planned)")
+    ap.add_argument("--status", choices=("missing_pair", "missing_book", "all"), default="all",
+                    help="missing_pair: the book is already ours (lowest risk); missing_book: a new book is needed")
+    ap.add_argument("--max-pairs", type=int, default=100000, help="cap on gap pairs verified, published people first")
     ap.add_argument("--emit-sql", metavar="DIR")
     ap.add_argument("--batch-size", type=int, default=50)
     ap.add_argument("--pilot", type=int, default=10)
@@ -97,6 +100,12 @@ def main():
 
     people = fps.sb_read_all("people", "id,slug,name,twitter_handle,index_status")
     people_by_slug = {p["slug"]: p for p in people}
+    if args.status != "all":
+        pairs = [r for r in pairs if r["status"] == args.status]
+    # published people first (their pages are the ones readers see), then by name for a stable order
+    pairs.sort(key=lambda r: (people_by_slug[r["matched_slug"]]["index_status"] not in ("published", "approved", "indexed", "index"), r["rtt_person_slug"]))
+    pairs = pairs[: args.max_pairs]
+    fps.log(f"verifying {len(pairs)} pairs (status={args.status})")
     books = {b["slug"]: b for b in fps.sb_read_all("books", "id,slug,title,subtitle,author_name,first_published_year")}
     own = fps.Ownership(people_by_slug, handle_map, handle_deny, domain_map, alias_groups, interview_hosts)
 

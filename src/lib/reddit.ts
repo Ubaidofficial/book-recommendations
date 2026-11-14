@@ -59,7 +59,7 @@ async function fetchMentions(bookIds: string[]): Promise<Record<string, RedditMe
 export async function getRedditMentions(cacheKey: string, bookIds: string[]): Promise<Record<string, RedditMention[]>> {
   if (bookIds.length === 0) return {};
   try {
-    return await unstable_cache(() => fetchMentions(bookIds), ["reddit-mentions", cacheKey, String(bookIds.length)], {
+    return await unstable_cache(() => fetchMentions(bookIds), ["reddit-mentions-v2", cacheKey, String(bookIds.length)], {
       revalidate: 3600,
       tags: ["reddit", cacheKey],
     })();
