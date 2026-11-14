@@ -293,6 +293,33 @@ export async function getPersonLibrary(personId: string): Promise<LibraryRow[]> 
   }
 }
 
+/**
+ * True when a source URL is evidence that the person said it: not empty, and, if every URL is a tweet and the
+ * person's handle is known, at least one of those tweets is theirs. (A quote thread started by someone else
+ * still counts when it holds the person's own reply.) Without a handle any URL counts.
+ */
+export function hasOwnSource(sourceUrl: string | null | undefined, handle?: string | null): boolean {
+  const urls = (sourceUrl || "").split("|").map((u) => u.trim()).filter(Boolean);
+  if (urls.length === 0) return false;
+  const h = (handle || "").replace(/^@/, "").toLowerCase();
+  const tweets = urls.filter((u) => /(?:twitter|x)\.com\/[^/]+\/status/i.test(u));
+  if (!h || tweets.length !== urls.length) return true;
+  return tweets.some((u) => u.toLowerCase().includes(`/${h}/status`));
+}
+
+/**
+ * Titles to name as a person's top picks in a meta description: only books with evidence for the
+ * recommendation (a source that is theirs), most recommended site-wide first. Never an unsourced book, so a
+ * description does not put a claim in front of searchers that the page cannot back up.
+ */
+export function sourcedTopPicks(library: LibraryRow[], handle?: string | null, n = 3): string[] {
+  return library
+    .filter((r) => hasOwnSource(r.source_url, handle))
+    .sort((a, b) => b.recommendation_count - a.recommendation_count || a.title.localeCompare(b.title))
+    .slice(0, n)
+    .map((r) => r.title);
+}
+
 // ─── Published shelves (the basis for overlap) ───────────────────────────────
 
 async function fetchPublishedShelves(): Promise<PublishedShelf[]> {

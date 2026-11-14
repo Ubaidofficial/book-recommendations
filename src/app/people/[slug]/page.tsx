@@ -15,6 +15,7 @@ import { personJsonLd, faqPageJsonLd } from "@/lib/jsonld";
 import {
   getPersonShelf,
   getPersonLibrary,
+  sourcedTopPicks,
   getPersonTopics,
   getPersonSeries,
   getCoRecommenders,
@@ -104,9 +105,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   let count = 0;
   let picks: string[] = [];
   try {
-    const [c, shelf] = await Promise.all([getPersonRecommendedCountCached(person.id), getPersonShelf(person.id)]);
+    const [c, library] = await Promise.all([getPersonRecommendedCountCached(person.id), getPersonLibrary(person.id)]);
     count = c;
-    picks = shelf.slice(0, 3).map((b) => b.title);
+    // Only books with a source of their own: an unsourced pick would be a claim the page can't back up.
+    picks = sourcedTopPicks(library, person.twitter_handle, 3);
   } catch {
     /* fall back to stored values below */
   }
