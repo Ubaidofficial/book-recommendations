@@ -9,6 +9,7 @@ Full write-up and numbers: `docs/seo/seo-quality-audit-2026-11-14.md`.
 - **`/people` hub:** all qualifying people instead of 24, dead sort control and "More coming soon" removed, explanatory content added (292 → 755 words).
 - **Data (backed up in `bak_seo_changes_20261114`):** wrong roles fixed (James Mattis, Andrew Chen, Raoul Pal) and bios added; Music and Entrepreneurship list descriptions; three lists far below the 20-recommender gate set to `noindex`; reader notes (stored as `draft`, shown under the AI-help label) for the 14 most recommended published books that had none.
 - `scripts/qa/seo_audit.py` re-runs the full on-page/technical crawl (works against a local build with `--base`).
+- **Keyword pass (competitor titles checked):** people `James Clear Reading List (2026): 67 Book Recommendations`; lists lead their description with the exact phrase and ranking method and name the real top picks ("Most recommended here"); verified-order series `All 8 Harry Potter Books in Order (Complete List 2026)`, unverified `868 Enid Blyton Books: Full List (2026)`. Headings and FAQ questions retargeted so each long-tail phrase appears 3–5 times (before → after table in the SEO report). `scripts/qa/keyword_density.py` measures it.
 
 ## 2026-11-14 — Coverage gap closed from two outside indexes; Reddit counts; Amazon tag audit
 

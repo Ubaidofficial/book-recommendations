@@ -658,6 +658,14 @@ export function buildPersonFaq({
   const first = firstNameOf(name);
   const faq: FaqItem[] = [];
   const total = shelf.length;
+  // "What books does <name> recommend?": the question people type, answered with the real top picks.
+  const top3 = shelf.filter((b) => b.recommendation_count >= 2).slice(0, 3).map((b) => b.title);
+  if (total > 0 && top3.length >= 2) {
+    faq.push({
+      q: `What books does ${name} recommend?`,
+      a: `Books recommended by ${name} include ${joinList(top3)}: the picks from this reading list that other people on BookMentions recommend most. In all, ${total.toLocaleString("en-US")} ${total === 1 ? "book is" : "books are"} on file.`,
+    });
+  }
   if (total > 0) {
     faq.push({
       q: `How many books has ${name} recommended?`,

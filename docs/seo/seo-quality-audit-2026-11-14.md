@@ -40,6 +40,40 @@ No page is thin by word count (median 700–5,000 words).
 
 Every data change has a row in `public.bak_seo_changes_20261114` (old and new values) so it can be undone.
 
+
+## Competitor titles and descriptions (mostrecommendedbooks.com, readthistwice.com)
+Read from the pages already cached by the earlier crawls, plus five MRB list pages and three MRB series pages fetched politely (robots.txt honoured).
+
+| Page type | readthistwice | mostrecommendedbooks | What we took from it |
+|---|---|---|---|
+| Person | `117 books Naval Ravikant recommended` · "The most comprehensive list of 117 verified book recommendations from Naval Ravikant. Includes quotes and sources." | `215 Naval Ravikant Recommended Books (2026)` · "Naval Ravikant has recommended 215 books. Browse the complete reading list with quotes, sources, and links to every recommendation." | Both lead with the number; one adds the year; both promise a "complete/comprehensive list" with quotes and sources. Neither uses "reading list" or "book recommendations" in the title, which are the queries in our own Search Console data. |
+| List | n/a | `19 Best Cryptography Books (2026)` · "The best cryptography books, ranked by how many expert sources recommend each one, with notes…" | Year in the title; the description repeats the exact phrase and states how the list is ranked. |
+| Series | n/a | `All 897 Enid Blyton Books in Order (Complete List 2026)` | Count + "in order" + "complete list" + year, all in one title. |
+
+What we do instead, and why:
+- **People:** `James Clear Reading List (2026): 67 Book Recommendations`, which carries the two phrases people search that neither competitor uses, plus the year. The description: "67 books recommended by James Clear, including Sapiens… The full reading list, with sources and quotes where available."
+- **Lists:** `Best Cryptography Books (2026): Most Recommended Picks`; the description leads with the exact phrase and the ranking method, and names the real top picks ("Most recommended **here**": topic lists show the first 100 books in editorial rank order, so "here" is the accurate scope). Checked: 170 of 173 generated descriptions match the books their page shows (the other 3 were parsing artefacts in my checker).
+- **Series:** `All 8 Harry Potter Books in Order (Complete List 2026)` only where an order is verified. Without one: `868 Enid Blyton Books: Full List (2026)`. We do not claim an order we cannot verify, which is where MRB's "Enid Blyton Books in Order" overreaches.
+
+## Long-tail phrase frequency (title + description + visible text), before → after
+Measured with `scripts/qa/keyword_density.py` (before: 6 live pages per type; after: 10 per type on the new build). Target: 3–5 natural uses per phrase, no stuffing.
+
+| Page type | Phrase | Before | After |
+|---|---|---:|---:|
+| People | "<name> book recommendations" | 0 | 3 |
+| People | "books recommended by <name>" | 0 | 3 |
+| People | "<name> reading list" | 0 | 3 |
+| People | "<name> recommended books" | 1 | 1 (the H1; a fourth variant would read as repetition) |
+| Lists | "best <topic> books" | 0–1 | 5 (7 of 10; the other 3 are "Books Recommended by <person>" lists) |
+| Lists | "top <topic> books" | 0 | 3 |
+| Lists | "<topic> books to read" | 0 | 3 |
+| Series | "<name> books in order" | 1 | 4 |
+| Series | "order of <name> books" | 0 | 4 |
+| Series | "<name> reading order" | 0 | 3 |
+| Books | "books like <title>" | 1 | 2–3 |
+
+How: retargeted existing headings and FAQ questions rather than adding blocks (for example "Questions about James Clear's reading list", "Top Cryptography Books at a glance", "How we choose the best Cryptography Books", "What is the order of Barbara Cartland books?"), plus one short lede sentence on person pages and one sentence on list and series pages. Every FAQ question is also in the FAQPage markup.
+
 ## Still open (recommendations, not done)
 - **List pages are not cached.** They read `searchParams` for the sort and page controls, so they render on every request (~1 s). They are 40% of the sitemap and include the best-cryptography page.
   Fix: serve the bare URL statically and handle `?sort=`/`?page=` in a client component or a rewrite. Larger change, so I did not hack it.

@@ -193,16 +193,21 @@ export function withUpdatedYear(description: string, year: number = new Date().g
  * Matches how people search: "<name> book recommendations", "<name> reading
  * list", "books recommended by <name>".
  */
-export function personPageTitle(name: string, count: number): string {
+export function personPageTitle(name: string, count: number, year: number = new Date().getFullYear()): string {
   const who = (name || "").trim();
   if (!who) return SITE_NAME;
   if (!(count > 0)) return `Books Recommended by ${who}`;
   const n = count.toLocaleString("en-US");
   const noun = count === 1 ? "Book" : "Books";
+  // The queries in Search Console are "<name> book recommendations", "<name> reading list" and
+  // "books recommended by <name>"; both outside indexes lead with the number and one adds the year.
+  // Longest form first, so the title is never cut mid-phrase.
+  const recs = count === 1 ? "Book Recommendation" : "Book Recommendations";
   const candidates = [
-    `${who} Book Recommendations: ${n} ${noun}, With Sources`,
-    `${who}\u2019s Reading List: ${n} Recommended ${noun}`,
-    `${who} Book Recommendations (${n})`,
+    `${who} Reading List (${year}): ${n} ${recs}`,
+    `${who} Book Recommendations (${year}): ${n} ${noun}`,
+    `${who} Recommended Books (${year}): ${n}-Book List`,
+    `Books Recommended by ${who} (${year})`,
     `Books Recommended by ${who}`,
   ];
   return candidates.find((c) => c.length <= TITLE_MAX) || candidates[candidates.length - 1];
@@ -225,11 +230,13 @@ export function personMetaDescription(name: string, count: number, picks: string
   const noun = count === 1 ? "book" : "books";
   const t3 = clean.slice(0, 3);
   const t2 = clean.slice(0, 2);
+  // "<n> books recommended by <name>" is the phrase people search; the rest says what is on the page that the
+  // outside indexes do not offer: the sources, and who else recommends each book.
   const candidates = [
-    t3.length === 3 ? `${n} ${noun} ${who} recommends, including ${joinNames(t3)}. Source links where available, and who else recommends each book.` : "",
-    t3.length === 3 ? `${n} ${noun} ${who} recommends, including ${joinNames(t3)}, with source links where available.` : "",
-    t2.length === 2 ? `${n} ${noun} ${who} recommends, including ${joinNames(t2)}, with source links where available.` : "",
-    `${n} ${noun} recommended by ${who}, with source links where available.`,
+    t3.length === 3 ? `${n} ${noun} recommended by ${who}, including ${joinNames(t3)}. The full reading list with sources and quotes where available, and who else recommends each book.` : "",
+    t3.length === 3 ? `${n} ${noun} recommended by ${who}, including ${joinNames(t3)}. The full reading list, with sources and quotes where available.` : "",
+    t2.length === 2 ? `${n} ${noun} recommended by ${who}, including ${joinNames(t2)}. Full reading list with sources where available.` : "",
+    `${n} ${noun} recommended by ${who}: the full reading list, with sources where available.`,
   ].filter(Boolean);
   return candidates.find((c) => c.length <= META_DESCRIPTION_MAX) || clampDescription(candidates[candidates.length - 1]);
 }
