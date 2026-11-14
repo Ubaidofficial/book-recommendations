@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-14 — Person page: the whole list, sort/filter/search, grid/list, richer 3D shelf
+
+- **All books, not 24.** The page read the first 24 recommendations, so Naval Ravikant (200) showed 24 with no way to see the rest (Bill Gates: 24 of 295). `getPersonLibrary` (`src/lib/personInsights.ts`) reads every recommendation with a lean column set (not `books(*)`, which would exceed the 2 MB data-cache entry limit), cached 5 minutes, best-evidenced first. The server HTML still holds the first 24 cards; a collapsed "Index of all N titles" keeps every book linked for crawlers that will not press "Show more".
+- **`PersonLibrary`** (client island, no `searchParams`, so the page keeps its on-demand ISR caching): sort (most recommended, highest score, newest published, oldest, A–Z; the year sorts appear only when 10+ books have a year), topic chips with counts, "With <name>'s words" filter, search over title/author/quote, grid/list switch remembered in `localStorage` (list by default under 640 px), "Show 24 more" / "Show all", empty state, live result count. Toolbar is sticky from `md` up and static on phones. Hidden entirely for lists of 12 or fewer (the median profile has 4).
+- **Quotes on the cards.** Each card shows the person's own words (shortened to 260 chars at a word boundary) with a source link, only where `getProofDisplaySafety` clears them, so the existing attribution rules still apply. "Source & Proof" now picks its 10 strongest from the whole list instead of the first 24.
+- **Amazon demoted.** "View details" is the primary button; Amazon is a secondary outlined button (same affiliate URL, `sponsored` rel and tracking attributes).
+- **3D shelf kept and extended:** 24 spines (was 16); the panel shows the person's quote and source for the selected book, previous/next buttons with a counter (the selected spine scrolls into view on phones), the book's back cover reads "Recommended by <name>", "Browse all N books" link, taller shelf on large screens.
+- **Smaller fixes:** "Books by" is hidden unless at least one book has a cover; topic bars have a visible track; the "books recommended" figure links to the list; a jump row (Shelf / All books / Topics / Sources / FAQ).
+- Checked at 1280 and 390 px on Naval Ravikant, plus Alan Kay (8 books) and Bill Gates (295): no console errors, no horizontal overflow, all covers load, production build passes. Not covered: Safari/Firefox, screen-reader testing, Lighthouse/CLS numbers.
+
 ## 2026-11-13 — Editorial typography, scroll reveals, and three UI fixes
 
 - **Fonts:** Newsreader (serif, headings and display) and Inter (UI and body), self-hosted from `@fontsource-variable/*` (OFL-1.1) through `next/font/local`: no font CDN request at build or run time, both preloaded, `display: swap`, and size-adjusted local fallbacks (Times New Roman / Arial) so the swap shifts nothing. Latin subset, weight axis only: 58 KB + 48 KB = 104 KB of woff2. The Georgia rules (spine titles, back cover) and Tailwind's `font-serif` now use Newsreader.

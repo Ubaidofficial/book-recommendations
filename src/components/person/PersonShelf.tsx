@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { Book3D } from "@/components/Book3D";
 
 export interface ShelfSpine {
@@ -18,6 +18,11 @@ export interface ShelfSpine {
   ink: string;
   /** Has a proof card further down this page (anchor #proof-<slug>). */
   hasProof: boolean;
+  /** The person's own words about this book, vetted and shortened on the server. */
+  quote?: string | null;
+  source?: string | null;
+  sourceHost?: string | null;
+  sourceRel?: string;
 }
 
 function PanelFallback({ title }: { title: string }) {
@@ -42,15 +47,37 @@ export function PersonShelf({
   books,
   firstName,
   panelId = "shelf-focus",
+  totalCount,
+  libraryHref = "#library",
 }: {
   books: ShelfSpine[];
   firstName: string;
   panelId?: string;
+  /** Size of the person's whole list, for the "see all" link. */
+  totalCount?: number;
+  libraryHref?: string;
 }) {
   const [active, setActive] = useState(0);
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const touched = useRef(false);
   const book = books[active] ?? books[0];
+
+  // Prev/next (and a tap on a spine) can move the selection out of view on a
+  // phone, where the shelf scrolls sideways. Keep the chosen spine centred.
+  // Skipped on first render so the page never scrolls on load; block "nearest"
+  // never moves the page vertically unless the spine is off-screen.
+  useEffect(() => {
+    if (!touched.current) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    refs.current[active]?.scrollIntoView({ inline: "center", block: "nearest", behavior: reduce ? "auto" : "smooth" });
+  }, [active]);
+
   if (!book) return null;
+
+  const go = (next: number) => {
+    touched.current = true;
+    setActive(Math.min(books.length - 1, Math.max(0, next)));
+  };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const i = refs.current.findIndex((el) => el === document.activeElement);
@@ -75,7 +102,7 @@ export function PersonShelf({
             onKeyDown={onKeyDown}
             className="overflow-x-auto overscroll-x-contain"
           >
-            <div className="flex items-end justify-start sm:justify-center gap-[3px] min-w-max px-5 pt-10 min-h-[260px]">
+            <div className="flex items-end justify-start sm:justify-center gap-[3px] min-w-max px-5 pt-10 min-h-[260px] lg:min-h-[340px]">
               {books.map((b, i) => {
                 const selected = i === active;
                 return (
@@ -89,7 +116,7 @@ export function PersonShelf({
                     aria-controls={panelId}
                     aria-label={`${b.title}${b.author ? ` by ${b.author}` : ""}`}
                     title={b.title}
-                    onClick={() => setActive(i)}
+                    onClick={() => go(i)}
                     style={
                       {
                         height: b.height,
@@ -135,6 +162,14 @@ export function PersonShelf({
           Spines are ordered by how many people on BookMentions recommend each book.
           <span className="sm:hidden"> Swipe the shelf to see the rest.</span>
           <span className="hidden sm:inline"> Arrow keys move along the shelf.</span>
+          {totalCount != null && totalCount > books.length && (
+            <>
+              {" "}
+              <a href={libraryHref} className="font-semibold text-accent hover:underline underline-offset-2 whitespace-nowrap">
+                Browse all {totalCount.toLocaleString("en-US")} books ↓
+              </a>
+            </>
+          )}
         </p>
       </div>
 
@@ -150,13 +185,45 @@ export function PersonShelf({
             alt={`Book cover for “${book.title}”${book.author ? ` by ${book.author}` : ""}`}
             width={150}
             pageCount={book.pageCount}
+            backTitle={book.title}
+            backAuthor={book.author || undefined}
+            backNote={`Recommended by ${firstName}`}
             fallback={<PanelFallback title={book.title} />}
           />
         </div>
+        <p className="-mt-2 text-[11px] text-muted">
+          <span className="tabular-nums">
+            {active + 1} / {books.length}
+          </span>
+          {" · "}Drag the book to turn it over
+        </p>
         <div>
           <h3 className="type-h3 text-ink">{book.title}</h3>
           {book.author && <p className="text-sm text-muted mt-0.5">by {book.author}</p>}
         </div>
+        {book.quote && (
+          <figure className="m-0 w-full text-left">
+            <blockquote className="text-[13px] italic leading-relaxed text-muted-strong border-l-2 border-accent/30 pl-3 line-clamp-4">
+              “{book.quote}”
+            </blockquote>
+            <figcaption className="mt-1.5 pl-3 text-xs text-muted">
+              {firstName}
+              {book.source && (
+                <>
+                  {" · "}
+                  <a
+                    href={book.source}
+                    target="_blank"
+                    rel={book.sourceRel || "noopener noreferrer nofollow"}
+                    className="font-semibold text-accent hover:underline underline-offset-2"
+                  >
+                    {book.sourceHost || "Source"} ↗
+                  </a>
+                </>
+              )}
+            </figcaption>
+          </figure>
+        )}
         <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-muted">
           {book.recommendationCount > 0 && (
             <span>
@@ -170,22 +237,40 @@ export function PersonShelf({
             </span>
           ) : null}
         </div>
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="w-full flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => go(active - 1)}
+            disabled={active === 0}
+            aria-label="Previous book on the shelf"
+            className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-full border border-border text-ink hover:border-accent hover:text-accent disabled:opacity-35 disabled:hover:border-border disabled:hover:text-ink transition-colors"
+          >
+            <span aria-hidden="true">←</span>
+          </button>
           <Link
             href={`/books/${book.slug}`}
-            className="inline-flex items-center px-3.5 py-2 rounded-lg bg-accent text-white text-xs font-bold hover:bg-accent-hover transition-colors"
+            className="flex-1 inline-flex items-center justify-center min-h-11 px-3.5 rounded-lg bg-accent text-white text-xs font-bold hover:bg-accent-hover transition-colors"
           >
             See the book →
           </Link>
-          {book.hasProof && (
-            <a
-              href={`#proof-${book.slug}`}
-              className="inline-flex items-center px-3.5 py-2 rounded-lg border border-border text-ink text-xs font-semibold hover:border-accent/40 hover:text-accent transition-colors"
-            >
-              Source &amp; proof ↓
-            </a>
-          )}
+          <button
+            type="button"
+            onClick={() => go(active + 1)}
+            disabled={active === books.length - 1}
+            aria-label="Next book on the shelf"
+            className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-full border border-border text-ink hover:border-accent hover:text-accent disabled:opacity-35 disabled:hover:border-border disabled:hover:text-ink transition-colors"
+          >
+            <span aria-hidden="true">→</span>
+          </button>
         </div>
+        {book.hasProof && (
+          <a
+            href={`#proof-${book.slug}`}
+            className="-mt-1 text-xs font-semibold text-muted-strong hover:text-accent transition-colors"
+          >
+            Source &amp; proof ↓
+          </a>
+        )}
       </aside>
     </div>
   );

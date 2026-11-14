@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import {
   getPersonBySlugCached,
   getBooksByAuthorCached,
-  getPersonRecommendationProofCached,
   getPersonRecommendedCountCached,
   getPersonWrittenCountCached,
   getQualityPeopleCached,
@@ -15,15 +14,18 @@ import { isPersonPageThin } from "@/lib/thinPages";
 import { personJsonLd, faqPageJsonLd } from "@/lib/jsonld";
 import {
   getPersonShelf,
+  getPersonLibrary,
   getPersonTopics,
   getSimilarShelves,
   buildPersonFaq,
   firstNameOf,
   type ShelfBook,
+  type LibraryRow,
   type PersonTopic,
   type SimilarShelf,
 } from "@/lib/personInsights";
 import { PersonShelf } from "@/components/person/PersonShelf";
+import { PersonLibrary, type LibraryItem, type LibraryTopic } from "@/components/person/PersonLibrary";
 import { PersonTopics } from "@/components/person/PersonTopics";
 import { SimilarShelves } from "@/components/person/SimilarShelves";
 import { PersonFaq } from "@/components/person/PersonFaq";
@@ -38,6 +40,7 @@ import {
   outboundLinkRel,
   normalizeOutboundUrl,
   getProofDisplaySafety,
+  amazonCtaUrl,
 } from "@/lib/dataQuality";
 import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
 import { photoCredit } from "@/lib/photoCredit";
@@ -58,6 +61,23 @@ export const revalidate = 300;
 
 interface Props {
   params: Promise<{ slug: string }>;
+}
+
+/** Shorten a quote at a word boundary. The full text lives on the book's own page. */
+function shortenQuote(text: string, max = 260): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const space = cut.lastIndexOf(" ");
+  return `${cut.slice(0, space > max * 0.6 ? space : max).replace(/[\s,;:.\-–—]+$/, "")}…`;
+}
+
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -85,7 +105,7 @@ export default async function PersonDetailPage({ params }: Props) {
   if (!person) notFound();
 
   let writtenBooks: Awaited<ReturnType<typeof getBooksByAuthorCached>> = [];
-  let rawProof: Awaited<ReturnType<typeof getPersonRecommendationProofCached>> = [];
+  let library: LibraryRow[] = [];
   let recommendedCount = 0;
   let writtenCount = 0;
   let otherPeople: Awaited<ReturnType<typeof getQualityPeopleCached>> = [];
@@ -99,9 +119,9 @@ export default async function PersonDetailPage({ params }: Props) {
     // for a crawler walking the graph, and leaves the deeper profiles with no
     // internal path to them at all.
     let qualityPeople: Awaited<ReturnType<typeof getQualityPeopleCached>>;
-    [writtenBooks, rawProof, recommendedCount, writtenCount, qualityPeople, shelf] = await Promise.all([
+    [writtenBooks, library, recommendedCount, writtenCount, qualityPeople, shelf] = await Promise.all([
       getBooksByAuthorCached(person.id, 24),
-      getPersonRecommendationProofCached(person.id, 24),
+      getPersonLibrary(person.id),
       getPersonRecommendedCountCached(person.id),
       getPersonWrittenCountCached(person.id),
       getQualityPeopleCached(40),
@@ -145,12 +165,24 @@ export default async function PersonDetailPage({ params }: Props) {
   const faqLd = faqPageJsonLd(faq);
 
   const safeWrittenBooks = writtenBooks.filter((b) => b != null && b.id);
-  const safeProof = rawProof.filter((p) => p != null && p.book != null && p.book.id);
+  // Library rows arrive best-evidenced first (confidence, then id), so the
+  // proof cards below keep showing the strongest sources — now picked from
+  // every recommendation instead of only the first 24.
+  const safeProof = library.map((r) => ({
+    book: { id: r.id, slug: r.slug, title: r.title, author: r.author },
+    source_url: r.source_url,
+    source_name: r.source_name,
+    quote: r.quote,
+    confidence_score: r.confidence_score,
+  }));
   const recommendationProof = uniqueByNormalizedText(safeProof, "quote");
   const hasAvatar = isValidHttpUrl(person.avatar_url);
   const jsonld = personJsonLd(person);
-  const hasWritten = safeWrittenBooks.length > 0;
-  const hasRecommendations = recommendationProof.length > 0;
+  // A lone book with no cover renders as a grey placeholder card, which reads
+  // as a broken section. Show the section only when at least one book has a
+  // real cover.
+  const hasWritten = safeWrittenBooks.some((b) => isValidHttpUrl(b.cover_image_url));
+  const hasRecommendations = library.length > 0;
   // Use the lighter-weight person-bio gate so hand-curated one-sentence
   // bios (Phase A backfill: 44–109 chars) render as visible paragraphs.
   // The page's meta-description fallback (line ~33) and the JSON-LD
@@ -176,7 +208,52 @@ export default async function PersonDetailPage({ params }: Props) {
   // Spine shelf: the 16 picks most recommended across the site. The panel
   // links down to a proof card only when this page actually renders one.
   const proofSlugs = new Set(proofList.map((p) => p.book.slug).filter(Boolean));
-  const spines = toSpines(shelf.slice(0, 16), proofSlugs);
+  // The full list: one compact item per book. Quotes only appear when
+  // getProofDisplaySafety clears them; sources only when there is exactly one
+  // trustworthy URL. Topic membership becomes indexes into `libraryTopics`.
+  const libraryTopics: LibraryTopic[] = topics.map((t) => ({ slug: t.slug, title: t.title, count: t.count }));
+  const topicsByBook = new Map<string, number[]>();
+  topics.forEach((t, i) => {
+    for (const id of t.bookIds) {
+      const list = topicsByBook.get(id);
+      if (list) list.push(i);
+      else topicsByBook.set(id, [i]);
+    }
+  });
+  const libraryItems: LibraryItem[] = library
+    .map((r) => {
+      const safety = getProofDisplaySafety(
+        { quote: r.quote, source_url: r.source_url, source_name: r.source_name, confidence_score: r.confidence_score, book: { slug: r.slug, title: r.title } },
+        person,
+      );
+      const source = safety.showSource ? parseSourceUrls(r.source_url)[0] ?? null : null;
+      return {
+        slug: r.slug,
+        title: r.title,
+        author: r.author,
+        cover: isValidHttpUrl(r.cover_image_url) ? (r.cover_image_url as string) : "",
+        score: r.rating != null && r.rating > 0 ? r.rating : null,
+        recs: r.recommendation_count,
+        year: r.first_published_year,
+        amazon: amazonCtaUrl({ title: r.title, author: r.author, amazon_url: r.amazon_url }),
+        topics: topicsByBook.get(r.id) ?? [],
+        quote: safety.showQuote && safety.displayQuote ? shortenQuote(safety.displayQuote) : null,
+        source,
+        sourceHost: source ? hostOf(source) : null,
+        sourceRel: source ? outboundLinkRel(source) : "noopener noreferrer nofollow",
+      };
+    })
+    // Same order the client starts in, so the server-rendered first page and
+    // the hydrated default agree.
+    .sort((a, b) => b.recs - a.recs || a.title.localeCompare(b.title));
+  const itemBySlug = new Map(libraryItems.map((i) => [i.slug, i]));
+
+  // 24 spines (was 16): the shelf is the page's showpiece, and it scrolls
+  // sideways, so more books cost no height.
+  const spines = toSpines(shelf.slice(0, 24), proofSlugs).map((sp) => {
+    const it = itemBySlug.get(sp.slug);
+    return it ? { ...sp, quote: it.quote, source: it.source, sourceHost: it.sourceHost, sourceRel: it.sourceRel } : sp;
+  });
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
@@ -284,7 +361,11 @@ export default async function PersonDetailPage({ params }: Props) {
           <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5">
             <div className="flex flex-col-reverse">
               <dt className="mt-1.5 text-xs text-muted">{recommendedCount === 1 ? "book recommended" : "books recommended"}</dt>
-              <dd className="stat-num text-4xl text-accent">{recommendedCount.toLocaleString("en-US")}</dd>
+              <dd className="stat-num text-4xl text-accent">
+                <a href="#books-h" className="hover:underline underline-offset-4 decoration-accent/40">
+                  {recommendedCount.toLocaleString("en-US")}
+                </a>
+              </dd>
             </div>
             <div className="flex flex-col-reverse">
               <dt className="mt-1.5 text-xs text-muted">{writtenCount === 1 ? "book written" : "books written"}</dt>
@@ -321,73 +402,51 @@ export default async function PersonDetailPage({ params }: Props) {
         </aside>
       </div>
 
+      {/* In-page jump links: the page is long, and on a phone the sections
+          below the list are a long scroll away. Plain anchors, no script. */}
+      <nav aria-label="On this page" className="-mt-4 mb-10 -mx-4 px-4 md:mx-0 md:px-0 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {[
+          ...(spines.length >= 3 ? [{ href: "#shelf-h", label: "Shelf" }] : []),
+          ...(hasRecommendations ? [{ href: "#books-h", label: `All books · ${libraryItems.length.toLocaleString("en-US")}` }] : []),
+          ...(topics.length > 0 ? [{ href: "#topics-h", label: "Topics" }] : []),
+          ...(proofList.length > 0 ? [{ href: "#proof-h", label: "Sources" }] : []),
+          ...(faq.length > 0 ? [{ href: "#faq-h", label: "FAQ" }] : []),
+        ].map((l) => (
+          <a
+            key={l.href}
+            href={l.href}
+            className="shrink-0 inline-flex items-center min-h-10 px-4 rounded-full border border-border bg-surface text-xs font-semibold text-ink hover:border-accent/40 hover:text-accent transition-colors"
+          >
+            {l.label}
+          </a>
+        ))}
+      </nav>
+
       {/* On the shelf — the person's most-recommended picks as spines. */}
       {spines.length >= 3 && (
-        <section className="mb-14" aria-labelledby="shelf-h">
+        <section className="mb-14 scroll-mt-20" aria-labelledby="shelf-h">
           <h2 data-reveal id="shelf-h" className="type-h2 text-ink mb-1.5">On the shelf</h2>
           <p data-reveal className="text-sm text-muted max-w-2xl mb-5">
             {spines.length === shelf.length
               ? `All ${shelf.length} of ${firstName}’s picks. Choose a book to take it off the shelf.`
               : `The ${spines.length} of ${firstName}’s ${shelf.length.toLocaleString("en-US")} picks that the most people recommend. Choose a book to take it off the shelf.`}
           </p>
-          <PersonShelf books={spines} firstName={firstName} />
+          <PersonShelf books={spines} firstName={firstName} totalCount={libraryItems.length} />
         </section>
       )}
 
       {/* Recommended Books */}
       {hasRecommendations ? (
-        <section className="mb-14">
-          <h2 data-reveal className="type-h2 text-ink mb-1.5">Recommended Books</h2>
-          <p data-reveal className="text-xs text-muted max-w-2xl mb-5">
-            These books include Amazon options and source proof where available.
+        <section className="mb-14 scroll-mt-20" aria-labelledby="books-h">
+          <h2 data-reveal id="books-h" className="type-h2 text-ink mb-1.5">
+            {libraryItems.length > 1 ? `All ${libraryItems.length.toLocaleString("en-US")} books ` : "Books "}
+            {firstName} recommends
+          </h2>
+          <p data-reveal className="text-sm text-muted max-w-2xl mb-5">
+            {libraryItems.length > 12 ? "Sort, filter by topic or search the whole list. " : ""}
+            Where we have {firstName}’s own words about a book, they appear on its card with a link to the source.
           </p>
-          {/* Density: lg:grid-cols-5 (was lg:grid-cols-6) loosens the
-              desktop pack so each cover gets more breathing room. Mobile
-              (grid-cols-2) and the intermediate sm/md breakpoints are
-              unchanged. lg:gap-6 widens the between-card spacing to
-              match the new column width. */}
-          <div data-reveal-stagger className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5 lg:gap-6">
-            {recommendationProof.map((p, i) => {
-              const matchedProof = proofList.find((pl) => pl.book.id === p.book.id);
-              const cardCue = matchedProof ? matchedProof.safety.cardCue : "none";
-              return (
-                // One Amazon button per card: BookCard renders it (with the
-                // book's own Amazon URL, falling back to an Amazon search).
-                // This page used to append a second "View on Amazon" below
-                // every card, so each book showed two identical buttons.
-                <div key={`${p.book.id}-${i}`} className="flex flex-col h-full justify-between">
-                  <div>
-                    <BookCard
-                      title={p.book.title}
-                      slug={p.book.slug}
-                      author={p.book.author}
-                      authorSlug={p.book.author_slug}
-                      coverUrl={p.book.cover_image_url}
-                      rating={p.book.rating}
-                      recommendationCount={p.book.recommendation_count}
-                      amazonUrl={p.book.amazon_url}
-                      trackSection="people-detail-rec"
-                    />
-                    {cardCue !== "none" && p.book.slug ? (
-                      <div className="mt-2.5 flex flex-col items-center justify-center gap-1 text-[11px] text-center">
-                        <span className="font-semibold text-emerald-700 flex items-center gap-0.5 justify-center">
-                          {cardCue === "proof" ? "✓ Source proof available" : "✓ Source link available"}
-                        </span>
-                        <a
-                          href={`#proof-${p.book.slug}`}
-                          className="text-accent hover:underline font-semibold"
-                        >
-                          {cardCue === "proof" ? "View proof ↓" : "View source ↓"}
-                        </a>
-                      </div>
-                    ) : (
-                      <div className="mt-2.5 h-[34px]" aria-hidden="true" />
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <PersonLibrary items={libraryItems} topics={libraryTopics} firstName={firstName} />
         </section>
       ) : (
         <section className="mb-14">
@@ -430,7 +489,7 @@ export default async function PersonDetailPage({ params }: Props) {
 
       {/* Source & Proof / Recommendation Signals */}
       <section className="mb-14">
-        <h2 data-reveal className="type-h2 text-ink mb-5">{proofHeading}</h2>
+        <h2 data-reveal id="proof-h" className="type-h2 text-ink mb-5 scroll-mt-20">{proofHeading}</h2>
         {proofList.length > 0 ? (
           <div data-reveal-stagger className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {proofList.map((p, i) => {

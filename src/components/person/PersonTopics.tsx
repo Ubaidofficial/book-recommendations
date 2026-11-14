@@ -14,7 +14,7 @@ export function PersonTopics({
   if (topics.length === 0) return null;
   const max = topics[0].count || 1;
   return (
-    <section className="mb-14" aria-labelledby="topics-h">
+    <section className="mb-14 scroll-mt-20" aria-labelledby="topics-h">
       <h2 data-reveal id="topics-h" className="type-h2 text-ink mb-1.5">
         What {firstName} reads most
       </h2>
@@ -33,7 +33,7 @@ export function PersonTopics({
               <span className="text-xs text-muted">
                 {t.count} of {firstName}’s {t.count === 1 ? "book" : "books"}
               </span>
-              <span className="block h-1 rounded-full bg-border overflow-hidden" aria-hidden="true">
+              <span className="block h-1.5 rounded-full bg-accent-light overflow-hidden" aria-hidden="true">
                 <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.max(4, Math.round((t.count / max) * 100))}%` }} />
               </span>
             </Link>
