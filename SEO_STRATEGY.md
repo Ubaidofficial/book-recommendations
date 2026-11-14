@@ -10,6 +10,7 @@ These pages are set to `index, follow`:
 - `/lists` — Lists index
 - `/series` — Series index
 - `/about` — About page
+- `/methodology` — how recommendations are collected and ranked (indexable since 2026-11-14: it is the trust page the footer and home page link to)
 
 ## Noindex Rules
 
@@ -24,7 +25,6 @@ Supabase row has `index_status = 'index'`:
 A few pages are **permanently noindex** (no `index_status` gate — not on a
 path to ever being indexed):
 
-- `/methodology` — not worth the crawl budget over the higher-value pages above
 - `/authors`, `/authors/[slug]` — derived author-catalog pages with no independent quality signal beyond the books they list
 
 ## Implementation
@@ -71,3 +71,12 @@ it spends crawl on pages we do not want indexed.
   builds). A failed or empty read is never cached; the route then falls back to
   the uncached build.
 
+
+## Measured tests (do not judge before the review date)
+
+| Started | Change | Pages | Baseline (Search Console, 90 days to 2026-11-14) | Review |
+|---|---|---|---|---|
+| 2026-11-14 | Year the list was last edited added to the `<title>` | `/lists/best-cryptography-books`, `/lists/best-sailing-books` | cryptography: 5,463 impressions, 0 clicks, average position 6.05 (queries "cryptography books 2024/2025/2026"); sailing: 130 impressions on "sailing books 2024" at position 8.1 | 4 weeks after Google's November 2026 core update finishes (it began 2026-11-10 and was still rolling out on 2026-11-14) |
+
+The cryptography page also has an intent mismatch the title cannot fix: its top book is a novel (*Snow Crash*, 33 recommenders) while the
+results page is textbooks, Reddit threads and an AI Overview. See `docs/seo/seo-gap-audit-2026-11-14.md`.

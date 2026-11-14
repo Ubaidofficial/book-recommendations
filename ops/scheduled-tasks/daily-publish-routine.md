@@ -3,6 +3,22 @@ name: BookRecs — Daily publish (7 lists + 6 series/day)
 schedule: 11:05 UTC daily (cloud scheduled task trig_01KRqR5QGotDNahzJf6dJryQ)
 ---
 
+> **STALE as of 2026-11-14.** This file mirrors the old "7 lists + 6 series a day" task. That task
+> (`trig_01KRqR5QGotDNahzJf6dJryQ`, and its successors `trig_01GWWZihZ7pvJpq7x9ccJXhM` and
+> `trig_016yezYPxvDhPpmyT16KpHXc`) is **disabled**. The live task is
+> `trig_01Vj5MAsYC7HpdaCFaioSnPU`, "Daily publish (max 2 pages) + indexing push (12 URLs/day)": at most
+> 2 new pages a day, lists and series combined, plus a daily IndexNow push and a Search Console
+> request-indexing list. It was cut back on 2026-11-14 so pages already published can get indexed first.
+> The live task's prompt is the source of truth; read it with `get_trigger` before editing anything here.
+>
+> Known gap in the list gate below (found 2026-11-14): `>= 20 distinct recommenders` is counted across the
+> whole list, so one very popular book can carry a list whose other books have no recommendations
+> (`best-cryptography-books`: *Snow Crash* has 33 recommenders, 11 of the next 14 books have none).
+> 17 of 191 published lists have fewer than 5 books with 2+ recommenders. Proposed addition, not yet applied
+> to the live task: also require at least 5 books with 2+ recommendations and no single book above 70% of
+> all recommendations (`scripts/qa/list_support_audit.sql`).
+
+
 <!-- Mirror of the cloud scheduled task that actually publishes the site each
 day. This is a copy: the live task only changes when its instructions are
 updated from the conversation it posts into. Paste everything below the line

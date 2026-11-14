@@ -25,6 +25,9 @@ interface Props {
   searchParams: Promise<{ sort?: string }>;
 }
 
+/** Lists whose <title> carries the year they were last edited (a measured test, not a sitewide rule). */
+const YEAR_IN_TITLE_TEST_SLUGS = new Set(["best-cryptography-books", "best-sailing-books"]);
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const list = await getListBySlugCached(slug);
@@ -48,8 +51,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // A missing share image is not worth failing metadata generation over.
   }
 
+  // Year-in-title test (started 2026-11-14): only these lists, because they
+  // are the ones where Search Console shows year-qualified queries ("cryptography
+  // books 2024/2025/2026", "sailing books 2024") and result pages from competitors
+  // carry the year. The year is the year the list was last edited, not today's
+  // date, so the title never claims a freshness the page does not have. Baseline
+  // and review date: docs/seo/seo-gap-audit-2026-11-14.md.
+  const yearTest = YEAR_IN_TITLE_TEST_SLUGS.has(list.slug);
+  const editedYear = yearTest ? contentDates(list).modified?.slice(0, 4) : undefined;
   return pageMetadata({
-    title: seoName,
+    title: editedYear ? `${seoName} (${editedYear})` : seoName,
     description: listMetaDescription(list.description, seoName, topBooks),
     path: `/lists/${list.slug}`,
     image: ogImage,

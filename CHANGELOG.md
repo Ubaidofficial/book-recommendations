@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-14 — SEO gap audit: methodology page indexable, year-in-title test, audit tooling
+
+- **`/methodology` is now indexable** (was `noindex` and disallowed in `robots.txt`) and listed in the sitemap. It is linked from the footer (so every page) and the home page, and it is where the "ranked by real people" claim is backed up. The copy now only states what the code does: lists order books by recommendation count, ties by rating; sales rank is not a factor; the unverifiable "recency / source quality / confidence" ranking factors were removed. New sections say plainly that counts of 1-2 are thin evidence and that some lists have few recommendations, and disclose the Amazon affiliate links (already `rel="sponsored"`).
+- **Year-in-title test** on `best-cryptography-books` and `best-sailing-books` only: the `<title>` carries the year the list was last edited, e.g. "Best Cryptography Books (2026) | BookMentions". Baseline and review date are in `docs/seo/seo-gap-audit-2026-11-14.md`.
+- **Tooling:** `scripts/qa/sitemap_audit.py` crawls the live sitemap and reports noindex-in-sitemap, canonical/redirect problems, duplicate titles, thin pages, orphan pages, internal `nofollow` counts and Amazon links missing `sponsored`. `scripts/qa/list_support_audit.sql` ranks published lists by how much real recommendation support they have.
+- **Docs:** the publishing-routine mirror in `ops/scheduled-tasks/` is marked stale (the live task has been capped at 2 pages a day since 2026-11-14). `SEO_STRATEGY.md` updated.
+- Not changed: no data was written, no list was un-published, and the live scheduled tasks were not edited.
+
 ## 2026-11-13 — Editorial typography, scroll reveals, and three UI fixes
 
 - **Fonts:** Newsreader (serif, headings and display) and Inter (UI and body), self-hosted from `@fontsource-variable/*` (OFL-1.1) through `next/font/local`: no font CDN request at build or run time, both preloaded, `display: swap`, and size-adjusted local fallbacks (Times New Roman / Arial) so the swap shifts nothing. Latin subset, weight axis only: 58 KB + 48 KB = 104 KB of woff2. The Georgia rules (spine titles, back cover) and Tailwind's `font-serif` now use Newsreader.
