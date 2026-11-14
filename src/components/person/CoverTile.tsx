@@ -2,6 +2,7 @@ import Link from "next/link";
 import { SafeImage } from "@/components/SafeImage";
 import { coverAltText, isValidHttpUrl } from "@/lib/dataQuality";
 import type { ShelfBook } from "@/lib/personInsights";
+import { getIndexableBookSlugs, bookLinkRel } from "@/lib/indexableBooks";
 
 function NoCover({ title }: { title: string }) {
   return (
@@ -12,10 +13,11 @@ function NoCover({ title }: { title: string }) {
 }
 
 /** A cover that reads as a bound book (spine crease, hover turn), title and count. */
-export function CoverTile({ book }: { book: ShelfBook }) {
+export async function CoverTile({ book }: { book: ShelfBook }) {
   const hasCover = isValidHttpUrl(book.cover_image_url);
+  const rel = bookLinkRel(await getIndexableBookSlugs(), book.slug);
   return (
-    <Link href={`/books/${book.slug}`} className="group block">
+    <Link href={`/books/${book.slug}`} rel={rel} className="group block">
       <span className="book-cover-tilt block aspect-[2/3] rounded-[3px_6px_6px_3px] overflow-hidden bg-subtle shadow-[0_10px_18px_-10px_rgba(58,40,28,0.55)]">
         <span className="book-cover-tilt-inner block relative w-full h-full">
           {hasCover ? (
@@ -46,11 +48,13 @@ export function CoverTile({ book }: { book: ShelfBook }) {
 }
 
 /** Compact row: small cover, title, author, count. */
-export function BookRow({ book }: { book: ShelfBook }) {
+export async function BookRow({ book }: { book: ShelfBook }) {
   const hasCover = isValidHttpUrl(book.cover_image_url);
+  const rel = bookLinkRel(await getIndexableBookSlugs(), book.slug);
   return (
     <Link
       href={`/books/${book.slug}`}
+      rel={rel}
       className="group flex items-center gap-3 rounded-lg p-1.5 -mx-1.5 hover:bg-subtle/70 transition-colors"
     >
       <span className="w-10 h-[60px] shrink-0 rounded-[2px_4px_4px_2px] overflow-hidden bg-subtle shadow-[inset_3px_0_0_rgba(0,0,0,0.15),0_4px_8px_-4px_rgba(58,40,28,0.5)]">

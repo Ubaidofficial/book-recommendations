@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { unstable_cache } from "next/cache";
 import { BASE_URL, INDEXABLE_STATUSES } from "@/lib/seo";
 import { createClient } from "@supabase/supabase-js";
 import { getThinDetailSlugs } from "@/lib/thinPages";
@@ -27,7 +28,7 @@ function parseTimestamp(value: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-async function getIndexableEntries(table: string): Promise<IndexableEntry[]> {
+async function getIndexableEntries(table: string, strict = false): Promise<IndexableEntry[]> {
   try {
     const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const entries: IndexableEntry[] = [];
@@ -42,6 +43,8 @@ async function getIndexableEntries(table: string): Promise<IndexableEntry[]> {
         .neq("slug", "")
         .range(offset, offset + PAGE - 1);
 
+      // strict (the cached build): a failed read must throw, never end up in the cache as a short list.
+      if (error && strict) throw error;
       if (error || !data || data.length === 0) break;
       for (const row of data) {
         if (!row.slug) continue;
@@ -55,7 +58,8 @@ async function getIndexableEntries(table: string): Promise<IndexableEntry[]> {
       offset += PAGE;
     }
     return entries;
-  } catch {
+  } catch (e) {
+    if (strict) throw e;
     return [];
   }
 }
@@ -70,16 +74,20 @@ function newestOf(entries: IndexableEntry[]): Date | undefined {
   return newest;
 }
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // One round-trip per table instead of four in series — this route is
-  // force-dynamic, so every crawler hit pays the full cost.
+async function buildSitemap(strict: boolean): Promise<MetadataRoute.Sitemap> {
+  // One round-trip per table instead of four in series.
   const [allPeople, lists, allBooks, series, thin] = await Promise.all([
-    getIndexableEntries("people"),
-    getIndexableEntries("lists"),
-    getIndexableEntries("books"),
-    getIndexableEntries("series"),
+    getIndexableEntries("people", strict),
+    getIndexableEntries("lists", strict),
+    getIndexableEntries("books", strict),
+    getIndexableEntries("series", strict),
     getThinDetailSlugs(createClient(SUPABASE_URL, SUPABASE_ANON_KEY)),
   ]);
+  // Every table has published rows. An empty one means the read went wrong, and a
+  // sitemap built from it must not be cached (the caller falls back to an uncached build).
+  if (strict && (!allPeople.length || !lists.length || !allBooks.length || !series.length)) {
+    throw new Error("sitemap: a table came back empty; refusing to cache a degraded sitemap");
+  }
   // Thin-page floor (src/lib/indexing.ts): published person/book pages with
   // almost nothing on them are noindex, so they stay out of the sitemap too.
   // A failed check returns empty sets, which removes nothing.
@@ -135,4 +143,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...entriesFor("series", series, 0.75),
     ...compareEntries,
   ];
+}
+
+/**
+ * Cold, the build above took 40-50 s (full-catalogue reads plus the thin-page
+ * and compare checks) and every crawler hit paid it, which is longer than a
+ * crawler will wait. Cache the finished sitemap for an hour; after that the
+ * stale copy is served while a fresh one is built in the background. A newly
+ * published page appears within about an hour. Dates come back from the cache
+ * as ISO strings, which the sitemap format accepts.
+ */
+const getCachedSitemap = unstable_cache(() => buildSitemap(true), ["sitemap-v1"], {
+  revalidate: 3600,
+  tags: ["sitemap"],
+});
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  try {
+    return await getCachedSitemap();
+  } catch {
+    // The cache layer or a strict read failed: serve the old uncached build rather than no sitemap.
+    return buildSitemap(false);
+  }
 }

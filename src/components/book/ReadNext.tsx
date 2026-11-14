@@ -4,13 +4,15 @@ import { coverAltText } from "@/lib/dataQuality";
 import { displayBookTitle } from "@/lib/display";
 import type { ReadNextBook } from "@/lib/bookInsights";
 import { BookSectionHeading } from "./primitives";
+import { getIndexableBookSlugs, bookLinkRel } from "@/lib/indexableBooks";
 
 /**
  * "Read next": the books most often recommended by the same people who
  * recommend this one, with the overlap stated as a count of people.
  */
-export function ReadNext({ bookTitle, books }: { bookTitle: string; books: ReadNextBook[] }) {
+export async function ReadNext({ bookTitle, books }: { bookTitle: string; books: ReadNextBook[] }) {
   if (books.length < 2) return null;
+  const indexable = await getIndexableBookSlugs();
   return (
     <section className="mb-16" aria-labelledby="read-next">
       <BookSectionHeading
@@ -23,7 +25,7 @@ export function ReadNext({ bookTitle, books }: { bookTitle: string; books: ReadN
           const title = displayBookTitle(b.title);
           return (
             <li key={b.id} className="min-w-0">
-              <Link href={`/books/${b.slug}`} className="group block text-center">
+              <Link href={`/books/${b.slug}`} rel={bookLinkRel(indexable, b.slug)} className="group block text-center">
                 <span className="book-cover-tilt block mx-auto w-full max-w-[150px]">
                   <span className="book-cover-tilt-inner relative block aspect-[2/3] overflow-hidden rounded-[3px_6px_6px_3px] bg-subtle shadow-[0_14px_24px_-12px_rgba(58,40,28,0.55),0_2px_6px_rgba(58,40,28,0.12)]">
                     <SafeImage

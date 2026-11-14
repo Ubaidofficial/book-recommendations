@@ -48,3 +48,26 @@ Each detail page's `generateMetadata()` uses this to set the `robots` meta tag.
 5. **Phase 5**: Sitemap generation with index_status-based prioritization.
 
 Each phase only indexes pages that meet quality thresholds.
+
+## Discovery of noindex pages (links and sitemap)
+
+Only the pages in the sitemap are meant to be indexed, and publishing them in
+phases (daily quota, `index_status`) is the only switch. Google can still
+*discover* noindex pages by following links, and in Search Console that shows
+as "Excluded by 'noindex' tag" (42k+ on 2026-11-09). That is not an error, but
+it spends crawl on pages we do not want indexed.
+
+- **Links.** A link to a book page that is not indexable carries
+  `rel="nofollow"` (`src/lib/indexableBooks.ts`, used by `BookCard`,
+  `CoverTile`/`BookRow`, `ReadNext` and the list and people pages). Visitors
+  click through as before. A book's links turn into normal links within an hour
+  of it being published. nofollow is a hint to Google, not a directive, and it
+  lowers *new* discovery; URLs Google already knows stay known for a long time.
+  If the indexable set cannot be read, no link is nofollowed (fails open).
+  Not covered: header/footer/search links (they point at published books) and
+  the client components `PersonShelf` and `ConsensusShelf`.
+- **Sitemap.** `/sitemap.xml` is built from several full-catalogue reads and took
+  40-50 s cold. It is now cached for an hour (stale copy served while a fresh one
+  builds). A failed or empty read is never cached; the route then falls back to
+  the uncached build.
+

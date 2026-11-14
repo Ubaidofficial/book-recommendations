@@ -5,11 +5,27 @@ const { URL } = require("url");
 const BASE = process.env.QA_BASE_URL || "https://bookmentions.net";
 const EXPECTED_TAG = "bookmention09-20";
 
+// Verify only these URLs (comma-separated paths or full URLs) instead of
+// crawling. This is the post-publish check: run it on exactly the pages that
+// went live today. Any 404, untagged or wrongly tagged Amazon link fails it.
+//   QA_PATHS=/lists/best-books-about-japan,/series/dune-books-in-order node scripts/qa/amazon_monetization_crawl.js
+const onlyPaths = (process.env.QA_PATHS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean)
+  .map((p) => (/^https?:\/\//i.test(p) ? new URL(p).pathname : p));
+
+// Full crawls also walk /sitemap.xml, so series, people, compare and every
+// other published page is checked, not only what /books and /lists link to.
+// Set QA_SITEMAP=0 to skip.
+const useSitemap = process.env.QA_SITEMAP !== "0";
+
 const baseSeedPaths = [
   "/",
   "/books",
   "/lists",
   "/people",
+  "/series",
   "/lists/most-recommended-books",
   "/lists/best-business-books",
   "/lists/personal-development",
@@ -70,8 +86,29 @@ const OTHER_ASSOCIATE_PARAMS = ["ascsubtag", "linkcode", "linkid", "creative", "
     console.error("Error discovering lists:", e.message);
   }
 
-  const seedPaths = [...baseSeedPaths, sciFiSeed];
+  const seedPaths = onlyPaths.length ? [] : [...baseSeedPaths, sciFiSeed];
   const discovered = new Set(seedPaths);
+  onlyPaths.forEach((p) => discovered.add(p));
+
+  if (!onlyPaths.length && useSitemap) {
+    try {
+      const { status, body } = await fetchPath("/sitemap.xml");
+      if (status === 200) {
+        const base = new URL(BASE);
+        for (const m of body.matchAll(/<loc>([^<]+)<\/loc>/g)) {
+          try {
+            const u = new URL(decodeHtml(m[1]));
+            if (u.host === base.host) discovered.add(u.pathname || "/");
+          } catch {}
+        }
+        console.log(`Sitemap added paths; ${discovered.size} so far.`);
+      } else {
+        console.warn(`Sitemap returned status ${status}; crawling seeds only.`);
+      }
+    } catch (e) {
+      console.error("Error reading sitemap:", e.message);
+    }
+  }
 
   console.log(`Starting crawl with ${seedPaths.length} seed paths...`);
   for (const path of seedPaths) {
@@ -123,9 +160,19 @@ const OTHER_ASSOCIATE_PARAMS = ["ascsubtag", "linkcode", "linkid", "creative", "
 
       const emptyHref = /href=""|src=""/.test(body);
 
-      const hrefs = [...body.matchAll(/href="([^"]*(?:amazon|amzn\.|\/\/a\.co)[^"]*)"/gi)]
-        .map((m) => decodeHtml(m[1]))
-        .filter(isPurchaseAmazonUrl);
+      // Check what a visitor or crawler is actually given: rendered links and
+      // JSON-LD (e.g. Book.sameAs). Next.js's streamed-data <script> blocks
+      // hold escaped, chunk-split copies of the same strings, so they are
+      // dropped to avoid false alarms.
+      const jsonLd = [...body.matchAll(/<script[^>]*application\/ld\+json[^>]*>(.*?)<\/script>/gis)].map((m) => m[1]);
+      const rendered = body.replace(/<script(?![^>]*application\/ld\+json)[^>]*>.*?<\/script>/gis, "");
+      const linkHrefs = [...rendered.matchAll(/href="([^"]*(?:amazon|amzn\.|\/\/a\.co)[^"]*)"/gi)].map((m) => decodeHtml(m[1]));
+      const ldUrls = jsonLd.flatMap((blob) =>
+        [...blob.matchAll(/https?:\\?\/\\?\/(?:[^"\s\\]|\\\/|\\u0026)*?(?:amazon|amzn\.|\/\/a\.co)(?:[^"\s\\]|\\\/|\\u0026)*/gi)].map((m) =>
+          m[0].replace(/\\\//g, "/").replace(/\\u0026/g, "&")
+        )
+      );
+      const hrefs = [...linkHrefs, ...ldUrls].filter(isPurchaseAmazonUrl);
 
       const missing = [];
       const wrong = [];

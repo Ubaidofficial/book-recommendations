@@ -139,7 +139,8 @@ BACKUP_DIR = os.path.join(PROJECT, "backups")
 
 MAX_WORKERS = 3
 MIN_CAND_WIDTH = 180
-MIN_RATIO, MAX_RATIO = 1.2, 1.8
+MIN_RATIO, MAX_RATIO = 1.2, 1.8  # height/width of an acceptable cover; see --min-ratio/--max-ratio
+TITLE_ONLY_FALLBACK = {"on": False}  # --title-only-fallback
 UNIFORM_STD = 3.0          # grayscale stddev on a 32x32 thumbnail
 AHASH_MAX_DIST = 6         # Hamming distance (of 64 bits) to a known placeholder
 FUZZY_MIN = 0.90
@@ -950,6 +951,18 @@ def recover_one(book: Dict[str, Any], state: str, detail: str, google_fallback: 
     core = _strip_subtitle(title).strip()
     if not docs and core and core != title:
         docs = ol_search(core, author) or []
+    # Opt-in (--title-only-fallback): Open Library often files an author's books under a
+    # different credit ("ENID BLYTON LTD", a publisher, an illustrator), so the title+author
+    # query finds nothing. Search by title alone and let the checks below decide: every
+    # candidate still needs an exact/near-exact title AND an author surname match.
+    if TITLE_ONLY_FALLBACK["on"] and not any(
+        title_match(title, d.get("title") or "")[0] != "none"
+        and author_match(author, d.get("author_name") or [])
+        for d in docs
+    ):
+        seen_keys = {d.get("key") for d in docs}
+        extra = ol_search(title, "") or []
+        docs = list(docs) + [d for d in extra if d.get("key") not in seen_keys]
 
     scored: List[Tuple[Tuple, Dict[str, Any], str, float]] = []
     for d in docs:
@@ -1332,7 +1345,7 @@ def do_write(args: argparse.Namespace) -> int:
 # ────────────────────────────────────────────────────────────────────────────
 
 def main() -> int:
-    global MAX_WORKERS, SHOWN_CACHE_TTL
+    global MAX_WORKERS, SHOWN_CACHE_TTL, MIN_RATIO, MAX_RATIO
     ap = argparse.ArgumentParser(description="Find correct covers for shown books with missing/broken/placeholder covers (dry-run by default).")
     ap.add_argument("--census", action="store_true", help="classify every shown book's current cover and exit")
     ap.add_argument("--limit", type=int, default=0, help="max non-ok target books (0 = all)")
@@ -1351,6 +1364,12 @@ def main() -> int:
                     help="run the text-page heuristic on every OL/storage cover too (slow: downloads each)")
     ap.add_argument("--no-suspect", action="store_true", help="skip the google/foreign/text-page checks on ok covers")
     ap.add_argument("--shown-ttl-hours", type=float, default=2.0, help="max age of the cached shown set")
+    ap.add_argument("--min-ratio", type=float, default=MIN_RATIO,
+                    help="lowest accepted cover height/width (default 1.2; children's booklets and annuals are squarer, try 0.85)")
+    ap.add_argument("--max-ratio", type=float, default=MAX_RATIO, help="highest accepted cover height/width (default 1.8)")
+    ap.add_argument("--title-only-fallback", action="store_true",
+                    help="also search Open Library by title alone when title+author finds no matching work "
+                         "(author surname and title are still checked on every candidate)")
     # write path
     ap.add_argument("--write", action="store_true", help="apply a reviewed dry-run CSV (gated)")
     ap.add_argument("--confirm", action="store_true", help="required with --write")
@@ -1361,6 +1380,8 @@ def main() -> int:
 
     SUSPECT_CHECK["on"] = not args.no_suspect
     TEXT_PAGE_ALL["on"] = args.text_page_all
+    MIN_RATIO, MAX_RATIO = args.min_ratio, args.max_ratio
+    TITLE_ONLY_FALLBACK["on"] = args.title_only_fallback
     MAX_WORKERS = max(1, min(3, args.workers))
     CENSUS_PATH["p"] = args.census_out
     SHOWN_CACHE_TTL = args.shown_ttl_hours * 3600
