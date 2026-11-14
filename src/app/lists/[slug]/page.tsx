@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getListBySlugCached, getBooksForListCached, getBooksForListByRecommendationsCached, getRelatedListsCached, getRecommendersForBooksCached, getRecommenderRefsForBooksCached } from "@/lib/data";
-import { pageMetadata, robotsDirective, contentDates } from "@/lib/seo";
+import { pageMetadata, robotsDirective, contentDates, listPageTitle, withUpdatedYear } from "@/lib/seo";
 import { displayBookTitle, displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel } from "@/lib/display";
 import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, amazonCtaUrl,
   coverAltText,
@@ -49,8 +49,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   return pageMetadata({
-    title: seoName,
-    description: listMetaDescription(list.description, seoName, topBooks),
+    // "(2026): Most Recommended Picks": the year and hook people search for (see listPageTitle).
+    title: listPageTitle(seoName),
+    description: withUpdatedYear(listMetaDescription(list.description, seoName, topBooks)),
     path: `/lists/${list.slug}`,
     image: ogImage,
     robots: robotsDirective(list),

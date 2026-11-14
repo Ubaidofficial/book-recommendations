@@ -45,6 +45,15 @@ async function loadSeriesView(seriesId: string) {
   return orderSeriesBooks(rawBooks, hasPositions);
 }
 
+/**
+ * No params are prerendered, so each page is generated on its first request and then cached for
+ * `revalidate` seconds. Without this export the route is fully dynamic (Cache-Control: private,
+ * no-store) whatever `revalidate` says.
+ */
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const series = await getSeriesBySlugCached(slug);

@@ -154,6 +154,87 @@ export function bookPageTitle(
 }
 
 /**
+ * List page <title>. People search "best cryptography books 2026", not the bare
+ * topic, and a year plus a hook is what turns a position-6 impression into a
+ * click (best-cryptography-books: 5,463 impressions, 0 clicks, 2026-08..11).
+ * The list is computed from current recommendation data at render time, so the
+ * current year is accurate. A name that already carries a year is left as it is.
+ *
+ * Longest form first, falling back so the title is never cut mid-phrase.
+ */
+export function listPageTitle(seoName: string, year: number = new Date().getFullYear()): string {
+  const name = (seoName || "").replace(/\s+/g, " ").trim();
+  if (!name || /\b(?:19|20)\d{2}\b/.test(name)) return name;
+  // "Books Recommended by Elon Musk": the person is the topic, not the year.
+  if (/^books recommended by /i.test(name)) {
+    return [`${name}: Full Reading List`, name].find((c) => c.length <= TITLE_MAX) || name;
+  }
+  const already = /most recommended|top \d+|best of/i.test(name);
+  const candidates = already
+    ? [`${name} (${year})`, name]
+    : [`${name} (${year}): Most Recommended Picks`, `${name} (${year}): Top Picks`, `${name} (${year})`, name];
+  return candidates.find((c) => c.length <= TITLE_MAX) || name;
+}
+
+/** Appends "Updated <year>." to a description when it fits and does not already say so. */
+export function withUpdatedYear(description: string, year: number = new Date().getFullYear()): string {
+  const text = (description || "").trim();
+  if (!text || /\b(?:19|20)\d{2}\b/.test(text)) return text;
+  const out = `${text.replace(/\s*$/, "")} Updated ${year}.`;
+  return out.length <= META_DESCRIPTION_MAX ? out : text;
+}
+
+/**
+ * Person page <title>, built from the REAL recommendation count. Published rows
+ * carry a number frozen into meta_title ("310 Books Recommended by Bill Gates"
+ * while the page lists 295), which contradicts the page and goes stale with
+ * every added recommendation, so the stored title is not used.
+ *
+ * Matches how people search: "<name> book recommendations", "<name> reading
+ * list", "books recommended by <name>".
+ */
+export function personPageTitle(name: string, count: number): string {
+  const who = (name || "").trim();
+  if (!who) return SITE_NAME;
+  if (!(count > 0)) return `Books Recommended by ${who}`;
+  const n = count.toLocaleString("en-US");
+  const noun = count === 1 ? "Book" : "Books";
+  const candidates = [
+    `${who} Book Recommendations: ${n} ${noun}, With Sources`,
+    `${who}\u2019s Reading List: ${n} Recommended ${noun}`,
+    `${who} Book Recommendations (${n})`,
+    `Books Recommended by ${who}`,
+  ];
+  return candidates.find((c) => c.length <= TITLE_MAX) || candidates[candidates.length - 1];
+}
+
+function joinNames(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/** Person meta description from the real count and their most-recommended books. */
+export function personMetaDescription(name: string, count: number, picks: string[]): string {
+  const who = (name || "").trim();
+  const all = picks.map((t) => t.trim()).filter(Boolean);
+  // A title with a comma ("Thinking, Fast and Slow") makes "A, B and C, D and E" ambiguous: prefer picks without one.
+  const plain = all.filter((t) => !t.includes(","));
+  const clean = plain.length >= 2 ? plain : all;
+  if (!who || !(count > 0)) return "";
+  const n = count.toLocaleString("en-US");
+  const noun = count === 1 ? "book" : "books";
+  const t3 = clean.slice(0, 3);
+  const t2 = clean.slice(0, 2);
+  const candidates = [
+    t3.length === 3 ? `${n} ${noun} ${who} recommends, including ${joinNames(t3)}. Source links where available, and who else recommends each book.` : "",
+    t3.length === 3 ? `${n} ${noun} ${who} recommends, including ${joinNames(t3)}, with source links where available.` : "",
+    t2.length === 2 ? `${n} ${noun} ${who} recommends, including ${joinNames(t2)}, with source links where available.` : "",
+    `${n} ${noun} recommended by ${who}, with source links where available.`,
+  ].filter(Boolean);
+  return candidates.find((c) => c.length <= META_DESCRIPTION_MAX) || clampDescription(candidates[candidates.length - 1]);
+}
+
+/**
  * Upper bound for a meta description. Google truncates the SERP snippet
  * somewhere around 155–160 characters on desktop; anything past that is
  * wasted and often makes the snippet end mid-word.

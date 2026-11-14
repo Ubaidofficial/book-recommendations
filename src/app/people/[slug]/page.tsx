@@ -8,7 +8,7 @@ import {
   getPersonWrittenCountCached,
   getQualityPeopleCached,
 } from "@/lib/data";
-import { pageMetadata, contentDates } from "@/lib/seo";
+import { pageMetadata, contentDates, personPageTitle, personMetaDescription } from "@/lib/seo";
 import { detailRobotsDirective } from "@/lib/indexing";
 import { isPersonPageThin } from "@/lib/thinPages";
 import { personJsonLd, faqPageJsonLd } from "@/lib/jsonld";
@@ -85,17 +85,40 @@ function hostOf(url: string): string | null {
   }
 }
 
+/**
+ * Cached static shell: with no params prerendered, every person page is generated on its first
+ * request and then served from the cache for `revalidate` seconds. Without this export the route
+ * is fully dynamic (Cache-Control: private, no-store) whatever `revalidate` says.
+ */
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const person = await getPersonBySlugCached(slug);
   if (!person) return { robots: "noindex, follow" };
-  const desc = isUsefulDescription(person.meta_description)
-    ? person.meta_description
-    : isUsefulDescription(person.bio)
-      ? person.bio
-      : undefined;
+  // Title and description come from the REAL count and top picks (same cached reads the page makes).
+  // The stored meta_title/meta_description hold a count frozen at write time ("310 Books Recommended
+  // by Bill Gates" over a page listing 295) and are only a fallback when the reads fail.
+  let count = 0;
+  let picks: string[] = [];
+  try {
+    const [c, shelf] = await Promise.all([getPersonRecommendedCountCached(person.id), getPersonShelf(person.id)]);
+    count = c;
+    picks = shelf.slice(0, 3).map((b) => b.title);
+  } catch {
+    /* fall back to stored values below */
+  }
+  const dynamicDesc = personMetaDescription(person.name, count, picks);
+  const desc = dynamicDesc
+    || (isUsefulDescription(person.meta_description)
+      ? person.meta_description
+      : isUsefulDescription(person.bio)
+        ? person.bio
+        : undefined);
   return pageMetadata({
-    title: person.meta_title || `${person.name} — Books & Recommendations`,
+    title: count > 0 ? personPageTitle(person.name, count) : person.meta_title || `${person.name} — Books & Recommendations`,
     description: desc || "",
     path: `/people/${person.slug}`,
     image: isValidHttpUrl(person.avatar_url) ? person.avatar_url : undefined,

@@ -87,6 +87,15 @@ interface Props {
 const joinNames = (names: string[]) =>
   names.length <= 1 ? names[0] || "" : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 
+/**
+ * No params are prerendered, so each page is generated on its first request and then cached for
+ * `revalidate` seconds. Without this export the route is fully dynamic (Cache-Control: private,
+ * no-store) whatever `revalidate` says.
+ */
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const book = await getBookBySlugCached(slug);

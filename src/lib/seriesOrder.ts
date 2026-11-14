@@ -82,7 +82,8 @@ export function orderSeriesBooks(
 
 export function seriesPageTitle(base: string, order: SeriesOrder): string {
   // Only a verified full order earns "in Order". A partial order is still not a claim of one.
-  return order === "position" || order === "publication" ? `${base} Books in Order` : `${base} Books`;
+  // Without a verified order the title does not claim one; it says what the page is: the full list.
+  return order === "position" || order === "publication" ? `${base} Books in Order` : `${base} Books: Complete List`;
 }
 
 export interface FaqItem {
