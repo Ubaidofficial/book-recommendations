@@ -44,7 +44,8 @@ export default function MethodologyPage() {
         <p>
           Within a list, books are ordered by how many people recommend them, with ties broken by the book&apos;s
           rating where we have one. Sales rank is not a factor. The recommendation count is shown next to each
-          book so you can judge how much support a pick has.
+          book so you can judge how much support a pick has. Where we show the evidence behind a
+          recommendation (the quote and its source), the entries with the highest confidence score are shown first.
         </p>
 
         <h2 data-reveal className="type-h2 text-ink mt-8">What the counts can and can&apos;t tell you</h2>

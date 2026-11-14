@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-14 (evening) — Methodology wording, support-gate patch
+
+- `/methodology` now says the highest-confidence evidence is shown first (checked against `src/lib/data.ts`; books are ranked by recommendation count, then rating).
+- `ops/scheduled-tasks/support-gate-patch.md`: the stricter list gate (5+ books with 2+ recommendations, no book above 70% of recommendations) as an exact patch for the live publishing task. Not applied: a routine's prompt can only be edited from its own conversation.
+- OpenSEO AI-answer tracker enabled (5 prompts, 3 engines, weekly). No site code or data changed.
+
 ## 2026-11-14 — SEO gap audit: methodology page indexable, year-in-title test, audit tooling
 
 - **`/methodology` is now indexable** (was `noindex` and disallowed in `robots.txt`) and listed in the sitemap. It is linked from the footer (so every page) and the home page, and it is where the "ranked by real people" claim is backed up. The copy now only states what the code does: lists order books by recommendation count, ties by rating; sales rank is not a factor; the unverifiable "recency / source quality / confidence" ranking factors were removed. New sections say plainly that counts of 1-2 are thin evidence and that some lists have few recommendations, and disclose the Amazon affiliate links (already `rel="sponsored"`).

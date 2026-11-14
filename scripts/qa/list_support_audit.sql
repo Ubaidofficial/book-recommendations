@@ -19,4 +19,5 @@ select slug, book_count, books_with_rec, books_with_2plus, total_rec, top_rec,
        round(100.0 * top_rec / nullif(total_rec, 0)) as top_book_share_pct
 from t
 order by books_with_2plus asc, top_book_share_pct desc;
--- Proposed stricter gate for new lists: books_with_2plus >= 5 AND top_book_share_pct <= 70.
+-- Proposed stricter gate for new lists: books_with_2plus >= 5 AND top_book_share_pct <= 70
+-- (exact guarded UPDATE in ops/scheduled-tasks/support-gate-patch.md).

@@ -90,3 +90,13 @@ Other findings in the same pass:
 | Images | About half of the `<img>` tags on list and person pages have empty `alt`. If those are cover images that are the only content of a link, the link has no accessible name. Not checked further. | Low |
 | Bing | IndexNow is working (65 URLs in 24 h) but Bing shows 0 clicks and 5 impressions in 90 days. | Info |
 | Redirects, HSTS, robots.txt, markdown twins | `http` and `www` redirect to the bare HTTPS host, HSTS is set, the markdown twins carry `X-Robots-Tag: noindex`. | None |
+
+## Decisions taken (2026-11-14, evening)
+
+| # | Item | Outcome |
+|---|---|---|
+| 1 | Noindex the three clearest weak lists | **Already done by someone else before I acted.** `best-gardening-books`, `best-dog-training-books` and `best-coffee-table-books` are `index_status = 'noindex'` (live robots `noindex, follow`, not in the sitemap; their `updated_at` was not touched, so I can't say who changed them). I made no change. The other 14 weak published lists are unchanged and need a one-by-one call: business-plan, HR, interviewing, cryptography, anthropology, grief, sailing, enneagram, steampunk, botany, dragon, immigration, pregnancy, serial-killer. |
+| 2 | Stricter publishing gate | **Not applied.** The platform refuses prompt edits to a routine from any conversation but its own. Patch and instructions: `ops/scheduled-tasks/support-gate-patch.md`. The new condition was tested read-only against all lists (160 pass, 14 fail support, 2 fail the 70% test only). |
+| 3 | AI-answer tracking | **Done.** OpenSEO tracker saved and enabled: 5 prompts, ChatGPT + Google AI Overviews + Perplexity, US/English, weekly. Estimate about $0.21 per check, about $0.85 a month. First check due 2026-11-22 08:38 UTC. Pause with `set_ai_visibility_schedule` (enabled: false). |
+| 5 | Removed ranking factors | **Left out, with one true sentence added.** In `src/lib/data.ts`, books in lists are ordered by `recommendation_count` (then rating). `confidence_score` only orders which proofs and recommenders appear first on a book or person page; `recommended_at` orders a person's book list. Recency and source quality do not rank books. The methodology page now says the highest-confidence evidence is shown first. |
+

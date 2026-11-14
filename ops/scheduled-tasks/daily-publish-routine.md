@@ -14,8 +14,8 @@ schedule: 11:05 UTC daily (cloud scheduled task trig_01KRqR5QGotDNahzJf6dJryQ)
 > Known gap in the list gate below (found 2026-11-14): `>= 20 distinct recommenders` is counted across the
 > whole list, so one very popular book can carry a list whose other books have no recommendations
 > (`best-cryptography-books`: *Snow Crash* has 33 recommenders, 11 of the next 14 books have none).
-> 17 of 191 published lists have fewer than 5 books with 2+ recommenders. Proposed addition, not yet applied
-> to the live task: also require at least 5 books with 2+ recommendations and no single book above 70% of
+> 17 of 191 published lists have fewer than 5 books with 2+ recommenders. Proposed addition (patch ready in
+> `support-gate-patch.md`, NOT yet applied: a routine's prompt can only be edited from the conversation it posts into): also require at least 5 books with 2+ recommendations and no single book above 70% of
 > all recommendations (`scripts/qa/list_support_audit.sql`).
 
 
