@@ -10,6 +10,7 @@ Nothing was removed from any page; each item adds to what was there.
 - **List pages:** two slow, offset rows of the list's covers below the header (`CoverMarquee`). Decorative, stops under `prefers-reduced-motion`, placed below the H1 so the heading and first paint are unchanged.
 - **Home:** "The 5 books people recommend most", five 3D books on a shelf with rank numerals (`HeroShelf`), CSS only, above the existing consensus shelf.
 - New dependency: `lucide-react` (icons only; keep its ISC notice).
+- **Data (one row):** a recommendation quote (John Sipher's tweet on *Red Sparrow*) opened by addressing another book site by its handle. The opening "Ok @…, here are" was trimmed to "Here are". The original row is kept in `public.bak_quote_trim_20261114`. After this, no rendered text or source field in books, lists, people, series or recommendations names a source site.
 
 ## 2026-11-14 — SEO pass on published pages (titles, caching, quality)
 
