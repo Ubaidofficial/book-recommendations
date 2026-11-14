@@ -62,6 +62,7 @@ export function BookCard({
               src={coverUrl}
               alt={coverAltText(title, author)}
               className="w-full h-full object-cover"
+              adaptiveFit
               fallback={<NoCoverFallback title={title} />}
             />
           ) : (
