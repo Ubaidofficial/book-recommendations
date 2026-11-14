@@ -36,6 +36,8 @@ export interface LibraryItem {
   also: number[];
   /** How many other published people recommend it (can exceed `also.length`). */
   alsoTotal: number;
+  /** Reddit Reads: the biggest list the book is on (a user count, not votes). */
+  reddit: { users: number; label: string } | null;
 }
 
 export interface LibraryRecommender {
@@ -50,7 +52,7 @@ export interface LibraryTopic {
   count: number;
 }
 
-type SortKey = "popular" | "score" | "newest" | "oldest" | "az";
+type SortKey = "popular" | "reddit" | "score" | "newest" | "oldest" | "az";
 type View = "grid" | "list";
 
 const PAGE_STEP = 24;
@@ -60,6 +62,7 @@ const VIEW_KEY = "bm-person-view";
 
 const SORT_LABELS: Record<SortKey, string> = {
   popular: "Most recommended",
+  reddit: "Most on Reddit",
   score: "Highest score",
   newest: "Newest published",
   oldest: "Oldest first",
@@ -77,6 +80,8 @@ function byNullable(a: number | null, b: number | null, dir: 1 | -1): number {
 function compare(sort: SortKey): (a: LibraryItem, b: LibraryItem) => number {
   const popular = (a: LibraryItem, b: LibraryItem) => b.recs - a.recs || a.title.localeCompare(b.title);
   switch (sort) {
+    case "reddit":
+      return (a, b) => byNullable(a.reddit?.users ?? null, b.reddit?.users ?? null, -1) || popular(a, b);
     case "score":
       return (a, b) => byNullable(a.score, b.score, -1) || popular(a, b);
     case "newest":
@@ -173,6 +178,16 @@ function Card({
           {item.recs > 0 && <span className="text-muted">{item.recs.toLocaleString("en-US")} recs</span>}
           {item.year != null && <span className="text-muted tabular-nums">· {item.year}</span>}
         </div>
+        {item.reddit && (
+          <p
+            className="mt-1.5 inline-flex items-center gap-1.5 text-[11px] text-muted-strong w-fit"
+            title={`Linked by ${item.reddit.users.toLocaleString("en-US")} users in ${item.reddit.label} (Reddit Reads, data to March 2023). A user count, not votes.`}
+          >
+            <span aria-hidden="true" className="inline-block w-2 h-2 rounded-full bg-[#ff4500]" />
+            <span className="tabular-nums font-semibold text-ink">{item.reddit.users.toLocaleString("en-US")}</span>
+            <span>Reddit users · {item.reddit.label}</span>
+          </p>
+        )}
 
         {chips.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -376,10 +391,14 @@ export function PersonLibrary({
   };
 
   const withYear = useMemo(() => items.filter((i) => i.year != null).length, [items]);
+  const withReddit = useMemo(() => items.filter((i) => i.reddit).length, [items]);
   const quoteCount = useMemo(() => items.filter((i) => i.quote).length, [items]);
   const sortKeys = useMemo(
-    () => (Object.keys(SORT_LABELS) as SortKey[]).filter((k) => (k === "newest" || k === "oldest" ? withYear >= 10 : true)),
-    [withYear],
+    () =>
+      (Object.keys(SORT_LABELS) as SortKey[]).filter((k) =>
+        k === "newest" || k === "oldest" ? withYear >= 10 : k === "reddit" ? withReddit >= 10 : true,
+      ),
+    [withYear, withReddit],
   );
 
   const q = query.trim().toLowerCase();

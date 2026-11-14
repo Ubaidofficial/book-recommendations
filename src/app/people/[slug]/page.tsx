@@ -47,6 +47,7 @@ import {
 } from "@/lib/dataQuality";
 import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
 import { photoCredit } from "@/lib/photoCredit";
+import { getRedditMentions, redditHeadline, redditLabel } from "@/lib/reddit";
 
 /**
  * Incremental static regeneration.
@@ -117,6 +118,7 @@ export default async function PersonDetailPage({ params }: Props) {
   let similar: SimilarShelf[] = [];
   let seriesByBook: Awaited<ReturnType<typeof getPersonSeries>> = {};
   let coRecs: Awaited<ReturnType<typeof getCoRecommenders>> = { people: [], byBook: {} };
+  let reddit: Awaited<ReturnType<typeof getRedditMentions>> = {};
 
   try {
     // Person pages linked to books and to nothing else — zero person->person
@@ -143,11 +145,12 @@ export default async function PersonDetailPage({ params }: Props) {
   // of this person's book ids. Each helper already returns [] on failure.
   const shelfIds = shelf.map((b) => b.id);
   try {
-    [topics, similar, seriesByBook, coRecs] = await Promise.all([
+    [topics, similar, seriesByBook, coRecs, reddit] = await Promise.all([
       getPersonTopics(person.id, shelfIds, 8),
       getSimilarShelves(person, shelfIds, 8),
       getPersonSeries(person.id, shelfIds),
       getCoRecommenders(person, shelfIds),
+      getRedditMentions(`person:${person.id}`, shelfIds),
     ]);
   } catch (e) {
     console.error("[person-detail] Shelf insights failed:", e);
@@ -251,6 +254,10 @@ export default async function PersonDetailPage({ params }: Props) {
         series: seriesByBook[r.id] ?? null,
         also: coRecs.byBook[r.id]?.idx ?? [],
         alsoTotal: coRecs.byBook[r.id]?.total ?? 0,
+        reddit: (() => {
+          const h = redditHeadline(reddit[r.id]);
+          return h ? { users: h.users, label: redditLabel(h.subreddit) } : null;
+        })(),
       };
     })
     // Same order the client starts in, so the server-rendered first page and

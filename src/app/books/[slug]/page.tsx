@@ -37,6 +37,8 @@ import { AmazonCoverLink, Avatar, Book3D, BookCard, Breadcrumbs, SafeImage, Last
 import { BookSectionHeading, DraftNotesLabel, FactsRow, type Fact } from "@/components/book/primitives";
 import { ReaderFit } from "@/components/book/ReaderFit";
 import { ProfessionBars } from "@/components/book/ProfessionBars";
+import { RedditMentions } from "@/components/book/RedditMentions";
+import { getRedditMentions, type RedditMention } from "@/lib/reddit";
 import { UnlikelyPair } from "@/components/book/UnlikelyPair";
 import { SourceEvidence } from "@/components/book/SourceEvidence";
 import { ReadNext } from "@/components/book/ReadNext";
@@ -147,9 +149,11 @@ export default async function BookDetailPage({ params }: Props) {
   let listSimilarBooks: Awaited<ReturnType<typeof getSimilarBooksByLists>> = [];
   let notableRecommenders: BookRecommenderSummary[] = [];
   let insights: BookInsights = EMPTY_INSIGHTS;
+  let redditMentions: RedditMention[] = [];
 
   try {
-    [authorBooks, seriesBooks, lists, listSimilarBooks, notableRecommenders, insights] = await Promise.all([
+    let redditByBook: Record<string, RedditMention[]> = {};
+    [authorBooks, seriesBooks, lists, listSimilarBooks, notableRecommenders, insights, redditByBook] = await Promise.all([
       personId ? getBooksByAuthor(personId, 6) : Promise.resolve([]),
       seriesId ? getBooksBySeries(seriesId, 100) : Promise.resolve([]),
       getListsForBook(book.id, 8),
@@ -158,7 +162,9 @@ export default async function BookDetailPage({ params }: Props) {
       // Source evidence, professions, unlikely pair and read-next. Never
       // throws; empty sections hide themselves.
       getBookInsights(book.id, book.title),
+      getRedditMentions(`book:${book.id}`, [book.id]),
     ]);
+    redditMentions = redditByBook[book.id] ?? [];
   } catch (e) {
     console.error("[book-detail] Relation queries failed:", e);
   }
@@ -785,6 +791,8 @@ export default async function BookDetailPage({ params }: Props) {
       <ProfessionBars roles={insights.roles} />
 
       <UnlikelyPair pair={insights.unlikelyPair} />
+
+      <RedditMentions bookTitle={bookTitle} mentions={redditMentions} />
 
       <SourceEvidence bookTitle={bookTitle} confirmed={insights.confirmed} unconfirmed={insights.unconfirmed} />
 
