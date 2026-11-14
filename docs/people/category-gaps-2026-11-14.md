@@ -47,3 +47,10 @@ Matched against Wikipedia short descriptions. **Name matching is unreliable: Sha
 1. Add a `category` (or roles array) to people so the hub can group and filter by it, instead of free text.
 2. Review the 1,025 draft people with >= 5 recs: drop junk rows, fill role/bio/avatar from a primary or Wikipedia source, publish the verified ones. Prioritise the empty categories above.
 3. Add BookAuthority-style category pages (for example `/people/category/economists`) only once each has >= 5 published people, to respect the thin-page gates.
+
+## Pilot published (2026-11-14)
+
+Selected from the 14 candidates by the share of their recommendations that lack a source or cite only other people's tweets (12-47%; handles used for that check were typed from memory, so treat the ranking as approximate). The three with the lowest share and a licence-checked portrait went live: **Sam Harris** (scientists / philosophy), **Michael Pollan** (journalists / food) and **David Heinemeier Hansson** (engineers / developers).
+Role and bio are short statements written from each person's Wikipedia lead; portraits come from Wikimedia Commons with the licence read from the file page (CC BY-SA 4.0, CC BY-SA 4.0, CC BY 2.0). Script: `scripts/people_publish_apply.py` (backups in `bak_seo_changes_20261114`, batch `people_publish_20261114`; undo with `update people set <old_values> where id = row_id`).
+
+Not published: Peter Attia and Tim O'Reilly (low unsourced share, but Wikipedia rate-limited the lookup, so no verified bio/portrait yet); the rest have 20-47% of recommendations unsourced or sourced only to other people's tweets (for example, Anthony Bourdain's "Best Evidence" is quoted from a Joe Rogan tweet), which should be cleaned before those pages go live.
