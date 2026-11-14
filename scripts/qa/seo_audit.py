@@ -126,7 +126,9 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     args = ap.parse_args()
     sm = requests.get(args.base + "/sitemap.xml", headers={"User-Agent": UA}, timeout=120).text
-    urls = re.findall(r"<loc>([^<]+)</loc>", sm)
+    # Fetch every sitemap path from --base, so a local build (whose sitemap names its own build-time origin)
+    # can be audited the same way as production.
+    urls = [args.base.rstrip("/") + (urlsplit(u).path or "/") for u in re.findall(r"<loc>([^<]+)</loc>", sm)]
     if args.limit:
         urls = urls[: args.limit]
     print(f"sitemap urls: {len(urls)}", flush=True)
