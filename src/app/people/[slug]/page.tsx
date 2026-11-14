@@ -254,6 +254,7 @@ export default async function PersonDetailPage({ params }: Props) {
         source,
         sourceHost: source ? hostOf(source) : null,
         sourceRel: source ? outboundLinkRel(source) : "noopener noreferrer nofollow",
+        rel: bookLinkRel(indexableBooks, r.slug),
         series: seriesByBook[r.id] ?? null,
         also: coRecs.byBook[r.id]?.idx ?? [],
         alsoTotal: coRecs.byBook[r.id]?.total ?? 0,
@@ -273,7 +274,7 @@ export default async function PersonDetailPage({ params }: Props) {
   // sideways, so more books cost no height.
   const spines = toSpines(shelf.slice(0, 24), proofSlugs).map((sp) => {
     const it = itemBySlug.get(sp.slug);
-    return it ? { ...sp, quote: it.quote, source: it.source, sourceHost: it.sourceHost, sourceRel: it.sourceRel } : sp;
+    return { ...sp, rel: bookLinkRel(indexableBooks, sp.slug), ...(it ? { quote: it.quote, source: it.source, sourceHost: it.sourceHost, sourceRel: it.sourceRel } : {}) };
   });
 
   return (

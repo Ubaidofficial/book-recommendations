@@ -23,6 +23,8 @@ export interface ShelfSpine {
   source?: string | null;
   sourceHost?: string | null;
   sourceRel?: string;
+  /** "nofollow" when the book's own page is not indexable. */
+  rel?: string;
 }
 
 function PanelFallback({ title }: { title: string }) {
@@ -249,6 +251,7 @@ export function PersonShelf({
           </button>
           <Link
             href={`/books/${book.slug}`}
+            rel={book.rel}
             className="flex-1 inline-flex items-center justify-center min-h-11 px-3.5 rounded-lg bg-accent text-white text-xs font-bold hover:bg-accent-hover transition-colors"
           >
             See the book →

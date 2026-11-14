@@ -38,6 +38,8 @@ export interface LibraryItem {
   alsoTotal: number;
   /** Reddit Reads: the biggest list the book is on (a user count, not votes). */
   reddit: { users: number; label: string } | null;
+  /** "nofollow" when the book's own page is not indexable (see lib/indexableBooks.ts). */
+  rel?: string;
 }
 
 export interface LibraryRecommender {
@@ -139,6 +141,7 @@ function Card({
     >
       <Link
         href={`/books/${item.slug}`}
+        rel={item.rel}
         className={[
           "book-cover-tilt block bg-subtle overflow-hidden shrink-0",
           list ? "w-24 sm:w-28 self-start m-3 rounded-lg aspect-[2/3]" : "aspect-[2/3]",
@@ -159,7 +162,7 @@ function Card({
       </Link>
 
       <div className={["flex flex-col flex-1 min-w-0", list ? "py-3 pr-3 sm:py-4 sm:pr-4" : "p-4"].join(" ")}>
-        <Link href={`/books/${item.slug}`} className="block">
+        <Link href={`/books/${item.slug}`} rel={item.rel} className="block">
           <h3 className="font-semibold text-sm text-ink leading-snug line-clamp-2 group-hover:text-accent transition-colors">
             {item.title}
           </h3>
@@ -287,6 +290,7 @@ function Card({
         <div className="mt-auto pt-4 flex items-center gap-2">
           <Link
             href={`/books/${item.slug}`}
+            rel={item.rel}
             className="flex-1 inline-flex items-center justify-center min-h-10 px-3 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent-hover transition-colors"
           >
             View details
@@ -609,7 +613,7 @@ export function PersonLibrary({
             .sort((a, b) => a.title.localeCompare(b.title))
             .map((i) => (
               <li key={i.slug} className="break-inside-avoid py-1">
-                <Link href={`/books/${i.slug}`} className="text-ink hover:text-accent hover:underline underline-offset-2">
+                <Link href={`/books/${i.slug}`} rel={i.rel} className="text-ink hover:text-accent hover:underline underline-offset-2">
                   {i.title}
                 </Link>
                 {i.author && <span className="text-muted"> — {i.author}</span>}
