@@ -51,7 +51,9 @@ interface Props {
 export default async function PeoplePage({ searchParams }: Props) {
   const { q } = await searchParams;
   const isSearching = q && q.length >= 2;
-  const DISPLAY_LIMIT = 24;
+  // Search stays short; the default hub lists every qualifying person (it used to stop at 24 of ~50
+  // published profiles, leaving the rest reachable only through the sitemap).
+  const DISPLAY_LIMIT = isSearching ? 24 : 60;
 
   // Gather raw people — either from search or recommendation-count batch.
   // Default view: pull the top recommenders (rank by book_recommendations
@@ -169,11 +171,9 @@ export default async function PeoplePage({ searchParams }: Props) {
         <SearchBar placeholder="Search people by name or role…" />
       </div>
       <div className="flex items-center justify-between mb-6 text-sm">
-        <h2 className="text-sm font-normal text-muted">{rawTotal.toLocaleString()} people</h2>
-        <select className="border border-border rounded-lg px-3 py-1.5 bg-surface text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/20">
-          <option>Most Recommendations</option>
-          <option>Name A-Z</option>
-        </select>
+        <h2 className="text-sm font-normal text-muted">
+          {isSearching ? `${rawTotal.toLocaleString()} people` : `${shown.length.toLocaleString()} people, most recommendations first`}
+        </h2>
       </div>
       {shown.length === 0 ? (
         <EmptyState message={isSearching ? `No people match "${q}".` : "No people found."} />
@@ -193,12 +193,30 @@ export default async function PeoplePage({ searchParams }: Props) {
         </div>
       )}
       {!isSearching && (
-        <div className="flex items-center justify-center mt-10 gap-2">
-          <span className="text-sm text-muted">Showing {shown.length} of {rawTotal} people</span>
-          <span className="px-3 py-1.5 rounded-full bg-subtle border border-border text-xs text-muted">
-            More coming soon
-          </span>
-        </div>
+        <section className="mt-14 max-w-3xl" aria-labelledby="how-h">
+          <h2 id="how-h" className="type-h2 text-ink mb-3">How these reading lists are built</h2>
+          <div className="space-y-4 text-[15px] leading-relaxed text-muted-strong">
+            <p>
+              Each profile collects the books a person has recommended in public: a tweet, an interview, a podcast
+              appearance, a blog post or a reading list they published themselves. Where we have the original source,
+              the book links to it, so you can read the recommendation in their own words instead of taking our word
+              for it. Books with no source we can show are still listed, without a link.
+            </p>
+            <p>
+              The {shown.length.toLocaleString()} people above have at least {HUB_MIN_REC_COUNT} recommended books on
+              record, together {shown.reduce((n, p) => n + (p.recommendedCount || 0), 0).toLocaleString()} recommendations.
+              Open a profile to sort the whole list by how many other people recommend each book, filter it by topic,
+              search it, or see the closest matching reading list among the other people we track.
+            </p>
+            <p>
+              Looking for a subject rather than a person? Browse the <a className="text-accent font-semibold hover:underline" href="/lists">curated book lists</a>,
+              the <a className="text-accent font-semibold hover:underline" href="/series">series in reading order</a>, or
+              the <a className="text-accent font-semibold hover:underline" href="/books">most recommended books</a>. If a
+              recommendation looks wrong or misattributed, <a className="text-accent font-semibold hover:underline" href="/report-issue">tell us</a> and
+              we will check it against the source.
+            </p>
+          </div>
+        </section>
       )}
     </div>
   );

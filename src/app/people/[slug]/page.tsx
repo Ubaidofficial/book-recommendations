@@ -8,7 +8,7 @@ import {
   getPersonWrittenCountCached,
   getQualityPeopleCached,
 } from "@/lib/data";
-import { pageMetadata, contentDates } from "@/lib/seo";
+import { pageMetadata, contentDates, personPageTitle, personMetaDescription } from "@/lib/seo";
 import { detailRobotsDirective } from "@/lib/indexing";
 import { isPersonPageThin } from "@/lib/thinPages";
 import { personJsonLd, faqPageJsonLd } from "@/lib/jsonld";
@@ -85,17 +85,40 @@ function hostOf(url: string): string | null {
   }
 }
 
+/**
+ * Cached static shell: with no params prerendered, every person page is generated on its first
+ * request and then served from the cache for `revalidate` seconds. Without this export the route
+ * is fully dynamic (Cache-Control: private, no-store) whatever `revalidate` says.
+ */
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const person = await getPersonBySlugCached(slug);
   if (!person) return { robots: "noindex, follow" };
-  const desc = isUsefulDescription(person.meta_description)
-    ? person.meta_description
-    : isUsefulDescription(person.bio)
-      ? person.bio
-      : undefined;
+  // Title and description come from the REAL count and top picks (same cached reads the page makes).
+  // The stored meta_title/meta_description hold a count frozen at write time ("310 Books Recommended
+  // by Bill Gates" over a page listing 295) and are only a fallback when the reads fail.
+  let count = 0;
+  let picks: string[] = [];
+  try {
+    const [c, shelf] = await Promise.all([getPersonRecommendedCountCached(person.id), getPersonShelf(person.id)]);
+    count = c;
+    picks = shelf.slice(0, 3).map((b) => b.title);
+  } catch {
+    /* fall back to stored values below */
+  }
+  const dynamicDesc = personMetaDescription(person.name, count, picks);
+  const desc = dynamicDesc
+    || (isUsefulDescription(person.meta_description)
+      ? person.meta_description
+      : isUsefulDescription(person.bio)
+        ? person.bio
+        : undefined);
   return pageMetadata({
-    title: person.meta_title || `${person.name} — Books & Recommendations`,
+    title: count > 0 ? personPageTitle(person.name, count) : person.meta_title || `${person.name} — Books & Recommendations`,
     description: desc || "",
     path: `/people/${person.slug}`,
     image: isValidHttpUrl(person.avatar_url) ? person.avatar_url : undefined,
@@ -216,7 +239,9 @@ export default async function PersonDetailPage({ params }: Props) {
     .slice(0, 10);
 
   const hasFullProof = proofList.every((p) => parseSourceUrls(p.source_url).length > 0);
-  const proofHeading = hasFullProof ? "Source & Proof" : "Recommendation Signals";
+  const proofHeading = hasFullProof
+    ? `Sources for ${person.name}’s book recommendations`
+    : `Signals behind ${person.name}’s book recommendations`;
 
   // Spine shelf: the 16 picks most recommended across the site. The panel
   // links down to a proof card only when this page actually renders one.
@@ -349,6 +374,11 @@ export default async function PersonDetailPage({ params }: Props) {
             {person.role && person.role.trim().length > 0 && (
               <p className="mt-4 text-sm text-accent font-semibold">{person.role}</p>
             )}
+            <p className="mt-3 text-[15px] leading-relaxed text-muted-strong max-w-[60ch]">
+              {person.name}’s reading list: {recommendedCount.toLocaleString("en-US")} recommended{" "}
+              {recommendedCount === 1 ? "book" : "books"} from interviews, posts and talks. These are {person.name}’s book recommendations,
+              each linked to the original source where we have one.
+            </p>
             {hasBio && <p className="mt-2 prose-body text-muted-strong">{person.bio}</p>}
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
               <LastUpdated modified={contentDates(person).modified} className="text-xs text-muted" />
@@ -464,12 +494,13 @@ export default async function PersonDetailPage({ params }: Props) {
       {hasRecommendations ? (
         <section className="mb-14 scroll-mt-20" aria-labelledby="books-h">
           <h2 data-reveal id="books-h" className="type-h2 text-ink mb-1.5">
-            {libraryItems.length > 1 ? `All ${libraryItems.length.toLocaleString("en-US")} books ` : "Books "}
-            {firstName} recommends
+            {libraryItems.length > 1
+              ? `Books recommended by ${person.name}: all ${libraryItems.length.toLocaleString("en-US")}`
+              : `Books recommended by ${person.name}`}
           </h2>
           <p data-reveal className="text-sm text-muted max-w-2xl mb-5">
-            {libraryItems.length > 12 ? "Sort, filter by topic or search the whole list. " : ""}
-            Where we have {firstName}’s own words about a book, they appear on its card with a link to the source.
+            {libraryItems.length > 12 ? `Sort, filter by topic or search ${person.name}’s book recommendations. ` : `${person.name}’s book recommendations. `}
+            Where we have their own words about a book, they appear on its card with a link to the source.
           </p>
           <PersonLibrary items={libraryItems} topics={libraryTopics} recommenders={libraryRecommenders} firstName={firstName} />
         </section>
@@ -630,7 +661,7 @@ export default async function PersonDetailPage({ params }: Props) {
         )}
       </section>
 
-      <PersonFaq heading={`Questions about ${firstName}’s reading list`} items={faq} />
+      <PersonFaq heading={`Questions about ${person.name}’s reading list`} items={faq} />
 
       {/* How this profile is built */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">

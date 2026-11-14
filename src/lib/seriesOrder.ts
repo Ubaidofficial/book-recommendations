@@ -80,9 +80,35 @@ export function orderSeriesBooks(
   return { order: "publication", books: [...sorted, ...undated], undatedCount: undated.length };
 }
 
+/**
+ * The series <title> (the H1 uses seriesPageTitle). Another site's title for the same pages is
+ * "All 897 Enid Blyton Books in Order (Complete List 2026)": the number, "in order", "complete list" and the
+ * year are what the query "<author> books in order" asks for. We use the same shape only where we can stand
+ * behind it: "in order" needs a verified order, and a count we track is not a claim that the list is complete.
+ */
+export function seriesMetaTitle(base: string, order: SeriesOrder, count: number, year: number = new Date().getFullYear()): string {
+  const ordered = order === "position" || order === "publication";
+  const n = count > 0 ? count.toLocaleString("en-US") : "";
+  const candidates = ordered
+    ? [
+        n ? `All ${n} ${base} Books in Order (Complete List ${year})` : "",
+        `${base} Books in Order (Complete List ${year})`,
+        `${base} Books in Order (${year})`,
+        `${base} Books in Order`,
+      ]
+    : [
+        n ? `${n} ${base} Books: Full List (${year})` : "",
+        `${base} Books: Full List (${year})`,
+        `${base} Books: Full List`,
+        `${base} Books`,
+      ];
+  return candidates.filter(Boolean).find((c) => c.length <= 60) || `${base} Books`;
+}
+
 export function seriesPageTitle(base: string, order: SeriesOrder): string {
   // Only a verified full order earns "in Order". A partial order is still not a claim of one.
-  return order === "position" || order === "publication" ? `${base} Books in Order` : `${base} Books`;
+  // Without a verified order the title does not claim one; it says what the page is: the full list.
+  return order === "position" || order === "publication" ? `${base} Books in Order` : `${base} Books: Full List`;
 }
 
 export interface FaqItem {
@@ -112,8 +138,8 @@ export function seriesFaq(base: string, order: SeriesOrder, books: SeriesBook[],
       });
     }
     faq.push({
-      q: `In what order should I read ${base} books?`,
-      a: `This page lists them in order of first publication, the order readers first met them. That is the usual way to read an author's books, though a few series have an author-recommended order that differs.`,
+      q: `What is the order of ${base} books?`,
+      a: `The order of ${base} books on this page is first publication, the order readers first met them. That is the usual ${base} reading order, though a few series have an author-recommended order that differs.`,
     });
   } else if (order === "position") {
     const first = books.find((b) => b.series_position === 1) || books.find((b) => b.series_position != null);

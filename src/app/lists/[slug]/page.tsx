@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getListBySlugCached, getBooksForListCached, getBooksForListByRecommendationsCached, getRelatedListsCached, getRecommendersForBooksCached, getRecommenderRefsForBooksCached } from "@/lib/data";
-import { pageMetadata, robotsDirective, contentDates } from "@/lib/seo";
+import { pageMetadata, robotsDirective, contentDates, listPageTitle, withUpdatedYear } from "@/lib/seo";
 import { displayBookTitle, displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel } from "@/lib/display";
 import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, amazonCtaUrl,
   coverAltText,
@@ -49,8 +49,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   return pageMetadata({
-    title: seoName,
-    description: listMetaDescription(list.description, seoName, topBooks),
+    // "(2026): Most Recommended Picks": the year and hook people search for (see listPageTitle).
+    title: listPageTitle(seoName),
+    description: withUpdatedYear(listMetaDescription(list.description, seoName, topBooks)),
     path: `/lists/${list.slug}`,
     image: ogImage,
     robots: robotsDirective(list),
@@ -115,8 +116,27 @@ function joinNames(names: string[]): string {
 function listMetaDescription(
   stored: string | null | undefined,
   seoName: string,
-  books: { title?: string | null }[],
+  books: { title?: string | null; recommendation_count?: number | null }[],
 ): string {
+  // "Best Cryptography Books, ranked by how many people recommend each one. Most recommended: ..." leads with the
+  // phrase people search and says how the list is ranked (the page's own point of difference); it names the real
+  // top picks. People lists ("Books Recommended by Elon Musk") keep their stored text: the ranking sentence
+  // does not describe them.
+  if (!/^books recommended by /i.test(seoName)) {
+    // Name the books people actually recommend most. Topic lists arrive in curation-rank order (alphabetical,
+    // for many), so sort by recommendation count first and skip books nobody recommends; with fewer than two
+    // such books the stored description is kept.
+    const picks = [...books]
+      .filter((b) => (b.recommendation_count || 0) > 0)
+      .sort((a, b) => (b.recommendation_count || 0) - (a.recommendation_count || 0))
+      .map((b) => displayBookTitle(repairNumericTitle(b.title)))
+      .filter((t) => isProbablyValidBookTitle(t) && !t.includes(","));
+    for (const n of [3, 2]) {
+      if (picks.length < n) continue;
+      const out = `${seoName}, ranked by how many people recommend each one. Most recommended here: ${joinNames(picks.slice(0, n))}.`;
+      if (out.length <= META_DESC_MAX) return out;
+    }
+  }
   const text = (stored || "").replace(/\s+/g, " ").trim();
   if (text && text.length <= META_DESC_MAX) return text;
 
@@ -359,7 +379,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
 
   const faq = [
     startHere.length >= 3 && {
-      q: `What are the most recommended ${topic.toLowerCase()}?`,
+      q: `What are the best ${topic.toLowerCase()}?`,
       a: `${joinNames(startHere.slice(0, 3).map((b) => b.title))} are the most recommended ${topic.toLowerCase()} on BookMentions, ranked by how many people recommended them.`,
     },
     topPeople.length >= 2 && {
@@ -367,8 +387,8 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
       a: `${joinNames(topPeople.slice(0, 4).map((p) => p.name))} are among the people who recommend books on this list. Each name links to their full set of book recommendations.`,
     },
     startHere[0] && {
-      q: `Which of these ${topic.toLowerCase()} should I read first?`,
-      a: `${startHere[0].title}${startHere[0].author ? ` by ${startHere[0].author}` : ""} is the most recommended here with ${startHere[0].recommendation_count} ${startHere[0].recommendation_count === 1 ? "recommendation" : "recommendations"}, which makes it the safest place to start.`,
+      q: `Which of these top ${topic.toLowerCase()} should I read first?`,
+      a: `${startHere[0].title}${startHere[0].author ? ` by ${startHere[0].author}` : ""} is the most recommended here with ${startHere[0].recommendation_count} ${startHere[0].recommendation_count === 1 ? "recommendation" : "recommendations"}, which makes it the safest place to start. If you only have time for a few ${topic.toLowerCase()} to read, begin with the top three above.`,
     },
   ].filter((x): x is { q: string; a: string } => !!x);
   const faqJsonLd = faq.length
@@ -583,7 +603,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
         </div>
         {takeaways.length >= 3 && (
           <section className="mb-5 rounded-2xl border border-border bg-surface p-5 max-w-3xl" aria-labelledby="key-takeaways">
-            <h2 id="key-takeaways" className="type-h3 text-ink mb-2">Key Takeaways</h2>
+            <h2 id="key-takeaways" className="type-h3 text-ink mb-2">Top {topic} at a glance</h2>
             <ul className="list-disc pl-5 space-y-1.5 text-sm text-ink leading-relaxed">
               {takeaways.map((t) => (
                 <li key={t}>{t}</li>
@@ -641,6 +661,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
           </h2>
           <p data-reveal className="text-sm text-muted mb-5 max-w-2xl leading-relaxed">
             The most recommended {topic} are {joinNames(startHere.slice(0, 3).map((b) => `${b.title} (${b.recommendation_count})`))}, ranked by how many of the {personStats.size.toLocaleString()} people behind this list recommended each one.
+            {" "}Start with these top {topic}: they are the {topic} to read first.
           </p>
           {/* A real <table>: ranked, comparable columns for the books people
               recommend most. Rows are the top of the same ordering the page
@@ -782,7 +803,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
       {/* Related Lists */}
       {hasRelated && (
         <section className="mb-14">
-          <h2 data-reveal className="type-h2 text-ink mb-5">Explore more lists</h2>
+          <h2 data-reveal className="type-h2 text-ink mb-5">More {topic} to read: explore related lists</h2>
           <div data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {relatedLists.map((rl) => (
               <Link
@@ -814,7 +835,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
           list and contributed to the "templated feel" the live-readiness
           audit flagged. */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
-        <h2 className="type-h3 text-ink mb-2">How is the {topic} list built?</h2>
+        <h2 className="type-h3 text-ink mb-2">How we choose the best {topic}</h2>
         <p className="text-sm text-muted leading-relaxed">
           The {topic} list is built from public recommendation sources and
           category memberships. Books are ranked by how many distinct people

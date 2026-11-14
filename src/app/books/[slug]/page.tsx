@@ -87,6 +87,15 @@ interface Props {
 const joinNames = (names: string[]) =>
   names.length <= 1 ? names[0] || "" : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 
+/**
+ * No params are prerendered, so each page is generated on its first request and then cached for
+ * `revalidate` seconds. Without this export the route is fully dynamic (Cache-Control: private,
+ * no-store) whatever `revalidate` says.
+ */
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const book = await getBookBySlugCached(slug);
@@ -98,8 +107,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Falls back to the book's own description when there's no such proof.
   const recommenders = recCount >= 2 ? await getBookRecommenders(book.id, 3) : [];
   const names = recommenders.map((r) => r.person_name).filter((n) => n && n.trim().length > 0);
+  // "plus books like <title>" (not "like it") repeats the book's name next to the phrase people search.
+  const proofLead = `${title}${book.author ? ` by ${book.author}` : ""} is recommended by ${recCount.toLocaleString()} people, including ${joinNames(names)}.`;
   const proofDesc = names.length > 0
-    ? `${title}${book.author ? ` by ${book.author}` : ""} is recommended by ${recCount.toLocaleString()} people, including ${joinNames(names)}. See what they said, with sources, plus books like it.`
+    ? [`${proofLead} See who recommended ${title} and what they said, with sources, plus books like ${title}.`, `${proofLead} See what they said, with sources, plus books like ${title}.`, `${proofLead} See what they said, with sources, plus books like it.`]
+        .find((d) => d.length <= 160) || `${proofLead} See what they said, with sources, plus books like it.`
     : undefined;
   const desc = proofDesc
     || (isUsefulDescription(book.meta_description)
@@ -321,7 +333,7 @@ export default async function BookDetailPage({ params }: Props) {
       a: `${recommenderTotal > 0 ? `${recommenderTotal.toLocaleString()} ${recommenderTotal === 1 ? "person we track recommends it" : "people we track recommend it"}. ` : ""}It is best for: ${bestForItems.join("; ")}.${notForItems.length > 0 ? ` It may not suit: ${notForItems.join("; ")}.` : ""}`,
     },
     similarBooks.length >= 3 && {
-      q: `What books are like ${bookTitle}?`,
+      q: `What are some books like ${bookTitle}?`,
       a: `Readers of ${bookTitle} also turn to ${joinNames(similarBooks.slice(0, 3).map((b) => displayBookTitle(b.title)))}, based on the lists and recommenders these books share.`,
     },
   ].filter((x): x is { q: string; a: string } => !!x);

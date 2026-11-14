@@ -5,7 +5,7 @@ import { getSeriesBySlugCached, getBooksBySeriesOrderedCached, getRelatedSeries,
 import { pageMetadata, robotsDirective, contentDates } from "@/lib/seo";
 import { displayTitle } from "@/lib/display";
 import { seriesJsonLd, faqPageJsonLd } from "@/lib/jsonld";
-import { orderSeriesBooks, seriesBaseName, seriesFaq, seriesPageTitle } from "@/lib/seriesOrder";
+import { orderSeriesBooks, seriesBaseName, seriesFaq, seriesPageTitle, seriesMetaTitle } from "@/lib/seriesOrder";
 import { BookCard, Breadcrumbs, EmptyState, LastUpdated } from "@/components";
 
 // ISR, matching books/[slug] and people/[slug] — this page reads only
@@ -45,6 +45,15 @@ async function loadSeriesView(seriesId: string) {
   return orderSeriesBooks(rawBooks, hasPositions);
 }
 
+/**
+ * No params are prerendered, so each page is generated on its first request and then cached for
+ * `revalidate` seconds. Without this export the route is fully dynamic (Cache-Control: private,
+ * no-store) whatever `revalidate` says.
+ */
+export async function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const series = await getSeriesBySlugCached(slug);
@@ -59,7 +68,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const count = total > 0 ? `all ${total.toLocaleString()} books` : "every book";
   const first = order === "publication" ? books[0] : undefined;
   return pageMetadata({
-    title: seriesPageTitle(base, order),
+    title: seriesMetaTitle(base, order, total),
     description:
       series.description ||
       (order === "publication"
@@ -125,9 +134,9 @@ export default async function SeriesDetailPage({ params }: Props) {
         ) : (
           <p className="text-base text-muted max-w-2xl leading-relaxed">
             {order === "publication"
-              ? `Every ${base} book we track, in order of first publication${books[0] ? `, from ${books[0].title}` : ""}. Recommendation counts show which ones the people we track rate highest.`
+              ? `Every ${base} book we track, in order of first publication${books[0] ? `, from ${books[0].title}` : ""}. This is the order of ${base} books as readers first met them, a simple ${base} reading order: start at the top and work down. Recommendation counts show which ones the people we track rate highest.`
               : order === "position"
-                ? `A reading-order guide for ${base}, organized from available series metadata.`
+                ? `A reading-order guide for ${base}, organized from available series metadata: the order of ${base} books and the ${base} reading order, book by book.`
                 : order === "partial"
                   ? `The ${base} books we track. Those with a verified first-publication year come first, oldest to newest; recommendation counts show which ones the people we track rate highest.`
                   : `The ${base} books we track.`}
@@ -139,9 +148,9 @@ export default async function SeriesDetailPage({ params }: Props) {
         <>
           <h2 data-reveal className="type-h2 text-ink mb-1">
             {order === "publication"
-              ? `${base} books in publication order`
+              ? `${base} books in order of publication`
               : order === "position"
-                ? `${base} in order`
+                ? `${base} books in order`
                 : order === "partial"
                   ? `${base} books, oldest verified first`
                   : "Books in this series"}
@@ -246,7 +255,7 @@ export default async function SeriesDetailPage({ params }: Props) {
         <h2 className="type-h3 text-ink mb-2">About this page</h2>
         <p className="text-sm text-muted leading-relaxed">
           {order === "publication"
-            ? `Books are listed by the year each was first published, taken from Open Library's record for the original work rather than a later edition. Recommendation counts come from the public interviews, articles and reading lists BookMentions tracks, so you can spot the standout ${base} books.`
+            ? `The order of ${base} books on this page is the year each was first published, taken from Open Library's record for the original work rather than a later edition, which gives a reliable ${base} reading order. Recommendation counts come from the public interviews, articles and reading lists BookMentions tracks, so you can spot the standout ${base} books.`
             : order === "position"
               ? `${base} is organized from available series metadata. Books are shown in reading order based on their position in the series, starting from the first book. Recommendation counts and ratings are displayed where available so you can quickly spot the standout titles in the sequence.`
               : order === "partial"
