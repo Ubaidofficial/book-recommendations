@@ -8,6 +8,7 @@ import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRa
   coverAltText,
 } from "@/lib/dataQuality";
 import { itemListJsonLd } from "@/lib/jsonld";
+import { getIndexableBookSlugs, bookLinkRel } from "@/lib/indexableBooks";
 import { AmazonCoverLink, Avatar, Breadcrumbs, SafeImage, EmptyState, LastUpdated } from "@/components";
 
 // Declared for consistency with books/[slug] and series/[slug] (all three
@@ -199,6 +200,8 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
   const { sort } = await searchParams;
   const list = await getListBySlugCached(slug);
   if (!list) notFound();
+  // Links to book pages that are not indexable are nofollow (see lib/indexableBooks.ts).
+  const indexableBooks = await getIndexableBookSlugs();
 
   const kind = listKindFromSlug(list.slug);
   // Meta list: sort by books.recommendation_count and filter junk numeric/date titles.
@@ -426,7 +429,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
           <div className="order-1">
             <div className="mb-1">
               <Link
-                href={`/books/${book.slug}`}
+                href={`/books/${book.slug}`} rel={bookLinkRel(indexableBooks, book.slug)}
                 className="font-bold text-lg md:text-xl text-ink hover:text-accent transition-colors leading-tight block"
               >
                 {book.title}
@@ -475,7 +478,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                   {extra > 0 && (
                     <>
                       {" "}and{" "}
-                      <Link href={`/books/${book.slug}`} className="text-accent hover:underline">
+                      <Link href={`/books/${book.slug}`} rel={bookLinkRel(indexableBooks, book.slug)} className="text-accent hover:underline">
                         {extra} {extra === 1 ? "other" : "others"}
                       </Link>
                     </>
@@ -512,7 +515,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
           {/* Actions (compliant CTAs preferring Amazon purchase/view button) */}
           <div className="order-2 sm:order-3 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-4 border-t border-border/40 pt-4 mt-4 sm:mt-6">
             <Link
-              href={`/books/${book.slug}`}
+              href={`/books/${book.slug}`} rel={bookLinkRel(indexableBooks, book.slug)}
               className="text-xs text-muted hover:text-accent hover:underline flex items-center justify-center sm:justify-start gap-1 font-medium transition-colors"
             >
               View full details →
@@ -662,7 +665,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                     <tr key={b.id}>
                       <td className="px-4 py-2.5 text-muted">{i + 1}</td>
                       <td className="px-4 py-2.5 font-semibold">
-                        <Link href={`/books/${b.slug}`} className="text-ink hover:text-accent">{b.title}</Link>
+                        <Link href={`/books/${b.slug}`} rel={bookLinkRel(indexableBooks, b.slug)} className="text-ink hover:text-accent">{b.title}</Link>
                       </td>
                       <td className="px-4 py-2.5 text-muted">{b.author || "—"}</td>
                       <td className="px-4 py-2.5 text-muted">{b.first_published_year || "—"}</td>
@@ -713,7 +716,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
             {p.picks.map((b) => (
               <li key={b.id}>
-                <Link href={`/books/${b.slug}`} className="text-ink hover:text-accent font-medium">{b.title}</Link>
+                <Link href={`/books/${b.slug}`} rel={bookLinkRel(indexableBooks, b.slug)} className="text-ink hover:text-accent font-medium">{b.title}</Link>
                 {b.author && <span className="text-muted"> by {b.author}</span>}
               </li>
             ))}

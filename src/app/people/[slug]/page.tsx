@@ -40,6 +40,7 @@ import {
   getProofDisplaySafety,
 } from "@/lib/dataQuality";
 import { Avatar, BookCard, Breadcrumbs, SafeImage, LastUpdated } from "@/components";
+import { getIndexableBookSlugs, bookLinkRel } from "@/lib/indexableBooks";
 import { photoCredit } from "@/lib/photoCredit";
 
 /**
@@ -81,6 +82,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PersonDetailPage({ params }: Props) {
   const { slug } = await params;
+  // Links to book pages that are not indexable are nofollow (see lib/indexableBooks.ts).
+  const indexableBooks = await getIndexableBookSlugs();
   const person = await getPersonBySlugCached(slug);
   if (!person) notFound();
 
@@ -447,7 +450,7 @@ export default async function PersonDetailPage({ params }: Props) {
                   <div className="mb-4">
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <Link
-                        href={`/books/${p.book.slug}`}
+                        href={`/books/${p.book.slug}`} rel={bookLinkRel(indexableBooks, p.book.slug)}
                         className="font-bold text-base text-ink hover:text-accent transition-colors line-clamp-1"
                       >
                         {p.book.title}
@@ -480,7 +483,7 @@ export default async function PersonDetailPage({ params }: Props) {
                     )}
                   </div>
                   <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-auto">
-                    <Link href={`/books/${p.book.slug}`} className="text-xs font-bold text-accent hover:underline">
+                    <Link href={`/books/${p.book.slug}`} rel={bookLinkRel(indexableBooks, p.book.slug)} className="text-xs font-bold text-accent hover:underline">
                       View book details →
                     </Link>
                     {hasSource && (

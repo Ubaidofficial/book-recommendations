@@ -86,7 +86,10 @@ export default async function SeriesDetailPage({ params }: Props) {
 
   const base = seriesBaseName(series.title);
   const heading = seriesPageTitle(base, order);
-  const books = orderedBooks.slice(0, SERIES_PAGE_SIZE);
+  // A partial order lists every verified-year book first; cut the page at 200
+  // and a series with 244 of them would drop the 44 newest from its own order.
+  const datedCount = orderedBooks.length - undatedCount;
+  const books = orderedBooks.slice(0, order === "partial" ? Math.max(SERIES_PAGE_SIZE, datedCount) : SERIES_PAGE_SIZE);
   const total = Math.max(series.book_count, orderedBooks.length);
   const hasBooks = books.length > 0;
   const hasDescription = series.description && series.description.length > 0;
@@ -125,7 +128,9 @@ export default async function SeriesDetailPage({ params }: Props) {
               ? `Every ${base} book we track, in order of first publication${books[0] ? `, from ${books[0].title}` : ""}. Recommendation counts show which ones the people we track rate highest.`
               : order === "position"
                 ? `A reading-order guide for ${base}, organized from available series metadata.`
-                : `The ${base} books we track.`}
+                : order === "partial"
+                  ? `The ${base} books we track. Those with a verified first-publication year come first, oldest to newest; recommendation counts show which ones the people we track rate highest.`
+                  : `The ${base} books we track.`}
           </p>
         )}
       </div>
@@ -137,7 +142,9 @@ export default async function SeriesDetailPage({ params }: Props) {
               ? `${base} books in publication order`
               : order === "position"
                 ? `${base} in order`
-                : "Books in this series"}
+                : order === "partial"
+                  ? `${base} books, oldest verified first`
+                  : "Books in this series"}
           </h2>
           <div className="flex items-center gap-2 mb-5 text-xs text-muted">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,6 +154,8 @@ export default async function SeriesDetailPage({ params }: Props) {
               ? undatedCount > 0
                 ? `Ordered by first publication year (from Open Library). ${undatedCount} ${undatedCount === 1 ? "title has" : "titles have"} no verified year yet and ${undatedCount === 1 ? "is" : "are"} listed last.`
                 : "Ordered by first publication year (from Open Library)."
+              : order === "partial"
+                ? `${datedCount.toLocaleString()} ${datedCount === 1 ? "title has" : "titles have"} a verified first-publication year and ${datedCount === 1 ? "is" : "are"} listed first, oldest to newest. The other ${undatedCount.toLocaleString()} have no verified year yet, so they are not placed in any order and follow, most recommended first.`
               : order === "none"
                 ? "We don’t have verified publication years or reading-order positions for this series yet, so these books are not numbered."
                 : books.some((b) => b.series_position == null)
@@ -161,7 +170,7 @@ export default async function SeriesDetailPage({ params }: Props) {
               const badge =
                 order === "position" && book.series_position != null
                   ? `#${book.series_position}`
-                  : order === "publication" && book.first_published_year
+                  : (order === "publication" || order === "partial") && book.first_published_year
                     ? String(book.first_published_year)
                     : null;
               return (
@@ -240,7 +249,9 @@ export default async function SeriesDetailPage({ params }: Props) {
             ? `Books are listed by the year each was first published, taken from Open Library's record for the original work rather than a later edition. Recommendation counts come from the public interviews, articles and reading lists BookMentions tracks, so you can spot the standout ${base} books.`
             : order === "position"
               ? `${base} is organized from available series metadata. Books are shown in reading order based on their position in the series, starting from the first book. Recommendation counts and ratings are displayed where available so you can quickly spot the standout titles in the sequence.`
-              : `${base} is compiled from available series metadata. We don’t yet hold verified publication years or reading-order positions for these titles, so they are not numbered or presented as a sequence. Recommendation counts and ratings are shown where available so you can spot the standout titles.`}
+              : order === "partial"
+                ? `${base} is compiled from available series metadata. Books with a verified first-publication year are listed first, oldest to newest, with the year shown on each. The rest have no verified year yet, so they are not placed in any order and follow, most recommended first. Recommendation counts and ratings are shown where available so you can spot the standout titles.`
+                : `${base} is compiled from available series metadata. We don’t yet hold verified publication years or reading-order positions for these titles, so they are not numbered or presented as a sequence. Recommendation counts and ratings are shown where available so you can spot the standout titles.`}
         </p>
       </section>
     </div>

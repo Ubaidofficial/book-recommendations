@@ -9,15 +9,39 @@ export type SeriesBook = Book & { series_position: number | null };
  * - "publication": enough books carry a verified first_published_year to
  *                  list them in first-publication order (the "<author> books
  *                  in order" format competitors rank with).
+ * - "partial":     fewer than that, but still a real block of verified years
+ *                  (PARTIAL_ORDER_MIN_DATED). The page does NOT claim "in
+ *                  order": it lists the dated books first, oldest to newest,
+ *                  then the undated ones, and says so. Without this, a large
+ *                  catalogue with a few hundred verified years (Enid Blyton:
+ *                  244 of 867) shows an arbitrary slice of itself.
  * - "none":        no trustworthy order; books stay unnumbered.
  */
-export type SeriesOrder = "position" | "publication" | "none";
+export type SeriesOrder = "position" | "publication" | "partial" | "none";
 
 /**
  * Share of books that must carry a verified year before the page claims a
  * publication order. Below this, too much of the "order" would be a guess.
  */
 export const PUBLICATION_ORDER_MIN_COVERAGE = 0.8;
+
+/**
+ * Below the coverage share, this many verified years still earn the "partial"
+ * treatment. Small enough to help a big catalogue, large enough that a handful
+ * of stray years never reshuffles a page.
+ */
+export const PARTIAL_ORDER_MIN_DATED = 100;
+
+/** Verified-year books first (oldest first); everything else after, most recommended first. */
+function sortPartial(books: SeriesBook[]): SeriesBook[] {
+  const dated = books
+    .filter((b) => verifiedYear(b) != null)
+    .sort((a, b) => verifiedYear(a)! - verifiedYear(b)! || a.title.localeCompare(b.title));
+  const undated = books
+    .filter((b) => verifiedYear(b) == null)
+    .sort((a, b) => (b.recommendation_count || 0) - (a.recommendation_count || 0) || a.title.localeCompare(b.title));
+  return [...dated, ...undated];
+}
 
 /**
  * "john-grisham-books-in-order" / "Dune Series" / "Enid Blyton Books" →
@@ -43,6 +67,9 @@ export function orderSeriesBooks(
 
   const dated = books.filter((b) => verifiedYear(b) != null);
   if (books.length < 2 || dated.length / books.length < PUBLICATION_ORDER_MIN_COVERAGE) {
+    if (dated.length >= PARTIAL_ORDER_MIN_DATED) {
+      return { order: "partial", books: sortPartial(books), undatedCount: books.length - dated.length };
+    }
     return { order: "none", books, undatedCount: books.length - dated.length };
   }
 
@@ -54,7 +81,8 @@ export function orderSeriesBooks(
 }
 
 export function seriesPageTitle(base: string, order: SeriesOrder): string {
-  return order === "none" ? `${base} Books` : `${base} Books in Order`;
+  // Only a verified full order earns "in Order". A partial order is still not a claim of one.
+  return order === "position" || order === "publication" ? `${base} Books in Order` : `${base} Books`;
 }
 
 export interface FaqItem {

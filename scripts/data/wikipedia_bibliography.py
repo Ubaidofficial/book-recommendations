@@ -26,7 +26,7 @@ import unicodedata
 import urllib.parse
 import urllib.request
 
-UA = "BookMentionsResearch/1.0 (https://bookmentions.net; imubaid93@gmail.com)"
+UA = "BookMentionsResearch/1.0 (+https://bookmentions.net)"
 
 
 def fetch_wikitext(page: str) -> str:
