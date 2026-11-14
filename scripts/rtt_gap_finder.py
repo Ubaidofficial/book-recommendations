@@ -106,7 +106,12 @@ def main():
             if p and p["id"] not in seen and fps.person_name_matches(page_name, p["name"]):
                 seen.add(p["id"])
                 uniq.append(p)
-        return uniq[0] if len(uniq) == 1 else None  # ambiguous or none → treat as no match
+        if len(uniq) <= 1:
+            return uniq[0] if uniq else None
+        # The same person can be stored twice (name variants, alias stubs). Prefer a published record, then the one
+        # with the larger shelf, so their recommendations are still evaluated instead of silently ignored.
+        pub = ("published", "approved", "indexed", "index")
+        return sorted(uniq, key=lambda p: (p["index_status"] not in pub, -len(shelf[p["id"]]), p["slug"]))[0]  # ambiguous or none → treat as no match
 
     def our_books_for(card: dict) -> list[dict]:
         return [b for b in book_idx.get(cm.title_key(card["title"]), []) if cm.author_matches(card.get("author"), b.get("author_name"))]
