@@ -47,10 +47,10 @@ import find_primary_sources as fps  # noqa: E402
 import rtt_primary_sources as rtt  # noqa: E402
 from enrich_books_metadata import extract_open_library_candidate, open_library_search  # noqa: E402
 
-PAIRS = fps.REPORTS / "rtt_gap_pairs.csv"
-OUT_CANDS = fps.REPORTS / "gap_new_recs_candidates.csv"
-OUT_PLAN = fps.REPORTS / "gap_new_recs_plan.csv"
-OUT_SUMMARY = fps.REPORTS / "gap_new_recs_summary.json"
+SOURCES = {  # outside index → (pairs csv from its gap finder, person-slug column, output suffix)
+    "rtt": ("rtt_gap_pairs.csv", "rtt_person_slug", ""),
+    "mrb": ("mrb_gap_pairs.csv", "mrb_person_slug", "_mrb"),
+}
 STAMP = "20261114"
 LEDGER = f"public.added_rows_{STAMP}"
 NOTE = "added 2026-11-14: coverage gap, verified recommendation"
@@ -80,7 +80,8 @@ def enrich_new_book(title: str, author: str) -> dict | None:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
-    ap.add_argument("--offline", action="store_true", help="cache only (RTT pages and primary sources), no network")
+    ap.add_argument("--source", choices=tuple(SOURCES), default="rtt", help="which outside index's gap pairs to verify")
+    ap.add_argument("--offline", action="store_true", help="cache only (index pages and primary sources), no network")
     ap.add_argument("--include-medium", action="store_true")
     ap.add_argument("--max-verify", type=int, default=8000)
     ap.add_argument("--workers", type=int, default=8)
@@ -95,7 +96,11 @@ def main():
     args = ap.parse_args()
 
     handle_map, handle_deny, domain_map, alias_groups, interview_hosts = fps.load_house_maps()
-    pairs = [r for r in fps.csv_rows(PAIRS) if r["matched_slug"] and r["pointer_url"]]
+    pairs_name, slug_col, suffix = SOURCES[args.source]
+    OUT_CANDS = fps.REPORTS / f"gap_new_recs_candidates{suffix}.csv"
+    OUT_PLAN = fps.REPORTS / f"gap_new_recs_plan{suffix}.csv"
+    OUT_SUMMARY = fps.REPORTS / f"gap_new_recs_summary{suffix}.json"
+    pairs = [r for r in fps.csv_rows(fps.REPORTS / pairs_name) if r["matched_slug"] and r["pointer_url"]]
     fps.log(f"gap pairs with a matched person and a cited source: {len(pairs)}")
 
     people = fps.sb_read_all("people", "id,slug,name,twitter_handle,index_status")
@@ -103,22 +108,28 @@ def main():
     if args.status != "all":
         pairs = [r for r in pairs if r["status"] == args.status]
     # published people first (their pages are the ones readers see), then by name for a stable order
-    pairs.sort(key=lambda r: (people_by_slug[r["matched_slug"]]["index_status"] not in ("published", "approved", "indexed", "index"), r["rtt_person_slug"]))
+    pairs.sort(key=lambda r: (people_by_slug[r["matched_slug"]]["index_status"] not in ("published", "approved", "indexed", "index"), r[slug_col]))
     pairs = pairs[: args.max_pairs]
     fps.log(f"verifying {len(pairs)} pairs (status={args.status})")
     books = {b["slug"]: b for b in fps.sb_read_all("books", "id,slug,title,subtitle,author_name,first_published_year")}
     own = fps.Ownership(people_by_slug, handle_map, handle_deny, domain_map, alias_groups, interview_hosts)
 
-    R = rtt.RttFetcher(offline=True)  # person pages were collected by rtt_gap_finder.py
+    R = rtt.RttFetcher(offline=True)  # RTT person pages were collected by rtt_gap_finder.py
     F = rtt.SourceFetcher(args.offline)
     wb_stats = Counter()
     pages = {}
     by_person = defaultdict(list)
     for r in pairs:
-        by_person[r["rtt_person_slug"]].append(r)
+        by_person[r[slug_col]].append(r)
     for rslug in by_person:
-        res = R.get(f"{rtt.RTT}/person/{rslug}")
-        pg = rtt.parse_rtt_person(res.get("text", ""), rslug) if res.get("status") == 200 else None
+        if args.source == "rtt":
+            res = R.get(f"{rtt.RTT}/person/{rslug}")
+            pg = rtt.parse_rtt_person(res.get("text", ""), rslug) if res.get("status") == 200 else None
+            if pg:
+                pg["profile_handles"] = {pg["twitter"]} if pg["twitter"] else set()
+        else:  # MRB person pages were collected by mrb_gap_finder.py (cached; a miss is fetched politely)
+            res = F.get(f"{fps.MRB}/people/{rslug}-recommended-books", "mrb")
+            pg = fps.parse_mrb_person(res["text"]) if res.get("status") == 200 else None
         if pg:
             pages[rslug] = pg
 
@@ -141,9 +152,10 @@ def main():
             person = people_by_slug[rows[0]["matched_slug"]]
             idx = defaultdict(list)
             for c in pg["cards"]:
-                c["quote_attrib"] = person["name"]
-                if c["quote"] and rtt.third_person_quote(c["quote"], person["name"]):
-                    c["quote"], c["has_context_only"] = None, True
+                if args.source == "rtt":  # this index lists the person's own list: its quote is attributed to them
+                    c["quote_attrib"] = person["name"]
+                    if c["quote"] and rtt.third_person_quote(c["quote"], person["name"]):
+                        c["quote"], c["has_context_only"] = None, True
                 idx[fps.norm_title(c["title"])].append(c)
             for r in rows:
                 if r["our_book_slug"] and r["our_book_slug"] in books:
@@ -162,9 +174,9 @@ def main():
                         "_person_id": person["id"], "_book_id": book["id"]}
                 best = None
                 for card in hits:
-                    sdy = {fps.clean_url(u): card["source_year"] for u in card["links"]} if card["source_year"] else None
+                    sdy = {fps.clean_url(u): card["source_year"] for u in card["links"]} if card.get("source_year") else None
                     cand = fps.evaluate_card(card, base, slug=person["slug"], person=person, book=book, rebooked=False, own=own,
-                                             profile_handles={pg["twitter"]} if pg["twitter"] else set(),
+                                             profile_handles=pg["profile_handles"],
                                              verify_fn=verify_fn, rejected=rejected, source_date_years=sdy)
                     if cand and (best is None or fps.candidate_rank(cand) < fps.candidate_rank(best)):
                         best = cand
@@ -190,6 +202,15 @@ def main():
         sys.exit(f"STOPPED: {e}")
 
     fps.finalize_candidates(out)
+    for c in out:
+        # Hand check 2026-11-14: a book that merely appears on a podcast/interview page (tim.blog "Selected Links",
+        # a host-compiled resource list) is not an endorsement by the guest: 3 of 5 medium candidates were of
+        # that kind. For these source types medium therefore needs the person's own words found at the source;
+        # tweets are exempt because the tweet text is itself the person's words.
+        if (c["evidence_strength"] == "medium" and not c["quote_verified_at_primary"]
+                and c["primary_source_type"] in ("podcast", "interview", "blog", "other")):
+            c["evidence_strength"] = "weak"
+            c["notes"] += ";show_notes_or_link_list(persons_words_not_found_at_source)"
     for c in out:  # hard rules
         u = c["primary_source_url"].lower()
         assert "readthistwice" not in u and "mostrecommendedbooks" not in u and not fps.is_blocked_site(u)
