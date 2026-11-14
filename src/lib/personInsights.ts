@@ -3,6 +3,7 @@ import { supabase as getSupabase } from "./supabase";
 import { INDEXABLE_STATUSES, isIndexable } from "./seo";
 import { repairEncoding } from "./dataQuality";
 import { displayListTitle } from "./display";
+import { seriesBaseName } from "./seriesOrder";
 
 /**
  * Person-page depth (topics, similar shelves, shelf, FAQ) and the
@@ -449,6 +450,111 @@ export async function getPersonTopics(
   } catch (e) {
     console.error("[personInsights] getPersonTopics failed:", e);
     return [];
+  }
+}
+
+// ─── Per-book extras for the person page's list ─────────────────────────────
+
+/** Another published person who recommends the same book. */
+export interface CoRecommender {
+  slug: string;
+  name: string;
+  avatar_url: string | null;
+}
+
+/**
+ * For each of `bookIds`, the other published people who recommend it, the
+ * people closest to this person first (most books in common). Built from the
+ * cached published shelves, so it costs no extra database read. `people` is
+ * the deduplicated list; `byBook` points into it, so a person who recommends
+ * forty of these books is sent once, not forty times. Never throws.
+ */
+export async function getCoRecommenders(
+  person: { id: string; slug: string },
+  bookIds: string[],
+  perBook = 3,
+): Promise<{ people: CoRecommender[]; byBook: Record<string, { idx: number[]; total: number }> }> {
+  const empty = { people: [], byBook: {} };
+  if (!person?.id || bookIds.length === 0) return empty;
+  try {
+    const shelves = await getPublishedShelves();
+    const mine = new Set(bookIds);
+    const others = shelves
+      .filter((s) => s.id !== person.id && s.slug !== person.slug)
+      .map((s) => ({ s, shared: s.bookIds.filter((id) => mine.has(id)) }))
+      .filter((x) => x.shared.length > 0)
+      // Closest first; name keeps the order stable between renders.
+      .sort((a, b) => b.shared.length - a.shared.length || a.s.name.localeCompare(b.s.name));
+    const people: CoRecommender[] = [];
+    const index = new Map<string, number>();
+    const byBook: Record<string, { idx: number[]; total: number }> = {};
+    for (const { s, shared } of others) {
+      for (const bookId of shared) {
+        const e = (byBook[bookId] ||= { idx: [], total: 0 });
+        e.total++;
+        if (e.idx.length >= perBook) continue;
+        let i = index.get(s.id);
+        if (i == null) {
+          i = people.push({ slug: s.slug, name: s.name, avatar_url: s.avatar_url }) - 1;
+          index.set(s.id, i);
+        }
+        e.idx.push(i);
+      }
+    }
+    return { people, byBook };
+  } catch (e) {
+    console.error("[personInsights] getCoRecommenders failed:", e);
+    return empty;
+  }
+}
+
+/** A published series a book belongs to. */
+export interface BookSeriesRef {
+  slug: string;
+  title: string;
+  position: number | null;
+}
+
+async function fetchPersonSeries(bookIds: string[]): Promise<Record<string, BookSeriesRef>> {
+  const sb = getSupabase();
+  const out: Record<string, BookSeriesRef> = {};
+  for (const ids of chunk(bookIds, ID_CHUNK)) {
+    const { data, error } = await sb
+      .from("book_series")
+      .select("book_id,position,series!inner(slug,title,index_status)")
+      .in("book_id", ids)
+      .in("series.index_status", INDEXABLE_STATUSES)
+      .order("book_id", { ascending: true })
+      .limit(PAGE);
+    if (error) throw error;
+    const rows = (data || []) as unknown as Array<{
+      book_id: string;
+      position: number | null;
+      series: { slug: string; title: string } | null;
+    }>;
+    for (const r of rows) {
+      if (!r.series?.slug || !r.series.title || out[r.book_id]) continue;
+      out[r.book_id] = {
+        slug: r.series.slug,
+        title: seriesBaseName(repairEncoding(r.series.title)),
+        position: typeof r.position === "number" && r.position > 0 ? r.position : null,
+      };
+    }
+  }
+  return out;
+}
+
+/** book id → the published series it belongs to (books in none are absent). Never throws. */
+export async function getPersonSeries(personId: string, bookIds: string[]): Promise<Record<string, BookSeriesRef>> {
+  if (!personId || bookIds.length === 0) return {};
+  try {
+    return await unstable_cache(() => fetchPersonSeries(bookIds), ["pi-person-series-v2", personId, String(bookIds.length)], {
+      revalidate: 3600,
+      tags: ["series", `person:${personId}`],
+    })();
+  } catch (e) {
+    console.error("[personInsights] getPersonSeries failed:", e);
+    return {};
   }
 }
 

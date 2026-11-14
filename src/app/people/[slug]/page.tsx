@@ -16,6 +16,8 @@ import {
   getPersonShelf,
   getPersonLibrary,
   getPersonTopics,
+  getPersonSeries,
+  getCoRecommenders,
   getSimilarShelves,
   buildPersonFaq,
   firstNameOf,
@@ -25,7 +27,8 @@ import {
   type SimilarShelf,
 } from "@/lib/personInsights";
 import { PersonShelf } from "@/components/person/PersonShelf";
-import { PersonLibrary, type LibraryItem, type LibraryTopic } from "@/components/person/PersonLibrary";
+import { PersonLibrary, type LibraryItem, type LibraryTopic, type LibraryRecommender } from "@/components/person/PersonLibrary";
+import { ShareButton } from "@/components/person/ShareButton";
 import { PersonTopics } from "@/components/person/PersonTopics";
 import { SimilarShelves } from "@/components/person/SimilarShelves";
 import { PersonFaq } from "@/components/person/PersonFaq";
@@ -112,6 +115,8 @@ export default async function PersonDetailPage({ params }: Props) {
   let shelf: ShelfBook[] = [];
   let topics: PersonTopic[] = [];
   let similar: SimilarShelf[] = [];
+  let seriesByBook: Awaited<ReturnType<typeof getPersonSeries>> = {};
+  let coRecs: Awaited<ReturnType<typeof getCoRecommenders>> = { people: [], byBook: {} };
 
   try {
     // Person pages linked to books and to nothing else — zero person->person
@@ -138,9 +143,11 @@ export default async function PersonDetailPage({ params }: Props) {
   // of this person's book ids. Each helper already returns [] on failure.
   const shelfIds = shelf.map((b) => b.id);
   try {
-    [topics, similar] = await Promise.all([
+    [topics, similar, seriesByBook, coRecs] = await Promise.all([
       getPersonTopics(person.id, shelfIds, 8),
       getSimilarShelves(person, shelfIds, 8),
+      getPersonSeries(person.id, shelfIds),
+      getCoRecommenders(person, shelfIds),
     ]);
   } catch (e) {
     console.error("[person-detail] Shelf insights failed:", e);
@@ -241,11 +248,15 @@ export default async function PersonDetailPage({ params }: Props) {
         source,
         sourceHost: source ? hostOf(source) : null,
         sourceRel: source ? outboundLinkRel(source) : "noopener noreferrer nofollow",
+        series: seriesByBook[r.id] ?? null,
+        also: coRecs.byBook[r.id]?.idx ?? [],
+        alsoTotal: coRecs.byBook[r.id]?.total ?? 0,
       };
     })
     // Same order the client starts in, so the server-rendered first page and
     // the hydrated default agree.
     .sort((a, b) => b.recs - a.recs || a.title.localeCompare(b.title));
+  const libraryRecommenders: LibraryRecommender[] = coRecs.people.map((p) => ({ slug: p.slug, name: p.name, avatarUrl: p.avatar_url }));
   const itemBySlug = new Map(libraryItems.map((i) => [i.slug, i]));
 
   // 24 spines (was 16): the shelf is the page's showpiece, and it scrolls
@@ -328,7 +339,10 @@ export default async function PersonDetailPage({ params }: Props) {
               <p className="mt-4 text-sm text-accent font-semibold">{person.role}</p>
             )}
             {hasBio && <p className="mt-2 prose-body text-muted-strong">{person.bio}</p>}
-            <LastUpdated modified={contentDates(person).modified} className="mt-3 text-xs text-muted" />
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <LastUpdated modified={contentDates(person).modified} className="text-xs text-muted" />
+              <ShareButton title={`${person.name} — recommended books`} />
+            </div>
             <div className="mt-6 pt-5 border-t border-border flex flex-col gap-2.5 max-w-[60ch]">
               {normalizeOutboundUrl(person.source_url) && (
                 <Link
@@ -446,7 +460,7 @@ export default async function PersonDetailPage({ params }: Props) {
             {libraryItems.length > 12 ? "Sort, filter by topic or search the whole list. " : ""}
             Where we have {firstName}’s own words about a book, they appear on its card with a link to the source.
           </p>
-          <PersonLibrary items={libraryItems} topics={libraryTopics} firstName={firstName} />
+          <PersonLibrary items={libraryItems} topics={libraryTopics} recommenders={libraryRecommenders} firstName={firstName} />
         </section>
       ) : (
         <section className="mb-14">

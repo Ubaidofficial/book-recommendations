@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { SafeImage } from "@/components/SafeImage";
+import { Avatar } from "@/components/Avatar";
 
 /**
  * One book on a person's list, already reduced on the server to what a card
@@ -29,6 +30,18 @@ export interface LibraryItem {
   source: string | null;
   sourceHost: string | null;
   sourceRel: string;
+  /** Published series this book belongs to, if any. */
+  series: { slug: string; title: string; position: number | null } | null;
+  /** Other people who recommend it: indexes into the `recommenders` prop, closest first. */
+  also: number[];
+  /** How many other published people recommend it (can exceed `also.length`). */
+  alsoTotal: number;
+}
+
+export interface LibraryRecommender {
+  slug: string;
+  name: string;
+  avatarUrl: string | null;
 }
 
 export interface LibraryTopic {
@@ -100,11 +113,13 @@ function Card({
   item,
   view,
   topics,
+  recommenders,
   onTopic,
 }: {
   item: LibraryItem;
   view: View;
   topics: LibraryTopic[];
+  recommenders: LibraryRecommender[];
   onTopic: (i: number) => void;
 }) {
   const list = view === "list";
@@ -172,6 +187,49 @@ function Card({
                 {topics[t].title}
               </button>
             ))}
+          </div>
+        )}
+
+        {item.series && (
+          <Link
+            href={`/series/${item.series.slug}`}
+            className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-muted-strong hover:text-accent transition-colors w-fit max-w-full"
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h10M4 18h7" />
+            </svg>
+            <span className="truncate">
+              {item.series.position ? `Book ${item.series.position} · ` : "Series · "}
+              {item.series.title}
+            </span>
+          </Link>
+        )}
+
+        {item.also.length > 0 && (
+          <div className="mt-2.5 flex items-center gap-2 min-w-0">
+            <span className="flex shrink-0 -space-x-1.5">
+              {item.also.map((i) => {
+                const r = recommenders[i];
+                return (
+                  <Link
+                    key={r.slug}
+                    href={`/people/${r.slug}`}
+                    title={r.name}
+                    aria-label={`${r.name}’s reading list`}
+                    className="rounded-full ring-2 ring-surface hover:z-10 hover:ring-accent/40 transition-shadow"
+                  >
+                    <Avatar name={r.name} slug={r.slug} avatarUrl={r.avatarUrl} sizeClass="w-7 h-7" textClass="text-[10px]" alt="" />
+                  </Link>
+                );
+              })}
+            </span>
+            <span
+              className="text-[11px] text-muted leading-tight min-w-0 truncate"
+              title={`Also recommended by ${item.also.map((i) => recommenders[i].name).join(", ")}${item.alsoTotal > item.also.length ? ` and ${item.alsoTotal - item.also.length} more` : ""}`}
+            >
+              Also {recommenders[item.also[0]].name}
+              {item.alsoTotal > 1 ? ` +${(item.alsoTotal - 1).toLocaleString("en-US")}` : ""}
+            </span>
           </div>
         )}
 
@@ -280,10 +338,12 @@ function Chip({
 export function PersonLibrary({
   items,
   topics,
+  recommenders,
   firstName,
 }: {
   items: LibraryItem[];
   topics: LibraryTopic[];
+  recommenders: LibraryRecommender[];
   firstName: string;
 }) {
   const [sort, setSort] = useState<SortKey>("popular");
@@ -491,6 +551,7 @@ export function PersonLibrary({
               item={item}
               view={view}
               topics={topics}
+              recommenders={recommenders}
               onTopic={(t) => {
                 pickTopic(t);
                 scrollToToolbar();
