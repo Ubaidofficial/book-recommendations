@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-11-14 — Coverage gap closed from two outside indexes; Reddit counts; Amazon tag audit
+
+Data written to the database (all removable through `public.added_rows_20261114`, which lists every row added):
+
+- **562 recommendations** for 259 people on 537 books, and **129 new books**. Each recommendation cites the person's *own* source (their tweet, blog, interview or curated list), never an outside index, and stores a quote only if it was found word for word at that source. Confidence 80 (302 rows) or 60 (260). 464 are tweets, read from Wayback Machine snapshots and checked to be written by the person's own handle.
+- New books are `index_status='noindex'` (they do not publish until the normal enrichment + publish pipeline picks them up), carry Open Library facts only (id, cover, isbn), and were added only because a verified recommendation attaches to them. No outside descriptions or bios were copied.
+- **10,094 Reddit mention rows** (`public.book_reddit_mentions`, migration 007) for 3,885 books, from redditreads.com. The figure is a count of *users* (once per user per subreddit), not votes, and the data ends March 2023; every surface says so and credits Reddit Reads.
+
+What the guards caught (kept in the tooling): five of six "new" books were already in the catalogue with hyphens dropped ("The EMyth Revisited", "Kareem AbdulJabbar"); one more under a misspelt author ("Charlie Gillkey") and was removed again through the ledger; one under an alternate title ("Rivers of London / Midnight Riot"). Matching now ignores hyphens and spacing, tolerates a one-letter author misspelling, compares the subtitle-less main title, and handles "UK / US" alternate titles. People stored twice are resolved to the published record. Hand checks rejected host-written "Selected Links" lists, a guest's own memoir, mixed-sentiment mentions, and tweets that say "I haven't read it yet".
+
+Tooling (`scripts/`): `rtt_gap_finder.py`, `mrb_gap_finder.py`, `mrb_series_gap.py` (read-only coverage gaps), `gap_plan_new_recs.py` (verify at the primary source, enrich new books from Open Library), `gap_screen_tweets.py`, `gap_apply.py` (guarded writer with ledger), `catalog_match.py`, `reddit_reads_collect.py` / `reddit_reads_match.py`, `qa/amazon_tag_audit.js`.
+
+Amazon: **124 pages, 6,255 Amazon URLs, 0 untagged or wrongly tagged** (`bookmention09-20`). The audit reads HTML, JSON-LD and the embedded data for every book on a person page. The stored `amazon_url` values are bare product links by design; the tag is added when the page is built.
+
+Not done, deliberately: no series or people records were created or published (see `docs/series/series-publish-review-2026-11-14.md` and `docs/people/new-people-review-2026-11-14.md`).
+
+## 2026-11-14 — Person page: the whole list, sort/filter/search, grid/list, richer 3D shelf
+
+- **All books, not 24.** The page read the first 24 recommendations, so Naval Ravikant (200) showed 24 with no way to see the rest (Bill Gates: 24 of 295). `getPersonLibrary` (`src/lib/personInsights.ts`) reads every recommendation with a lean column set (not `books(*)`, which would exceed the 2 MB data-cache entry limit), cached 5 minutes, best-evidenced first. The server HTML still holds the first 24 cards; a collapsed "Index of all N titles" keeps every book linked for crawlers that will not press "Show more".
+- **`PersonLibrary`** (client island, no `searchParams`, so the page keeps its on-demand ISR caching): sort (most recommended, highest score, newest published, oldest, A–Z; the year sorts appear only when 10+ books have a year), topic chips with counts, "With <name>'s words" filter, search over title/author/quote, grid/list switch remembered in `localStorage` (list by default under 640 px), "Show 24 more" / "Show all", empty state, live result count. Toolbar is sticky from `md` up and static on phones. Hidden entirely for lists of 12 or fewer (the median profile has 4).
+- **Quotes on the cards.** Each card shows the person's own words (shortened to 260 chars at a word boundary) with a source link, only where `getProofDisplaySafety` clears them, so the existing attribution rules still apply. "Source & Proof" now picks its 10 strongest from the whole list instead of the first 24.
+- **Amazon demoted.** "View details" is the primary button; Amazon is a secondary outlined button (same affiliate URL, `sponsored` rel and tracking attributes).
+- **3D shelf kept and extended:** 24 spines (was 16); the panel shows the person's quote and source for the selected book, previous/next buttons with a counter (the selected spine scrolls into view on phones), the book's back cover reads "Recommended by <name>", "Browse all N books" link, taller shelf on large screens.
+- **Smaller fixes:** "Books by" is hidden unless at least one book has a cover; topic bars have a visible track; the "books recommended" figure links to the list; a jump row (Shelf / All books / Topics / Sources / FAQ).
+- **Best-of-three additions** (structure learned from two other recommendation sites; nothing copied): each card shows who else recommends the book (up to three avatars linking to their lists, "Also <name> +N", from the cached published shelves, so no extra database read); books in a published series link to it ("Book 3 · Series name", through `book_series`); a Share button in the hero (device share sheet, else copy the link).
+- **`scripts/rtt_gap_finder.py`** (dry run, read-only): crawls readthistwice person pages through the existing `RttFetcher` limits (one connection, 2 s apart, cached, stop on 429/403) and writes `reports/rtt_gap_*.csv` listing which (person, book) pairs and books we lack, with the cited primary-source URL as a pointer. Facts only: no outside text is stored, quotes are kept as a yes/no flag and must be verified verbatim at the primary source before anything is written. Run on the owner's instruction of 2026-11-14, knowing that site's terms forbid automated access.
+
+- Checked at 1280 and 390 px on Naval Ravikant, plus Alan Kay (8 books) and Bill Gates (295): no console errors, no horizontal overflow, all covers load, production build passes. Not covered: Safari/Firefox, screen-reader testing, Lighthouse/CLS numbers.
+
 ## 2026-11-13 — Editorial typography, scroll reveals, and three UI fixes
 
 - **Fonts:** Newsreader (serif, headings and display) and Inter (UI and body), self-hosted from `@fontsource-variable/*` (OFL-1.1) through `next/font/local`: no font CDN request at build or run time, both preloaded, `display: swap`, and size-adjusted local fallbacks (Times New Roman / Arial) so the swap shifts nothing. Latin subset, weight axis only: 58 KB + 48 KB = 104 KB of woff2. The Georgia rules (spine titles, back cover) and Tailwind's `font-serif` now use Newsreader.
