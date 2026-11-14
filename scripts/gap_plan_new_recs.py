@@ -87,6 +87,8 @@ def main():
     ap.add_argument("--max-verify", type=int, default=8000)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--no-wayback", action="store_true")
+    ap.add_argument("--archive-interval", type=float, default=3.0,
+                    help="seconds between requests to archive.org / web.archive.org (the 1.5 s default of the shared fetcher was rate-limited with HTTP 429)")
     ap.add_argument("--no-enrich", action="store_true", help="skip Open Library lookups (new books are then not planned)")
     ap.add_argument("--status", choices=("missing_pair", "missing_book", "all"), default="all",
                     help="missing_pair: the book is already ours (lowest risk); missing_book: a new book is needed")
@@ -96,6 +98,7 @@ def main():
     ap.add_argument("--pilot", type=int, default=10)
     args = ap.parse_args()
 
+    rtt.ARCHIVE_MIN_INTERVAL = args.archive_interval
     handle_map, handle_deny, domain_map, alias_groups, interview_hosts = fps.load_house_maps()
     pairs_name, slug_col, suffix = SOURCES[args.source]
     if args.status != "all":
