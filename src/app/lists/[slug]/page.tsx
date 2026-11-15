@@ -740,7 +740,17 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                     <tr key={b.id}>
                       <td className="px-4 py-2.5 text-muted">{i + 1}</td>
                       <td className="px-4 py-2.5 font-semibold">
-                        <Link href={`/books/${b.slug}`} rel={bookLinkRel(indexableBooks, b.slug)} className="text-ink hover:text-accent">{b.title}</Link>
+                        <div className="flex items-center gap-3">
+                          {/* Cover beside the rank: decorative (the title link next to it names the book). */}
+                          <Link href={`/books/${b.slug}`} rel={bookLinkRel(indexableBooks, b.slug)} tabIndex={-1} aria-hidden="true" className="shrink-0">
+                            <span className="block h-[54px] w-9 overflow-hidden rounded-[3px] border border-border bg-subtle shadow-sm">
+                              {isDisplayableCover(b.cover_image_url) && (
+                                <SafeImage src={b.cover_image_url!} alt="" className="h-full w-full object-cover" width={36} height={54} />
+                              )}
+                            </span>
+                          </Link>
+                          <Link href={`/books/${b.slug}`} rel={bookLinkRel(indexableBooks, b.slug)} className="text-ink hover:text-accent">{b.title}</Link>
+                        </div>
                       </td>
                       <td className="px-4 py-2.5 text-muted">{b.author || "—"}</td>
                       <td className="px-4 py-2.5 text-muted">{b.first_published_year || "—"}</td>
