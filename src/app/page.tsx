@@ -15,10 +15,25 @@ import { ConsensusShelf } from "@/components/ConsensusShelf";
 import { CategoryIcon } from "@/components/CategoryIcon";
 import { HeroShelf } from "@/components/HeroShelf";
 import { getSiteNav } from "@/lib/siteNav";
+import { getListVisuals, getSeriesVisuals } from "@/lib/collectionVisuals";
+import { CollectionThumb } from "@/components/CollectionThumb";
 
 // noStore() used to sit in the component body and silently defeated this
 // declaration; the featured reads are cached explicitly instead.
 export const revalidate = 60;
+
+/** The nine reading lists the homepage promotes. Names and blurbs are editorial; counts and thumbnails are read live. */
+const TRUSTED_LISTS: Array<{ key: string; name: string; blurb: string }> = [
+  { key: "founders", name: "Founders", blurb: "Startup and company-building books recommended by founders and tech builders." },
+  { key: "investors", name: "Investors", blurb: "Capital allocation, decision-making, and business books recommended by investors." },
+  { key: "ceos", name: "CEOs", blurb: "Leadership, strategy, and operator books recommended by executives." },
+  { key: "bill-gates", name: "Bill Gates", blurb: "Science, business, global health, and biography picks from Bill Gates." },
+  { key: "billionaires", name: "Billionaires", blurb: "Books recommended by self-made business leaders and investors." },
+  { key: "writers", name: "Writers", blurb: "Books recommended by bestselling authors, essayists, and creators." },
+  { key: "naval-ravikant", name: "Naval Ravikant", blurb: "Startups, wealth, philosophy, and decision-making books recommended by Naval Ravikant." },
+  { key: "warren-buffett", name: "Warren Buffett", blurb: "Investing, business, and long-term thinking books recommended by Warren Buffett." },
+  { key: "elon-musk", name: "Elon Musk", blurb: "Science fiction, engineering, physics, and startup books recommended by Elon Musk." },
+];
 
 export default async function HomePage() {
   const CARD_COUNT = 4;
@@ -84,6 +99,16 @@ export default async function HomePage() {
     console.warn("[homepage] EMPTY_SERIES: zero rows returned from Supabase series query");
     return [];
   })();
+
+  // Thumbnails for every list and series card on the page: two batched, cached, fail-soft reads.
+  const [listVisuals, seriesVisuals] = await Promise.all([
+    getListVisuals([
+      ...TRUSTED_LISTS.map((t) => `books-recommended-by-${t.key}`),
+      ...lists.map((l) => l.slug),
+      ...recentLists.map((l) => l.slug),
+    ]),
+    getSeriesVisuals([...series.map((x) => x.slug), ...recentSeries.map((x) => x.slug)]),
+  ]);
 
   // Remove N+1 query overhead by setting badge counts to 0 on the homepage.
   // The details will load when clicking through to the individual profiles.
@@ -268,7 +293,7 @@ export default async function HomePage() {
       </section>
 
       {/* Newly published: gives each daily release a link from the homepage */}
-      <NewlyPublished lists={recentLists} series={recentSeries} />
+      <NewlyPublished lists={recentLists} series={recentSeries} listVisuals={listVisuals} seriesVisuals={seriesVisuals} />
 
       {/* Start Exploring / Discovery Cards */}
       <section className="py-16 px-4 bg-surface">
@@ -397,159 +422,32 @@ export default async function HomePage() {
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-reveal-stagger>
-            <Link
-              href="/lists/books-recommended-by-founders"
-              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Founders</h3>
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
-                  75 books
-                </span>
-              </div>
-              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
-                Startup and company-building books recommended by founders and tech builders.
-              </p>
-              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
-                Explore list →
-              </span>
-            </Link>
-            <Link
-              href="/lists/books-recommended-by-investors"
-              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Investors</h3>
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
-                  75 books
-                </span>
-              </div>
-              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
-                Capital allocation, decision-making, and business books recommended by investors.
-              </p>
-              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
-                Explore list →
-              </span>
-            </Link>
-            <Link
-              href="/lists/books-recommended-by-ceos"
-              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">CEOs</h3>
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
-                  75 books
-                </span>
-              </div>
-              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
-                Leadership, strategy, and operator books recommended by executives.
-              </p>
-              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
-                Explore list →
-              </span>
-            </Link>
-            <Link
-              href="/lists/books-recommended-by-bill-gates"
-              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Bill Gates</h3>
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
-                  75 books
-                </span>
-              </div>
-              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
-                Science, business, global health, and biography picks from Bill Gates.
-              </p>
-              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
-                Explore list →
-              </span>
-            </Link>
-            <Link
-              href="/lists/books-recommended-by-billionaires"
-              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Billionaires</h3>
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
-                  75 books
-                </span>
-              </div>
-              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
-                Books recommended by self-made business leaders and investors.
-              </p>
-              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
-                Explore list →
-              </span>
-            </Link>
-            <Link
-              href="/lists/books-recommended-by-writers"
-              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Writers</h3>
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
-                  75 books
-                </span>
-              </div>
-              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
-                Books recommended by bestselling authors, essayists, and creators.
-              </p>
-              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
-                Explore list →
-              </span>
-            </Link>
-            <Link
-              href="/lists/books-recommended-by-naval-ravikant"
-              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Naval Ravikant</h3>
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
-                  75 books
-                </span>
-              </div>
-              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
-                Startups, wealth, philosophy, and decision-making books recommended by Naval Ravikant.
-              </p>
-              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
-                Explore list →
-              </span>
-            </Link>
-            <Link
-              href="/lists/books-recommended-by-warren-buffett"
-              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Warren Buffett</h3>
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
-                  70 books
-                </span>
-              </div>
-              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
-                Investing, business, and long-term thinking books recommended by Warren Buffett.
-              </p>
-              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
-                Explore list →
-              </span>
-            </Link>
-            <Link
-              href="/lists/books-recommended-by-elon-musk"
-              className="group block p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="type-h3 text-ink group-hover:text-accent transition-colors">Elon Musk</h3>
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
-                  75 books
-                </span>
-              </div>
-              <p className="text-sm text-muted leading-relaxed mb-4 min-h-[40px]">
-                Science fiction, engineering, physics, and startup books recommended by Elon Musk.
-              </p>
-              <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">
-                Explore list →
-              </span>
-            </Link>
+            {TRUSTED_LISTS.map((t) => {
+              const slug = `books-recommended-by-${t.key}`;
+              const visual = listVisuals[slug] ?? null;
+              const count = visual?.bookCount || 0;
+              return (
+                <Link
+                  key={slug}
+                  href={`/lists/${slug}`}
+                  className="group flex items-start gap-4 p-6 rounded-2xl border border-border bg-subtle/10 hover:border-accent/20 hover:shadow-lg transition-all duration-200"
+                >
+                  <CollectionThumb visual={visual} slug={slug} size="lg" className="mt-0.5" />
+                  <span className="block min-w-0 flex-1">
+                    <span className="flex justify-between items-start gap-3 mb-2">
+                      <span className="type-h3 text-ink group-hover:text-accent transition-colors">{t.name}</span>
+                      {count > 0 && (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-semibold shrink-0">
+                          {count} books
+                        </span>
+                      )}
+                    </span>
+                    <span className="block text-sm text-muted leading-relaxed mb-3 min-h-[40px]">{t.blurb}</span>
+                    <span className="text-xs font-semibold text-accent inline-flex items-center gap-1">Explore list →</span>
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -593,7 +491,7 @@ export default async function HomePage() {
             <SectionHeading title="Featured Reading Lists" href="/lists" />
             <div className="flex flex-col gap-3" data-reveal-stagger>
               {lists.map((list) => (
-                <ListCard key={list.id} {...list} bookCount={list.book_count} />
+                <ListCard key={list.id} {...list} bookCount={list.book_count} visual={listVisuals[list.slug] ?? null} />
               ))}
             </div>
           </div>
@@ -601,7 +499,7 @@ export default async function HomePage() {
             <SectionHeading title="Popular Series" href="/series" />
             <div className="flex flex-col gap-3" data-reveal-stagger>
               {series.map((s) => (
-                <SeriesCard key={s.id} {...s} bookCount={s.book_count} />
+                <SeriesCard key={s.id} {...s} bookCount={s.book_count} visual={seriesVisuals[s.slug] ?? null} />
               ))}
             </div>
           </div>

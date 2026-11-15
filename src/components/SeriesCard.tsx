@@ -1,19 +1,26 @@
 import Link from "next/link";
 import { displayTitle } from "@/lib/display";
+import { CollectionThumb } from "./CollectionThumb";
+import type { CollectionVisual } from "@/lib/collectionVisuals";
 
 interface SeriesCardProps {
   title: string;
   slug: string;
   description: string;
   bookCount: number;
+  /** First covers of the series for a thumbnail beside the title. Omit for the plain card. */
+  visual?: CollectionVisual | null;
 }
 
-export function SeriesCard({ title, slug, description, bookCount }: SeriesCardProps) {
+export function SeriesCard({ title, slug, description, bookCount, visual }: SeriesCardProps) {
   return (
     <Link
       href={`/series/${slug}`}
       className="group block rounded-2xl border border-border bg-surface p-5 hover:border-accent/20 motion-card-hover"
     >
+      <div className={visual !== undefined ? "flex items-start gap-4" : undefined}>
+      {visual !== undefined && <CollectionThumb visual={visual} slug={slug} size="md" className="mt-0.5" />}
+      <div className="min-w-0 flex-1">
       <div className="flex items-start justify-between gap-3 mb-2">
         <h3 className="font-semibold text-base text-ink group-hover:text-accent transition-colors leading-snug">
           {displayTitle(title)}
@@ -25,6 +32,8 @@ export function SeriesCard({ title, slug, description, bookCount }: SeriesCardPr
         )}
       </div>
       <p className="text-sm text-muted leading-relaxed line-clamp-2">{description}</p>
+      </div>
+      </div>
     </Link>
   );
 }

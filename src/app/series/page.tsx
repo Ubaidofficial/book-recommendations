@@ -4,6 +4,7 @@ import { getSeriesPaginatedCached, searchSeries, getRecentlyPublishedSeriesCache
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
 import { SeriesCard, SearchBar, Breadcrumbs, EmptyState, NewlyPublished } from "@/components";
+import { getSeriesVisuals } from "@/lib/collectionVisuals";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,8 @@ export default async function SeriesPage({ searchParams }: Props) {
   const { data: seriesList, total } = seriesResult;
   // Only on the first, unfiltered page: the block is a crawl path to new releases.
   const recentSeries = !q && page === 1 ? await getRecentlyPublishedSeriesCached(10) : [];
+  // One batched, cached read of thumbnails (first covers) for every card on the page.
+  const visuals = await getSeriesVisuals([...recentSeries.map((x) => x.slug), ...seriesList.map((x) => x.slug)]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const prevHref = page > 1 ? (page === 2 ? "/series" : `/series?page=${page - 1}`) : "";
   const nextHref = page < totalPages ? `/series?page=${page + 1}` : "";
@@ -102,20 +105,16 @@ export default async function SeriesPage({ searchParams }: Props) {
       <div className="mb-8">
         <SearchBar placeholder="Search series by title…" />
       </div>
-      <NewlyPublished series={recentSeries} className="mb-10" />
+      <NewlyPublished series={recentSeries} seriesVisuals={visuals} className="mb-10" />
       <div className="flex items-center justify-between mb-6 text-sm">
         <span className="text-muted">{total} series</span>
-        <select className="border border-border rounded-lg px-3 py-1.5 bg-surface text-sm text-ink focus:outline-none focus:ring-2 focus:ring-accent/20">
-          <option>Most Books</option>
-          <option>Title A-Z</option>
-        </select>
       </div>
       {seriesList.length === 0 ? (
         <EmptyState message={q ? `No series match "${q}".` : "No series found."} />
       ) : (
         <div data-reveal-stagger className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {seriesList.map((series) => (
-            <SeriesCard key={series.id} title={series.title} slug={series.slug} description={series.description} bookCount={series.book_count} />
+            <SeriesCard key={series.id} title={series.title} slug={series.slug} description={series.description} bookCount={series.book_count} visual={visuals[series.slug] ?? null} />
           ))}
         </div>
       )}
