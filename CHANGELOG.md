@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-15
+
+- Home: the headline's accent phrase rotates through true hooks (default "people you trust"), CSS scroll-driven motion (scroll progress bar, parallax on cover strips, deeper reveals), all behind prefers-reduced-motion.
+- Lists: "Recommended by" in the ranked table links to each person; covers beside titles; related lists show thumbnails. Series: cover fan in the header; related series show thumbnails. Book pages: "Appears in" cards show thumbnails; "On Reddit" gains a summary paragraph, subreddit links (nofollow), per-subreddit rank and a FAQ entry.
+- Data (all backed up in `bak_seo_changes_20261114`): 180 portraits for people without one (Wikipedia/Commons, licences stored); 8 bad descriptions on published books fixed (Spanish/Indonesian text, Dune's description of the wrong book, a table of contents, reader-review junk, mojibake); invalid cover URLs (76,096 of 98,291 books held a bare filename such as "Vol. 2.png") being replaced from Open Library for series and recommended books (`scripts/book_cover_fill.py`).
+- Indexing: 98 lists, 35 series (>= 14 days old, no impressions in 90 days, not indexed) unpublished and 38 compare pages set to noindex (15 indexed pairs kept, `src/lib/compareIndexable.ts`). Publishing is gated on daily indexing improvement (max 2/day) with a log in `seo_publish_log` (migration 010); see `ops/scheduled-tasks/indexing-gated-publish.md`.
+
 ## 2026-11-15 — Lighter portraits on book-card faces
 
 The 24px recommender faces on the home page's Popular Books loaded stored Wikimedia Commons originals (one was 358KB). Plain jpg/jpeg/png originals are now requested as the 120px Commons copy (`commonsThumb`, `src/lib/avatarThumb.ts`), with the stored URL as a fallback and a tint circle after that (`RecommenderFace`), so a face is never worse off than before. Stored data is unchanged. 96 of 134 stored avatars are Commons originals; the same URLs are still used at full size elsewhere (person pages, menu, hero list).

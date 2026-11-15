@@ -17,10 +17,17 @@ import { HeroShelf } from "@/components/HeroShelf";
 import { getSiteNav } from "@/lib/siteNav";
 import { getListVisuals, getSeriesVisuals } from "@/lib/collectionVisuals";
 import { CollectionThumb } from "@/components/CollectionThumb";
+import { RotatingHook } from "@/components/RotatingHook";
 
 // noStore() used to sit in the component body and silently defeated this
 // declaration; the featured reads are cached explicitly instead.
 export const revalidate = 60;
+
+/**
+ * What follows "Find books recommended by" in the home headline. The first one is the stable default (what crawlers and
+ * the first paint see); the rest rotate in. Each must be true of the site: people we track, not endorsements.
+ */
+const HERO_HOOKS = ["people you trust", "Bill Gates", "founders and CEOs", "the world's best readers", "people who got there first", "Naval, Gates and Musk"];
 
 /** The nine reading lists the homepage promotes. Names and blurbs are editorial; counts and thumbnails are read live. */
 const TRUSTED_LISTS: Array<{ key: string; name: string; blurb: string }> = [
@@ -125,8 +132,8 @@ export default async function HomePage() {
               <span aria-hidden="true" className="h-px w-8 bg-accent/60" />
               Source-backed recommendations
             </p>
-            <h1 className="type-display text-ink max-w-[15ch]">
-              Find books recommended by <span className="text-accent">people you trust</span>.
+            <h1 className="type-display text-ink max-w-[15ch] md:min-h-[4.6em] [text-wrap:balance]">
+              Find books recommended by <RotatingHook phrases={HERO_HOOKS} />
             </h1>
             <p className="mt-6 prose-body text-muted-strong max-w-[54ch]">
               Explore source-backed recommendations from founders, authors, investors, scientists, creators, and public figures — with Amazon options on book pages.

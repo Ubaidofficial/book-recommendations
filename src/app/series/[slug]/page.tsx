@@ -7,6 +7,9 @@ import { displayTitle } from "@/lib/display";
 import { seriesJsonLd, faqPageJsonLd } from "@/lib/jsonld";
 import { orderSeriesBooks, seriesBaseName, seriesFaq, seriesPageTitle, seriesMetaTitle } from "@/lib/seriesOrder";
 import { BookCard, Breadcrumbs, EmptyState, LastUpdated } from "@/components";
+import { RelatedSeriesCards } from "@/components/RelatedCards";
+import { SeriesCoverFan } from "@/components/SeriesCoverFan";
+import { isDisplayableCover } from "@/lib/siteNav";
 
 // ISR, matching books/[slug] and people/[slug] — this page reads only
 // `params`, never searchParams/cookies/headers, so it's eligible for the
@@ -114,8 +117,9 @@ export default async function SeriesDetailPage({ params }: Props) {
       {faqJsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />}
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Series", href: "/series" }, { label: heading }]} />
 
-      <div className="mb-10">
-        <div className="flex items-start gap-3 flex-wrap mb-3">
+      <div className="relative mb-10 md:min-h-[200px]">
+        <SeriesCoverFan covers={orderedBooks.map((b) => b.cover_image_url).filter((u): u is string => isDisplayableCover(u)).slice(0, 5)} />
+        <div className="flex items-start gap-3 flex-wrap mb-3 md:pr-[420px]">
           <h1 className="type-h1 text-ink">{heading}</h1>
           {total > 0 && (
             <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-accent-light text-accent text-xs font-medium shrink-0 mt-1">
@@ -228,25 +232,15 @@ export default async function SeriesDetailPage({ params }: Props) {
       {hasRelated && (
         <section className="mb-14">
           <h2 data-reveal className="type-h2 text-ink mb-5">Explore more series</h2>
-          <div data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {related.map((rs) => (
-              <Link
-                key={rs.id}
-                href={`/series/${rs.slug}`}
-                className="p-3.5 rounded-xl border border-border bg-surface hover:shadow-md hover:border-accent/20 transition-all"
-              >
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <p className="text-sm font-semibold text-ink">{displayTitle(rs.title)}</p>
-                  {rs.book_count > 0 && (
-                    <span className="text-xs text-muted shrink-0">{rs.book_count} books</span>
-                  )}
-                </div>
-                {rs.description && (
-                  <p className="text-xs text-muted line-clamp-2">{rs.description}</p>
-                )}
-              </Link>
-            ))}
-          </div>
+          <RelatedSeriesCards
+            items={related.map((rs) => ({
+              id: rs.id,
+              slug: rs.slug,
+              title: displayTitle(rs.title),
+              bookCount: rs.book_count,
+              description: rs.description,
+            }))}
+          />
         </section>
       )}
 

@@ -1,3 +1,4 @@
+import { isCompareIndexable } from "@/lib/compareIndexable";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -86,6 +87,7 @@ async function overlapFor(a: Person, b: Person): Promise<Overlap> {
       ).some((p) => comparePairSlug(p.a, p.b) === key);
     } else {
       indexable =
+        isCompareIndexable(a.slug, b.slug) &&
         shared.length >= COMPARE_MIN_SHARED &&
         shelfA.length >= COMPARE_MIN_SHELF &&
         shelfB.length >= COMPARE_MIN_SHELF;
