@@ -11,6 +11,7 @@ import { itemListJsonLd } from "@/lib/jsonld";
 import { getIndexableBookSlugs, bookLinkRel } from "@/lib/indexableBooks";
 import { isDisplayableCover } from "@/lib/siteNav";
 import { getListVisuals } from "@/lib/collectionVisuals";
+import { getRedditMentions, redditHeadline, redditLabel, REDDIT_AS_OF_LABEL, REDDIT_SOURCE_NAME, REDDIT_SOURCE_URL } from "@/lib/reddit";
 import { CoverMarquee } from "@/components/CoverMarquee";
 import { AmazonCoverLink, Avatar, Breadcrumbs, SafeImage, EmptyState, LastUpdated } from "@/components";
 
@@ -256,6 +257,13 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
   // Who actually recommended the books on this page. Fetched after `books`
   // because it is scoped to what the page shows, not the whole list.
   const listRecommenders = await getRecommendersForBooksCached(books.map((b) => b.id), 12);
+  // Reddit Reads: how many Reddit users link each book (a user count, never votes; data to March 2023).
+  const redditMentions = await getRedditMentions(`list:${list.slug}`, books.map((b) => b.id));
+  const redditByBook = new Map<string, { users: number; subreddit: string }>();
+  for (const b of books) {
+    const h = redditHeadline(redditMentions[b.id]);
+    if (h) redditByBook.set(b.id, h);
+  }
 
   // book_count is the list's true membership size; it is what the caption
   // compares against so "100 of 287" stays honest.
@@ -484,6 +492,21 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
               )}
             </div>
 
+            {(() => {
+              const r = redditByBook.get(book.id);
+              if (!r) return null;
+              return (
+                <p
+                  className="-mt-2 mb-3 inline-flex items-center gap-1.5 text-xs text-muted w-fit"
+                  title={`Linked by ${r.users.toLocaleString("en-US")} users in ${redditLabel(r.subreddit)} (${REDDIT_SOURCE_NAME}, data to ${REDDIT_AS_OF_LABEL}). A user count, not votes.`}
+                >
+                  <span aria-hidden="true" className="inline-block w-2 h-2 rounded-full bg-[#ff4500]" />
+                  <span className="tabular-nums font-semibold text-ink">{r.users.toLocaleString("en-US")}</span>
+                  <span>Reddit users · {redditLabel(r.subreddit)}</span>
+                </p>
+              );
+            })()}
+
             {/* Who recommended it: the thing this site has that a
                 plain bestseller list does not. */}
             {(() => {
@@ -637,6 +660,16 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
         )}
         {list.curator && (
           <p className="text-sm text-accent font-medium mt-2">Curated by {list.curator}</p>
+        )}
+        {redditByBook.size >= 3 && (
+          <p className="mt-3 inline-flex max-w-2xl items-start gap-2 text-sm text-muted">
+            <span aria-hidden="true" className="mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full bg-[#ff4500]" />
+            <span>
+              {redditByBook.size} of these {books.length} books are also linked by Reddit users. The counts come from{" "}
+              <a href={REDDIT_SOURCE_URL} rel="noopener" className="text-accent hover:underline">{REDDIT_SOURCE_NAME}</a>{" "}
+              and run to {REDDIT_AS_OF_LABEL}; each counts users, not votes.
+            </span>
+          </p>
         )}
         <LastUpdated modified={dates.modified} />
 
