@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { CategoryIcon } from "./CategoryIcon";
+import { CollectionThumb } from "./CollectionThumb";
+import type { CollectionVisual } from "@/lib/collectionVisuals";
 import { displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel, type ListKind } from "@/lib/display";
 
 interface ListCardProps {
@@ -12,6 +14,8 @@ interface ListCardProps {
   kind?: ListKind;
   /** Hide the type badge — useful when a whole section is one kind. */
   hideKind?: boolean;
+  /** Portrait or covers for a thumbnail beside the title. Omit for the plain card. */
+  visual?: CollectionVisual | null;
 }
 
 const KIND_BADGE_STYLE: Record<ListKind, string> = {
@@ -21,7 +25,7 @@ const KIND_BADGE_STYLE: Record<ListKind, string> = {
   other: "bg-subtle text-muted",
 };
 
-export function ListCard({ title, slug, description, bookCount, curator, kind, hideKind }: ListCardProps) {
+export function ListCard({ title, slug, description, bookCount, curator, kind, hideKind, visual }: ListCardProps) {
   const resolvedKind: ListKind = kind || listKindFromSlug(slug);
   // Card titles double as internal anchor text, so they carry the phrase the
   // target page ranks for. displayListTitleFull already returns the short
@@ -34,10 +38,13 @@ export function ListCard({ title, slug, description, bookCount, curator, kind, h
       href={`/lists/${slug}`}
       className="group block rounded-2xl border border-border bg-surface p-5 hover:border-accent/20 motion-card-hover"
     >
+      <div className={visual !== undefined ? "flex items-start gap-4" : undefined}>
+      {visual !== undefined && <CollectionThumb visual={visual} slug={slug} size="md" className="mt-0.5" />}
+      <div className="min-w-0 flex-1">
       <div className="flex items-start justify-between gap-3 mb-2">
         <h3 className="font-semibold text-base text-ink group-hover:text-accent transition-colors leading-snug flex items-start gap-2.5">
           {/* Subject icon on category lists only; topic and meta lists keep the plain title. */}
-          {resolvedKind === "category" && (
+          {visual === undefined && resolvedKind === "category" && (
             <span className="mt-px inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-light text-accent" aria-hidden="true">
               <CategoryIcon slug={slug} size={15} />
             </span>
@@ -64,6 +71,8 @@ export function ListCard({ title, slug, description, bookCount, curator, kind, h
       {curator && (
         <p className="text-xs text-accent font-medium mt-3">Curated by {curator}</p>
       )}
+      </div>
+      </div>
     </Link>
   );
 }

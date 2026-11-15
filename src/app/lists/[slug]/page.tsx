@@ -10,6 +10,7 @@ import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRa
 import { itemListJsonLd } from "@/lib/jsonld";
 import { getIndexableBookSlugs, bookLinkRel } from "@/lib/indexableBooks";
 import { isDisplayableCover } from "@/lib/siteNav";
+import { getListVisuals } from "@/lib/collectionVisuals";
 import { CoverMarquee } from "@/components/CoverMarquee";
 import { AmazonCoverLink, Avatar, Breadcrumbs, SafeImage, EmptyState, LastUpdated } from "@/components";
 
@@ -283,6 +284,8 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
   const totalRecs = books.reduce((sum, b) => sum + (b.recommendation_count || 0), 0);
 
   const jsonld = itemListJsonLd(list, sortedBooks);
+  // For "Books recommended by <person>" lists: the person's portrait (cached, fail-soft; {} on any error).
+  const listPerson = (await getListVisuals([list.slug]))[list.slug]?.person ?? null;
   const displayName = displayListTitle(list.title, list.slug);
   const hasBooks = sortedBooks.length > 0;
   const hasDescription = list.description && list.description.length > 0;
@@ -582,6 +585,18 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
       <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Lists", href: "/lists" }, { label: displayName }]} />
 
       <div className="mb-10 pb-6 border-b border-border/60">
+        {listPerson && (
+          <Link
+            href={`/people/${listPerson.slug}`}
+            className="group mb-4 inline-flex items-center gap-3 rounded-full border border-border bg-surface py-1.5 pl-1.5 pr-5 transition-colors hover:border-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+          >
+            <Avatar name={listPerson.name} slug={listPerson.slug} avatarUrl={listPerson.avatar} sizeClass="w-12 h-12" alt={`${listPerson.name}, book recommender`} />
+            <span className="text-sm leading-tight">
+              <span className="block font-semibold text-ink group-hover:text-accent transition-colors">{listPerson.name}</span>
+              <span className="block text-xs text-muted">View profile and sources →</span>
+            </span>
+          </Link>
+        )}
         <div className="flex items-start gap-3 flex-wrap mb-3">
           <h1 className="type-h1 text-ink">{displayListTitleFull(list.title, list.slug)}</h1>
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-subtle text-muted text-[11px] font-medium shrink-0 mt-2">

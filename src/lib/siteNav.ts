@@ -37,6 +37,8 @@ export interface NavList {
   slug: string;
   title: string;
   count: number;
+  /** Portrait of the person, for "Books recommended by <person>" lists whose person has one. */
+  avatar?: string;
 }
 
 export interface SiteNav {
@@ -161,12 +163,26 @@ async function fetchLists(): Promise<Pick<SiteNav, "topics" | "recommendedBy" | 
   if (out.topics.length === 0 && out.recommendedBy.length === 0 && out.popularLists.length === 0) {
     throw new Error("site nav lists: no rows");
   }
+  // Portraits for the "recommended by <person>" rows (role lists like Founders have none and keep an icon).
+  const prefix = "books-recommended-by-";
+  const personSlugs = out.recommendedBy.map((l) => l.slug.slice(prefix.length));
+  if (personSlugs.length > 0) {
+    const { data: people } = await getSupabase().from("people").select("slug, avatar_url").in("slug", personSlugs);
+    const avatars = new Map<string, string>();
+    for (const p of (people || []) as Array<{ slug: string | null; avatar_url: string | null }>) {
+      if (p.slug && isValidHttpUrl(p.avatar_url)) avatars.set(p.slug, String(p.avatar_url).trim());
+    }
+    out.recommendedBy = out.recommendedBy.map((l) => {
+      const a = avatars.get(l.slug.slice(prefix.length));
+      return a ? { ...l, avatar: a } : l;
+    });
+  }
   return out;
 }
 
 const cachedBooks = unstable_cache(fetchBooks, ["site-nav-books-v2"], { revalidate: 900, tags: ["books"] });
 const cachedPeople = unstable_cache(fetchPeople, ["site-nav-people-v2"], { revalidate: 900, tags: ["recommendations"] });
-const cachedLists = unstable_cache(fetchLists, ["site-nav-lists-v2"], { revalidate: 900, tags: ["lists"] });
+const cachedLists = unstable_cache(fetchLists, ["site-nav-lists-v3"], { revalidate: 900, tags: ["lists"] });
 
 async function orFallback<T>(label: string, read: () => Promise<T>, fallback: T): Promise<T> {
   try {

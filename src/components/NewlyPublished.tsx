@@ -2,10 +2,15 @@ import Link from "next/link";
 import { displayTitle, displayListTitleFull } from "@/lib/display";
 import { formatDateLong } from "@/lib/seo";
 import type { RecentlyPublishedItem } from "@/lib/data";
+import type { CollectionVisual } from "@/lib/collectionVisuals";
+import { CollectionThumb } from "./CollectionThumb";
 
 interface NewlyPublishedProps {
   lists?: RecentlyPublishedItem[];
   series?: RecentlyPublishedItem[];
+  /** Thumbnails by slug; rows show a subject icon where one is missing. Omit for text-only rows. */
+  listVisuals?: Record<string, CollectionVisual>;
+  seriesVisuals?: Record<string, CollectionVisual>;
   className?: string;
 }
 
@@ -16,6 +21,7 @@ function Column({
   items,
   hrefBase,
   label,
+  visuals,
 }: {
   heading: string;
   hubHref: string;
@@ -23,6 +29,7 @@ function Column({
   items: RecentlyPublishedItem[];
   hrefBase: string;
   label: (item: RecentlyPublishedItem) => string;
+  visuals?: Record<string, CollectionVisual>;
 }) {
   if (items.length === 0) return null;
   return (
@@ -36,8 +43,9 @@ function Column({
       <ul className="divide-y divide-border rounded-2xl border border-border bg-surface">
         {items.map((item) => (
           <li key={item.id}>
-            <Link href={`${hrefBase}/${item.slug}`} className="group flex items-baseline justify-between gap-3 px-4 py-3 hover:bg-subtle/60">
-              <span className="text-sm font-medium text-ink group-hover:text-accent transition-colors leading-snug">
+            <Link href={`${hrefBase}/${item.slug}`} className={`group flex justify-between gap-3 px-4 hover:bg-subtle/60 ${visuals ? "items-center py-3" : "items-baseline py-3"}`}>
+              {visuals && <CollectionThumb visual={visuals[item.slug] ?? null} slug={item.slug} size="sm" />}
+              <span className="min-w-0 flex-1 text-sm font-medium text-ink group-hover:text-accent transition-colors leading-snug">
                 {label(item)}
               </span>
               <span className="shrink-0 text-xs text-muted">
@@ -56,7 +64,7 @@ function Column({
  * linking straight to its page with the publish date. Server component;
  * renders nothing when there is nothing to show.
  */
-export function NewlyPublished({ lists = [], series = [], className = "py-14 px-4" }: NewlyPublishedProps) {
+export function NewlyPublished({ lists = [], series = [], listVisuals, seriesVisuals, className = "py-14 px-4" }: NewlyPublishedProps) {
   if (lists.length === 0 && series.length === 0) return null;
   const both = lists.length > 0 && series.length > 0;
   return (
@@ -74,6 +82,7 @@ export function NewlyPublished({ lists = [], series = [], className = "py-14 px-
             items={lists}
             hrefBase="/lists"
             label={(l) => displayListTitleFull(l.title, l.slug)}
+            visuals={listVisuals}
           />
           <Column
             heading="New series in order"
@@ -82,6 +91,7 @@ export function NewlyPublished({ lists = [], series = [], className = "py-14 px-
             items={series}
             hrefBase="/series"
             label={(s) => displayTitle(s.title)}
+            visuals={seriesVisuals}
           />
         </div>
       </div>

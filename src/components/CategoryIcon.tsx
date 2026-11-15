@@ -7,6 +7,7 @@ import {
   Clapperboard,
   Cpu,
   Cross,
+  Gem,
   Dumbbell,
   Feather,
   Flower2,
@@ -40,6 +41,10 @@ import {
  * book, which keeps a row of pills visually even.
  */
 const RULES: Array<[RegExp, LucideIcon]> = [
+  // Role lists ("Books recommended by founders / CEOs / billionaires").
+  [/founder/, Rocket],
+  [/\bceos?\b|executive/, Briefcase],
+  [/billionaire/, Gem],
   // Before the fiction rule, which would otherwise match inside "nonfiction".
   [/^(best-)?non-?fiction/, Box],
   [/christian|religion|bible|theolog|faith|buddhis|islam|juda|hindu/, Cross],

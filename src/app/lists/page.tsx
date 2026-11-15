@@ -12,6 +12,7 @@ import {
 import { pageMetadata, canonicalUrl } from "@/lib/seo";
 import { collectionPageJsonLd, breadcrumbListJsonLd } from "@/lib/jsonld";
 import { ListCard, SearchBar, Breadcrumbs, EmptyState, NewlyPublished } from "@/components";
+import { getListVisuals, type CollectionVisual } from "@/lib/collectionVisuals";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,7 @@ function Section({
   empty,
   kindForAll,
   hideKind,
+  visuals,
 }: {
   title: string;
   subtitle?: string;
@@ -86,6 +88,7 @@ function Section({
   empty?: string;
   kindForAll?: "topic" | "meta" | "category";
   hideKind?: boolean;
+  visuals?: Record<string, CollectionVisual>;
 }) {
   if (!lists || lists.length === 0) {
     if (!empty) return null;
@@ -120,6 +123,7 @@ function Section({
             curator={list.curator}
             kind={kindForAll}
             hideKind={hideKind}
+            visual={visuals ? visuals[list.slug] ?? null : undefined}
           />
         ))}
       </div>
@@ -137,6 +141,7 @@ export default async function ListsPage({ searchParams }: Props) {
   // ── Search mode ───────────────────────────────────────────────
   if (q.length >= 2) {
     const results = await searchLists(q, 60);
+    const visuals = await getListVisuals(results.map((l) => l.slug));
     return (
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
         <Breadcrumbs items={[{ label: "Home", href: "/" }, { label: "Lists", href: "/lists" }, { label: `"${q}"` }]} />
@@ -160,6 +165,7 @@ export default async function ListsPage({ searchParams }: Props) {
                 description={list.description}
                 bookCount={list.book_count}
                 curator={list.curator}
+                visual={visuals[list.slug] ?? null}
               />
             ))}
           </div>
@@ -175,6 +181,7 @@ export default async function ListsPage({ searchParams }: Props) {
   if (isBrowseMode) {
     const page = Math.max(1, pageParam || 1);
     const { data: lists, total } = await getListsPaginatedCached(page, PAGE_SIZE, sort);
+    const visuals = await getListVisuals(lists.map((l) => l.slug));
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const sortHref = (s: "book_count" | "title") => `/lists?page=${page}&sort=${s}`;
     const prevHref = page > 1 ? `/lists?page=${page - 1}&sort=${sort}` : "";
@@ -220,6 +227,7 @@ export default async function ListsPage({ searchParams }: Props) {
                 description={list.description}
                 bookCount={list.book_count}
                 curator={list.curator}
+                visual={visuals[list.slug] ?? null}
               />
             ))}
           </div>
@@ -282,6 +290,18 @@ export default async function ListsPage({ searchParams }: Props) {
   const fiction = fictionAll.data.filter((l) => !popularIds.has(l.id)).slice(0, 8);
   const nonfiction = nonfictionAll.data.filter((l) => !popularIds.has(l.id)).slice(0, 8);
 
+  // One batched, cached read of thumbnails for every card on the page.
+  const visuals = await getListVisuals([
+    ...recentLists.map((l) => l.slug),
+    ...broad.map((l) => l.slug),
+    ...popular.data.map((l) => l.slug),
+    ...fiction.map((l) => l.slug),
+    ...nonfiction.map((l) => l.slug),
+    ...recommenderLists.map((l) => l.slug),
+    ...secondRecommenderLists.map((l) => l.slug),
+    ...(meta ? [meta.slug] : []),
+  ]);
+
   const allCollectionLists = [
     ...(meta ? [meta] : []),
     ...recommenderLists,
@@ -327,7 +347,7 @@ export default async function ListsPage({ searchParams }: Props) {
         <SearchBar placeholder="Search lists by title or topic…" />
       </div>
 
-      <NewlyPublished lists={recentLists} className="mb-12" />
+      <NewlyPublished lists={recentLists} listVisuals={visuals} className="mb-12" />
 
       <Section
         title="Main Categories"
@@ -337,6 +357,7 @@ export default async function ListsPage({ searchParams }: Props) {
         empty="No category lists yet."
         kindForAll="category"
         hideKind
+        visuals={visuals}
       />
 
       {meta && (
@@ -382,6 +403,7 @@ export default async function ListsPage({ searchParams }: Props) {
         title="Recommended by Founders, Investors & CEOs"
         subtitle="Curated reading lists from builders, VCs, executives, bestselling writers, self-made billionaires, and Bill Gates."
         lists={recommenderLists}
+        visuals={visuals}
         kindForAll="meta"
       />
 
@@ -389,6 +411,7 @@ export default async function ListsPage({ searchParams }: Props) {
         title="More expert reading lists"
         subtitle="Explore books recommended by investors, founders, writers, creators, and public thinkers with proven reading taste."
         lists={secondRecommenderLists}
+        visuals={visuals}
         kindForAll="meta"
       />
 
@@ -397,6 +420,7 @@ export default async function ListsPage({ searchParams }: Props) {
         subtitle="Specific best-of lists by popularity — Leadership, Sales, Sci-Fi, Photography, and more."
         href="/lists?page=1&sort=book_count"
         lists={popular.data}
+        visuals={visuals}
         kindForAll="topic"
       />
 
@@ -404,6 +428,7 @@ export default async function ListsPage({ searchParams }: Props) {
         title="More Fiction Lists"
         subtitle="Additional fiction topic lists not already shown above."
         lists={fiction}
+        visuals={visuals}
         kindForAll="topic"
       />
 
@@ -411,6 +436,7 @@ export default async function ListsPage({ searchParams }: Props) {
         title="More Nonfiction Lists"
         subtitle="Additional nonfiction topic lists not already shown above."
         lists={nonfiction}
+        visuals={visuals}
         kindForAll="topic"
       />
 

@@ -68,6 +68,28 @@ function MiniAvatar({ person }: { person: NavPerson }) {
   );
 }
 
+/** Portrait for a person's list; a subject icon on a tinted disc for role and topic lists. */
+function ListMark({ list }: { list: NavList }) {
+  const person = list.avatar ? { slug: list.slug, name: list.title, avatar: list.avatar } : null;
+  if (person) {
+    return (
+      <SafeImage
+        src={person.avatar}
+        alt=""
+        className="h-7 w-7 shrink-0 rounded-full object-cover bg-subtle"
+        width={28}
+        height={28}
+        fallback={<span className="h-7 w-7 shrink-0 rounded-full bg-accent-light" aria-hidden="true" />}
+      />
+    );
+  }
+  return (
+    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-light text-accent" aria-hidden="true">
+      <CategoryIcon slug={list.slug} size={14} />
+    </span>
+  );
+}
+
 function PanelFoot({ note, href, label, onNavigate }: { note: string; href: string; label: string; onNavigate: () => void }) {
   return (
     <div className="col-span-full border-t border-border pt-3.5 flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -187,9 +209,12 @@ function ListsPanel({ nav, onNavigate }: { nav: SiteNav; onNavigate: () => void 
                 <Link
                   href={`/lists/${l.slug}`}
                   onClick={onNavigate}
-                  className={`flex items-baseline justify-between gap-3 rounded-lg px-1.5 py-1 text-[13px] text-ink hover:bg-subtle hover:text-accent transition-colors ${FOCUS_RING}`}
+                  className={`flex items-center justify-between gap-3 rounded-lg px-1.5 py-1 text-[13px] text-ink hover:bg-subtle hover:text-accent transition-colors ${FOCUS_RING}`}
                 >
-                  <span className="truncate">{l.title}</span>
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <ListMark list={l} />
+                    <span className="truncate">{l.title}</span>
+                  </span>
                   {n && <span className="shrink-0 text-xs text-muted">{n}</span>}
                 </Link>
               </li>
@@ -199,12 +224,14 @@ function ListsPanel({ nav, onNavigate }: { nav: SiteNav; onNavigate: () => void 
       </div>
       <div className="min-w-0">
         <PanelHeading>Popular lists</PanelHeading>
-        <ChipLinks lists={nav.popularLists} onNavigate={onNavigate} showCount />
+        <ChipLinks lists={nav.popularLists} onNavigate={onNavigate} showCount icons />
       </div>
       <PanelFoot note="Each list is ranked by how often its books are recommended" href="/lists" label="All lists →" onNavigate={onNavigate} />
     </>
   );
 }
+
+const HUB_HREF: Record<MenuId, string> = { books: "/books", people: "/people", lists: "/lists" };
 
 const MENUS: Array<{ id: MenuId; label: string }> = [
   { id: "books", label: "Books" },
@@ -312,31 +339,40 @@ export function Header({ nav }: { nav: SiteNav }) {
                   }
                 }}
               >
-                <button
-                  ref={(el) => {
-                    buttonRefs.current[id] = el;
-                  }}
-                  type="button"
-                  aria-expanded={open}
-                  aria-controls={`mega-${id}`}
-                  onClick={() => {
-                    cancelClose();
-                    if (open && hoverOpened.current === id) {
-                      hoverOpened.current = null;
-                      return;
-                    }
-                    hoverOpened.current = null;
-                    setOpenMenu(open ? null : id);
-                  }}
-                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 transition-colors ${FOCUS_RING} ${
+                {/* The label is a link to the hub page (hover still opens the menu); the chevron is the
+                    keyboard- and touch-accessible toggle. */}
+                <span
+                  className={`inline-flex items-center rounded-lg transition-colors ${
                     open ? "bg-accent-light text-accent" : "text-muted hover:text-ink"
                   }`}
                 >
-                  {label}
-                  <svg className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
-                    <path d="M3 4.5 6 7.5 9 4.5" />
-                  </svg>
-                </button>
+                  <Link href={HUB_HREF[id]} onClick={close} className={`rounded-l-lg py-1.5 pl-2.5 pr-1 ${FOCUS_RING}`}>
+                    {label}
+                  </Link>
+                  <button
+                    ref={(el) => {
+                      buttonRefs.current[id] = el;
+                    }}
+                    type="button"
+                    aria-label={`${label} menu`}
+                    aria-expanded={open}
+                    aria-controls={`mega-${id}`}
+                    onClick={() => {
+                      cancelClose();
+                      if (open && hoverOpened.current === id) {
+                        hoverOpened.current = null;
+                        return;
+                      }
+                      hoverOpened.current = null;
+                      setOpenMenu(open ? null : id);
+                    }}
+                    className={`rounded-r-lg py-1.5 pl-1 pr-2 ${FOCUS_RING}`}
+                  >
+                    <svg className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
+                      <path d="M3 4.5 6 7.5 9 4.5" />
+                    </svg>
+                  </button>
+                </span>
                 <div
                   id={`mega-${id}`}
                   hidden={!open}
