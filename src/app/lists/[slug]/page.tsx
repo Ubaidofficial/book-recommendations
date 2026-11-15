@@ -14,6 +14,7 @@ import { getListVisuals } from "@/lib/collectionVisuals";
 import { getRedditMentions, redditHeadline, redditLabel, REDDIT_AS_OF_LABEL, REDDIT_SOURCE_NAME, REDDIT_SOURCE_URL } from "@/lib/reddit";
 import { CoverMarquee } from "@/components/CoverMarquee";
 import { AmazonCoverLink, Avatar, Breadcrumbs, SafeImage, EmptyState, LastUpdated } from "@/components";
+import { RelatedListCards } from "@/components/RelatedCards";
 
 // Declared for consistency with books/[slug] and series/[slug] (all three
 // detail-page types share the same 1-8s cold-Supabase-read problem). Note
@@ -735,7 +736,7 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
               </thead>
               <tbody className="divide-y divide-border">
                 {tableBooks.map((b, i) => {
-                  const who = (recsByBook.get(b.id) || []).slice(0, 3).map((w) => w.name);
+                  const who = (recsByBook.get(b.id) || []).slice(0, 3);
                   return (
                     <tr key={b.id}>
                       <td className="px-4 py-2.5 text-muted">{i + 1}</td>
@@ -755,7 +756,16 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
                       <td className="px-4 py-2.5 text-muted">{b.author || "—"}</td>
                       <td className="px-4 py-2.5 text-muted">{b.first_published_year || "—"}</td>
                       <td className="px-4 py-2.5 text-ink">{b.recommendation_count}</td>
-                      <td className="px-4 py-2.5 text-muted">{who.length > 0 ? joinNames(who) : "—"}</td>
+                      <td className="px-4 py-2.5 text-muted">
+                        {who.length > 0
+                          ? who.map((w, wi) => (
+                              <span key={w.slug}>
+                                {wi > 0 ? (wi === who.length - 1 ? " and " : ", ") : ""}
+                                <Link href={`/people/${w.slug}`} className="text-accent hover:underline">{w.name}</Link>
+                              </span>
+                            ))
+                          : "—"}
+                      </td>
                     </tr>
                   );
                 })}
@@ -868,25 +878,15 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
       {hasRelated && (
         <section className="mb-14">
           <h2 data-reveal className="type-h2 text-ink mb-5">More {topic} to read: explore related lists</h2>
-          <div data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {relatedLists.map((rl) => (
-              <Link
-                key={rl.id}
-                href={`/lists/${rl.slug}`}
-                className="p-3.5 rounded-xl border border-border bg-surface hover:border-accent/20 motion-card-hover"
-              >
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <p className="text-sm font-semibold text-ink">{displayListTitleFull(rl.title, rl.slug)}</p>
-                  {rl.book_count > 0 && (
-                    <span className="text-xs text-muted shrink-0">{rl.book_count} books</span>
-                  )}
-                </div>
-                {rl.description && (
-                  <p className="text-xs text-muted line-clamp-2">{rl.description}</p>
-                )}
-              </Link>
-            ))}
-          </div>
+          <RelatedListCards
+            items={relatedLists.map((rl) => ({
+              id: rl.id,
+              slug: rl.slug,
+              title: displayListTitleFull(rl.title, rl.slug),
+              bookCount: rl.book_count,
+              description: rl.description,
+            }))}
+          />
         </section>
       )}
 

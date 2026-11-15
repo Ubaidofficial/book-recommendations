@@ -38,7 +38,8 @@ import { BookSectionHeading, DraftNotesLabel, FactsRow, type Fact } from "@/comp
 import { ReaderFit } from "@/components/book/ReaderFit";
 import { ProfessionBars } from "@/components/book/ProfessionBars";
 import { RedditMentions } from "@/components/book/RedditMentions";
-import { getRedditMentions, type RedditMention } from "@/lib/reddit";
+import { RelatedListCards } from "@/components/RelatedCards";
+import { getRedditMentions, redditSummary, type RedditMention } from "@/lib/reddit";
 import { UnlikelyPair } from "@/components/book/UnlikelyPair";
 import { SourceEvidence } from "@/components/book/SourceEvidence";
 import { ReadNext } from "@/components/book/ReadNext";
@@ -335,6 +336,10 @@ export default async function BookDetailPage({ params }: Props) {
     similarBooks.length >= 3 && {
       q: `What are some books like ${bookTitle}?`,
       a: `Readers of ${bookTitle} also turn to ${joinNames(similarBooks.slice(0, 3).map((b) => displayBookTitle(b.title)))}, based on the lists and recommenders these books share.`,
+    },
+    redditMentions.length > 0 && {
+      q: `Is ${bookTitle} popular on Reddit?`,
+      a: redditSummary(bookTitle, redditMentions),
     },
   ].filter((x): x is { q: string; a: string } => !!x);
   const faqJsonLd = faqPageJsonLd(faq);
@@ -943,39 +948,17 @@ export default async function BookDetailPage({ params }: Props) {
         return (
           <section className="mb-14">
             <h2 data-reveal className="type-h2 text-ink mb-5">Appears in</h2>
-            <div data-reveal-stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {finalList.map(({ l, kind, displayName }) => {
-                const content = (
-                  <>
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <p className="text-sm font-semibold text-ink">{displayName}</p>
-                      {kind !== "other" && (
-                        <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${tierBadgeStyle[kind]}`}>
-                          {tierLabel[kind]}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted">{l.book_count} books</p>
-                  </>
-                );
-                return isValidSlug(l.slug) ? (
-                  <Link
-                    key={l.id}
-                    href={`/lists/${l.slug}`}
-                    className="p-3.5 rounded-xl border border-border bg-surface hover:shadow-md hover:border-accent/20 transition-all block"
-                  >
-                    {content}
-                  </Link>
-                ) : (
-                  <div
-                    key={l.id}
-                    className="p-3.5 rounded-xl border border-border bg-surface block"
-                  >
-                    {content}
-                  </div>
-                );
-              })}
-            </div>
+            <RelatedListCards
+              items={finalList
+                .filter(({ l }) => isValidSlug(l.slug))
+                .map(({ l, kind, displayName }) => ({
+                  id: l.id,
+                  slug: l.slug,
+                  title: displayName,
+                  bookCount: l.book_count,
+                  badge: kind !== "other" ? { text: tierLabel[kind], className: tierBadgeStyle[kind] } : null,
+                }))}
+            />
           </section>
         );
       })()}

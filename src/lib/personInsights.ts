@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { supabase as getSupabase } from "./supabase";
+import { isCompareIndexable } from "./compareIndexable";
 import { INDEXABLE_STATUSES, isIndexable } from "./seo";
 import { repairEncoding } from "./dataQuality";
 import { displayListTitle } from "./display";
@@ -409,6 +410,7 @@ export async function getSimilarShelves(
       sharedBookIds: shared,
       comparable:
         personIsPublished &&
+        isCompareIndexable(person.slug, s.slug) &&
         shared.length >= COMPARE_MIN_SHARED &&
         bookIds.length >= COMPARE_MIN_SHELF &&
         s.bookIds.length >= COMPARE_MIN_SHELF,
@@ -599,6 +601,7 @@ export function computeComparePairs(shelves: PublishedShelf[]): ComparePair[] {
       let shared = 0;
       for (const id of small) if (big.has(id)) shared++;
       if (shared < COMPARE_MIN_SHARED) continue;
+      if (!isCompareIndexable(eligible[i].slug, eligible[j].slug)) continue;
       const [x, y] = [eligible[i], eligible[j]].sort((p, q) => p.slug.localeCompare(q.slug));
       const times = [x.updated_at, y.updated_at]
         .map((t) => (t ? Date.parse(t) : NaN))

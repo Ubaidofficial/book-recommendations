@@ -84,3 +84,30 @@ export function redditHeadline(mentions: RedditMention[] | undefined): { users: 
 export function redditLabel(subreddit: string): string {
   return subreddit.toLowerCase() === "all" ? "all of Reddit" : `r/${subreddit}`;
 }
+
+/** https://www.reddit.com/r/<name>/ for a real subreddit name, else null ("all" and anything odd get no link). */
+export function redditSubredditUrl(subreddit: string): string | null {
+  const s = (subreddit || "").trim();
+  if (!/^[A-Za-z0-9_]{2,40}$/.test(s) || s.toLowerCase() === "all") return null;
+  return `https://www.reddit.com/r/${s}/`;
+}
+
+/**
+ * One factual paragraph about where Reddit users link a book, built only from the stored counts (no sum across
+ * subreddits: the all-of-Reddit figure is quoted when present). Used for the "On Reddit" section and its FAQ answer.
+ */
+export function redditSummary(title: string, mentions: RedditMention[]): string {
+  if (mentions.length === 0) return "";
+  const all = mentions.find((m) => m.subreddit.toLowerCase() === "all");
+  const subs = mentions.filter((m) => m.subreddit.toLowerCase() !== "all");
+  const users = (n: number) => `${n.toLocaleString("en-US")} ${n === 1 ? "user" : "users"}`;
+  const parts: string[] = [];
+  if (all) parts.push(`${title} is linked by ${users(all.users)} across all of Reddit`);
+  else if (subs[0]) parts.push(`${title} is linked by ${users(subs[0].users)} in r/${subs[0].subreddit}`);
+  if (subs.length > 0) {
+    const top = subs.slice(0, 3).map((m) => `r/${m.subreddit} (${users(m.users)})`);
+    const joined = top.length > 1 ? `${top.slice(0, -1).join(", ")} and ${top[top.length - 1]}` : top[0];
+    parts.push(`it is on the most-linked book lists of ${subs.length.toLocaleString("en-US")} ${subs.length === 1 ? "subreddit" : "subreddits"}, most often in ${joined}`);
+  }
+  return `${parts.join(", and ")}. The counts come from ${REDDIT_SOURCE_NAME} and run to ${REDDIT_AS_OF_LABEL}; each counts users, once per subreddit, not votes.`;
+}

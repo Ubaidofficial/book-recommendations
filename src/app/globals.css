@@ -966,12 +966,12 @@
   display: flex;
   width: max-content;
   padding: 0.4rem 0;
-  animation: coverMarquee 280s linear infinite;
+  animation: coverMarquee 70s linear infinite;
   will-change: transform;
 }
 .cover-marquee-row-b {
   margin-left: -3.2rem;
-  animation-duration: 340s;
+  animation-duration: 85s;
   animation-direction: reverse;
 }
 .cover-marquee-item {
@@ -1247,5 +1247,96 @@
   .hshelf-link:hover .hshelf-book,
   .hshelf-link:focus-visible .hshelf-book {
     transform: rotateX(2deg) rotateY(18deg);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Premium scroll motion (2026-11-15)
+
+   Progressive enhancement only: every rule needs scroll-driven animations
+   (animation-timeline) and prefers-reduced-motion: no-preference, so older
+   browsers and reduced-motion readers get the finished, still page.
+   ───────────────────────────────────────────────────────────────────────────── */
+.scroll-progress {
+  display: none;
+}
+@keyframes hook-in {
+  from {
+    opacity: 0;
+    translate: 0 0.35em;
+  }
+}
+@keyframes fan-in {
+  from {
+    opacity: 0;
+    translate: 0 40px;
+  }
+}
+@keyframes px-up {
+  from {
+    translate: 0 28px;
+  }
+  to {
+    translate: 0 -28px;
+  }
+}
+@keyframes px-down {
+  from {
+    translate: 0 -18px;
+  }
+  to {
+    translate: 0 18px;
+  }
+}
+@keyframes sp-grow {
+  to {
+    scale: 1 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hook-in {
+    display: inline-block;
+    animation: hook-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  /* Series header: the covers rise into a fan when the page opens. */
+  .series-fan-cover {
+    animation: fan-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  /* Reveals settle with a little depth: a slightly longer rise and a soft scale. */
+  html.js-reveal [data-rv="in"]:not([data-reveal-shelf]) {
+    animation-name: rv-rise-deep;
+  }
+  @supports (animation-timeline: view()) {
+    html.js-reveal [data-rv="sd"] {
+      animation-name: rv-rise-deep;
+    }
+    /* Scroll progress: a thin accent bar across the top, driven by the page scroll. */
+    .scroll-progress {
+      display: block;
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 60;
+      height: 3px;
+      background: linear-gradient(90deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 55%, #ff4500));
+      transform-origin: 0 50%;
+      scale: 0 1;
+      animation: sp-grow linear both;
+      animation-timeline: scroll(root);
+      pointer-events: none;
+    }
+    /* Decorative picture strips drift against the scroll (parallax). */
+    .cover-marquee,
+    .series-fan {
+      animation: px-up linear both;
+      animation-timeline: view();
+      animation-range: cover 0% cover 100%;
+    }
+  }
+}
+@keyframes rv-rise-deep {
+  from {
+    opacity: 0;
+    translate: 0 24px;
+    scale: 0.985;
   }
 }
