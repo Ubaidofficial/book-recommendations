@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-15 — Lighter portraits on book-card faces
+
+The 24px recommender faces on the home page's Popular Books loaded stored Wikimedia Commons originals (one was 358KB). Plain jpg/jpeg/png originals are now requested as the 120px Commons copy (`commonsThumb`, `src/lib/avatarThumb.ts`), with the stored URL as a fallback and a tint circle after that (`RecommenderFace`), so a face is never worse off than before. Stored data is unchanged. 96 of 134 stored avatars are Commons originals; the same URLs are still used at full size elsewhere (person pages, menu, hero list).
+
 ## 2026-11-14 — Visual pass: cover banner, icons, marquee, hero shelf (additive only)
 
 Nothing was removed from any page; each item adds to what was there.

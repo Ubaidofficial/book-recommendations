@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { supabase as getSupabase } from "./supabase";
 import { isProfilelessSurnameAlias, repairEncoding, dropSharedAmazonUrls, amazonAsin, sameWork } from "./dataQuality";
+import { commonsThumb } from "./avatarThumb";
 
 /**
  * People rows reach the UI straight off the table, so a stored `_x00NN_`
@@ -1954,7 +1955,10 @@ export async function getBookRecommenders(
 export interface CardRecommender {
   slug: string;
   name: string;
+  /** Small copy of the portrait (see commonsThumb), the first one to try. */
   avatar: string;
+  /** The stored portrait URL, tried if `avatar` fails to load. */
+  avatarFull?: string;
 }
 
 /**
@@ -1999,7 +2003,10 @@ async function fetchCardRecommenders(bookIds: string[], perBook: number): Promis
       const dedupe = seen.get(r.book_id) || seen.set(r.book_id, new Set()).get(r.book_id)!;
       if (have.length >= perBook || dedupe.has(slug)) continue;
       dedupe.add(slug);
-      have.push({ slug, name, avatar });
+      // A 24px circle does not need a multi-hundred-KB Commons original.
+      // `avatar` is the small copy; `avatarFull` is the stored URL, which the
+      // card falls back to if the small copy does not load.
+      have.push({ slug, name, avatar: commonsThumb(avatar), avatarFull: avatar });
     }
   } catch (e) {
     logQueryError("fetchCardRecommenders", e);
