@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SafeImage } from "./SafeImage";
+import { RecommenderFace } from "./RecommenderFace";
 import { getIndexableBookSlugs, bookLinkRel } from "@/lib/indexableBooks";
 import { isValidHttpUrl, isValidRating, formatRating, amazonCtaUrl, coverAltText } from "@/lib/dataQuality";
 
@@ -37,7 +38,7 @@ interface BookCardProps {
    * Up to three people who recommend this book, with portraits. Optional: when
    * a page does not pass it, the card renders exactly as it always has.
    */
-  recommenders?: Array<{ slug: string; name: string; avatar: string }>;
+  recommenders?: Array<{ slug: string; name: string; avatar: string; avatarFull?: string }>;
 }
 
 export async function BookCard({
@@ -110,14 +111,11 @@ export async function BookCard({
             <div className="mt-2.5 flex items-center gap-2 min-w-0">
               <span className="flex -space-x-1.5 shrink-0" aria-hidden="true">
                 {recommenders.slice(0, 3).map((r) => (
-                  <SafeImage
+                  <RecommenderFace
                     key={r.slug}
                     src={r.avatar}
-                    alt=""
-                    width={24}
-                    height={24}
+                    fallbackSrc={r.avatarFull}
                     className="w-6 h-6 rounded-full object-cover bg-subtle ring-2 ring-surface"
-                    fallback={<span className="w-6 h-6 rounded-full bg-accent-light ring-2 ring-surface" />}
                   />
                 ))}
               </span>
