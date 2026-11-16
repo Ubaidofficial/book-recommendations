@@ -252,11 +252,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--plan", action="store_true", help="only count the scope and exit")
-    ap.add_argument("--limit", type=int, default=100, help="candidates per run (batch size)")
+    ap.add_argument("--limit", type=int, default=100, help="candidates per batch")
     ap.add_argument("--batch", default="cover_sitemap_dryrun")
     ap.add_argument("--series", help="restrict to one series slug (tier 2 only)")
     ap.add_argument("--tier", type=int, help="restrict to one tier (1-4)")
-    ap.add_argument("--skip", type=int, default=0, help="skip the first N candidates (use to move past unmatched rows)")
+    ap.add_argument("--skip", type=int, default=0, help="skip the first N candidates")
+    ap.add_argument("--all", action="store_true", help="work through every candidate in batches of --limit (batch names get _NN)")
+    ap.add_argument("--retry", action="store_true", help="also retry slugs remembered as unmatched")
     args = ap.parse_args()
 
     tier_of, books = load_scope(args.series)
@@ -269,29 +271,44 @@ def main():
         print(f"  tier {k[0]} {k[1]:<11} {plan[k]}")
     if args.plan:
         return
-    todo = todo[args.skip: args.skip + args.limit]
-    print(f"processing {len(todo)} ({'APPLY ' + args.batch if args.apply else 'DRY RUN'})", flush=True)
-
     REPORTS.mkdir(exist_ok=True)
-    stats, rows = Counter(), []
-    for n, b in enumerate(todo, 1):
-        time.sleep(1.0)
-        url, note = ol_candidate(b)
-        outcome = note
-        if url:
-            outcome = apply_row(b, url, args.batch) if args.apply else "would_fill"
-        stats[outcome] += 1
-        rows.append({"tier": tier_of[b["id"]], "state": state[b["id"]], "slug": b["slug"], "title": b["title"],
-                     "author": b["author_name"], "old": b["cover_image_url"], "new": url or "", "outcome": outcome})
-        if n % 25 == 0:
-            print(f"  {n}/{len(todo)}", dict(stats), flush=True)
-    out = REPORTS / f"{args.batch}.csv"
-    with out.open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0]) if rows else ["slug"])
-        w.writeheader()
-        w.writerows(rows)
-    print(json.dumps({"mode": "APPLY" if args.apply else "DRY RUN", "batch": args.batch, **stats}))
-    print("report:", out)
+    seen = REPORTS / "cover_fill_unmatched.txt"   # slugs already tried without a safe match; skipped on later runs
+    tried = set(seen.read_text().split()) if seen.exists() and not args.retry else set()
+    todo = [b for b in todo if b["slug"] not in tried][args.skip:]
+    if args.all:
+        chunk_list = list(chunks(todo, args.limit))
+    else:
+        chunk_list = [todo[: args.limit]]
+    print(f"{len(todo)} candidates; {len(chunk_list)} batch(es) of up to {args.limit} "
+          f"({'APPLY ' + args.batch if args.apply else 'DRY RUN'})", flush=True)
+
+    total = Counter()
+    for bi, part in enumerate(chunk_list, 1):
+        name = f"{args.batch}_{bi:02d}" if args.all else args.batch
+        stats, rows = Counter(), []
+        for n, b in enumerate(part, 1):
+            time.sleep(1.0)
+            url, note = ol_candidate(b)
+            outcome = note
+            if url:
+                outcome = apply_row(b, url, name) if args.apply else "would_fill"
+            stats[outcome] += 1
+            if outcome not in ("filled", "would_fill") and outcome != "lookup_error":
+                with seen.open("a") as f:
+                    f.write(b["slug"] + "\n")
+            rows.append({"tier": tier_of[b["id"]], "state": state[b["id"]], "slug": b["slug"], "title": b["title"],
+                         "author": b["author_name"], "old": b["cover_image_url"], "new": url or "", "outcome": outcome})
+            if n % 50 == 0:
+                print(f"  [{name}] {n}/{len(part)}", dict(stats), flush=True)
+        out = REPORTS / f"{name}.csv"
+        with out.open("w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0]) if rows else ["slug"])
+            w.writeheader()
+            w.writerows(rows)
+        total.update(stats)
+        print(json.dumps({"mode": "APPLY" if args.apply else "DRY RUN", "batch": name, **stats}), flush=True)
+    print(json.dumps({"TOTAL": dict(total)}))
+    print("report:", REPORTS)
 
 
 if __name__ == "__main__":
