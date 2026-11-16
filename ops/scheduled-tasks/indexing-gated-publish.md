@@ -62,7 +62,11 @@ where s.id in (select id from series where publish_ready = true and index_status
                order by publish_priority asc nulls last limit 1)
 returning s.slug, s.publish_priority;
 ```
-Never publish: best-books-on-revolutions, best-quantum-physics-books, best-books-for-dads, best-data-science-books, best-design-books,
+BEFORE every publish (learned 2026-11-16, best-leadership-books was published by mistake and reverted): grep the slug in `next.config.js`
+(`source: "/lists/<slug>"` = a redirect, never publish it) and `curl -sI https://bookmentions.net/lists/<slug>` must return 200, not 308. The
+guarded statement cannot see redirects. Also `seo_publish_log.day` is the primary key: use `ON CONFLICT (day) DO UPDATE`.
+
+Never publish: best-leadership-books (redirects to /lists/leadership), best-books-on-revolutions, best-quantum-physics-books, best-books-for-dads, best-data-science-books, best-design-books,
 best-physics-books, best-books-on-persuasion, best-memoir-books, best-poetry-books, any empty slug, any slug next.config.js redirects, or a
 second list from a duplicate cluster (entrepreneur/entrepreneurship/new-business; screenwriting/screenplay; communication/communication-skills;
 self-help/self-improvement/motivational; philosophy/philosophers; meditation/mindfulness; mystery/murder-mystery/suspense/thriller;
