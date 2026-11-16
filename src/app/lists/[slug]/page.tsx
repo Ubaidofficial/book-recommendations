@@ -15,19 +15,20 @@ import { getRedditMentions, redditHeadline, redditLabel, REDDIT_AS_OF_LABEL, RED
 import { CoverMarquee } from "@/components/CoverMarquee";
 import { AmazonCoverLink, Avatar, Breadcrumbs, SafeImage, EmptyState, LastUpdated } from "@/components";
 import { RelatedListCards } from "@/components/RelatedCards";
+import { ListSortControls } from "@/components/ListSortControls";
 
-// Declared for consistency with books/[slug] and series/[slug] (all three
-// detail-page types share the same 1-8s cold-Supabase-read problem). Note
-// this page also reads `searchParams` (`sort`), which Next.js renders
-// dynamically per request regardless of `revalidate` — so the ISR benefit
-// here is smaller than on the two params-only sibling pages, but the
-// declaration keeps caching intent explicit rather than falling through to
-// an undocumented default.
+// ISR: each list is generated on its first request and cached for `revalidate` seconds.
+// Two things keep it that way, and both are needed: no `searchParams` read (the A–Z sort is a
+// client-side view setting, see ListSortControls) and a `generateStaticParams` export. Without
+// either, the route is fully dynamic (Cache-Control: private, no-store) whatever `revalidate` says.
 export const revalidate = 300;
+
+export async function generateStaticParams() {
+  return [];
+}
 
 interface Props {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ sort?: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -220,9 +221,8 @@ function editionKey(b: { title?: string | null; author?: string | null }): strin
 const MIN_RECS_PRIMARY = 2;
 const MIN_PRIMARY_BOOKS = 12;
 
-export default async function ListDetailPage({ params, searchParams }: Props) {
+export default async function ListDetailPage({ params }: Props) {
   const { slug } = await params;
-  const { sort } = await searchParams;
   const list = await getListBySlugCached(slug);
   if (!list) notFound();
   // Links to book pages that are not indexable are nofollow (see lib/indexableBooks.ts).
@@ -273,21 +273,17 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
       ? list.book_count
       : books.length;
 
-  const activeSort = sort === "title" ? "title" : "recommendation";
+  // Most-recommended first (recommendation_count desc, rating desc). The A–Z view is applied
+  // in the browser from each row's `--az` position, so this page never depends on the request.
   const sortedBooks = [...books];
-  if (activeSort === "title") {
-    sortedBooks.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
-  } else {
-    // default/most-recommended: sort by recommendation_count desc, rating desc
-    sortedBooks.sort((a, b) => {
-      const ra = typeof a.recommendation_count === "number" ? a.recommendation_count : 0;
-      const rb = typeof b.recommendation_count === "number" ? b.recommendation_count : 0;
-      if (ra !== rb) return rb - ra;
-      const ya = typeof a.rating === "number" ? a.rating : 0;
-      const yb = typeof b.rating === "number" ? b.rating : 0;
-      return yb - ya;
-    });
-  }
+  sortedBooks.sort((a, b) => {
+    const ra = typeof a.recommendation_count === "number" ? a.recommendation_count : 0;
+    const rb = typeof b.recommendation_count === "number" ? b.recommendation_count : 0;
+    if (ra !== rb) return rb - ra;
+    const ya = typeof a.rating === "number" ? a.rating : 0;
+    const yb = typeof b.rating === "number" ? b.rating : 0;
+    return yb - ya;
+  });
 
   // Calculate sum of recommendations across pre-fetched books efficiently
   const totalRecs = books.reduce((sum, b) => sum + (b.recommendation_count || 0), 0);
@@ -332,6 +328,9 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
     seenEditions.add(k);
     return true;
   });
+  const azPosition = new Map(
+    [...uniqueBooks].sort((x, y) => (x.title || "").localeCompare(y.title || "")).map((b, i) => [b.id, i + 1] as const)
+  );
   const byRecs = [...uniqueBooks].sort((a, b) => (b.recommendation_count || 0) - (a.recommendation_count || 0));
   let primaryIds = new Set(byRecs.filter((b) => (b.recommendation_count || 0) >= MIN_RECS_PRIMARY).map((b) => b.id));
   if (primaryIds.size < MIN_PRIMARY_BOOKS) primaryIds = new Set(byRecs.slice(0, MIN_PRIMARY_BOOKS).map((b) => b.id));
@@ -427,7 +426,8 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
     return (
       <div
         key={book.id}
-        className="flex flex-col sm:flex-row gap-6 p-5 md:p-6 rounded-2xl border border-border bg-surface relative group motion-card-hover"
+        className="list-row flex flex-col sm:flex-row gap-6 p-5 md:p-6 rounded-2xl border border-border bg-surface relative group motion-card-hover"
+        style={{ "--az": azPosition.get(book.id) ?? 0 } as React.CSSProperties}
       >
         {/* Rank Badge */}
         <span className="absolute -top-2.5 -left-2.5 z-10 w-8 h-8 rounded-full bg-accent text-white text-sm flex items-center justify-center font-bold shadow-md">
@@ -674,33 +674,10 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
         )}
         <LastUpdated modified={dates.modified} />
 
-        {/* Dynamic server-side sort controls */}
         {hasBooks && (
           <div className="flex items-center justify-between mt-6 pt-4 border-t border-border/40 text-sm">
             <span className="text-muted font-medium">Curated list content</span>
-            <div className="flex items-center gap-2">
-              <span className="text-muted text-xs">Sort by:</span>
-              <Link
-                href={`/lists/${list.slug}?sort=recommendation`}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                  activeSort === "recommendation"
-                    ? "bg-accent-light text-accent"
-                    : "bg-subtle text-muted hover:text-ink hover:bg-border/30"
-                }`}
-              >
-                Most recommended
-              </Link>
-              <Link
-                href={`/lists/${list.slug}?sort=title`}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                  activeSort === "title"
-                    ? "bg-accent-light text-accent"
-                    : "bg-subtle text-muted hover:text-ink hover:bg-border/30"
-                }`}
-              >
-                Title A–Z
-              </Link>
-            </div>
+            <ListSortControls />
           </div>
         )}
       </div>
@@ -776,8 +753,8 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
       )}
 
       {hasBooks ? (
-        <>
-        <div data-reveal-stagger className="grid grid-cols-1 gap-6 md:gap-8 mb-14">
+        <div id="list-books" data-sort="recommendation">
+        <div data-reveal-stagger className="list-grid grid grid-cols-1 gap-6 md:gap-8 mb-14">
           {primaryBooks.map((book, i) => renderBook(book, i))}
         </div>
         {moreBooks.length > 0 && (
@@ -785,12 +762,12 @@ export default async function ListDetailPage({ params, searchParams }: Props) {
             <summary className="cursor-pointer text-sm font-semibold text-accent">
               Show {moreBooks.length} more {moreBooks.length === 1 ? "book" : "books"} with a single recommendation
             </summary>
-            <div className="grid grid-cols-1 gap-6 md:gap-8 mt-6">
+            <div className="list-grid grid grid-cols-1 gap-6 md:gap-8 mt-6">
               {moreBooks.map((book, i) => renderBook(book, primaryBooks.length + i))}
             </div>
           </details>
         )}
-        </>
+        </div>
       ) : (
         <section className="mb-14">
           <EmptyState message="Books for this list are still being organized." />
