@@ -171,38 +171,81 @@ def classify(books):
     return state
 
 
-def ol_candidate(b):
-    """Return (url, note) for a safe Open Library cover, else (None, reason)."""
-    title, author = b["title"], b["author_name"] or ""
-    if not author.strip():
-        return None, "no_author"
+ARTICLE = re.compile(r"^(the|a|an)\s+", re.I)
+
+
+def base_key(title: str) -> str:
+    """Title up to the first subtitle separator ("X -A Brief History", "X: Y", "X (Series)", "X / Y"), squashed."""
+    first = re.split(r"\s[-\u2013\u2014]\s?|\s?:|\s\(|\s/", title or "", maxsplit=1)[0]
+    return cm.title_key(first)
+
+
+def query_titles(title: str) -> list[str]:
+    """Spellings to search under. Open Library's title= search needs every token, so "The Scout Mindset" finds nothing
+    when it holds "Scout Mindset"; our own data also has commas where an apostrophe or hyphen was dropped."""
+    t = re.sub(r"(?<=[A-Za-z]),(?=[A-Za-z])", "", title).strip()          # "Adult,s" -> "Adults"
+    t = re.sub(r"\s*\(.*?\)\s*$", "", t).strip()                          # trailing "(Series)"
+    out = []
+    for v in (t, ARTICLE.sub("", t), re.split(r"\s[-\u2013\u2014]\s?|\s?:", t)[0].strip()):
+        v = ARTICLE.sub("", v).strip() if v != t and not out else v
+        if v and v not in out:
+            out.append(v)
+    return out[:3]
+
+
+def ol_docs(params):
     for attempt in range(3):
         try:
             r = S.get("https://openlibrary.org/search.json", timeout=40,
-                      params={"title": title, "author": author, "limit": 8, "fields": "title,author_name,cover_i,language"})
+                      params={**params, "limit": 10, "fields": "title,author_name,cover_i,language"})
             if r.status_code == 200:
-                docs = r.json().get("docs", [])
-                break
-            time.sleep(3 * (attempt + 1))
+                return r.json().get("docs", [])
         except Exception:  # noqa: BLE001
-            time.sleep(3 * (attempt + 1))
-    else:
+            pass
+        time.sleep(3 * (attempt + 1))
+    return None
+
+
+def ol_candidate(b):
+    """Return (url, note) for a safe Open Library cover, else (None, reason).
+
+    A hit needs an equal title (whole, or up to the subtitle) and an author check. With title+author searches Open
+    Library itself matched the author (it also knows alternate spellings, e.g. 村上春樹 for Murakami), so an equal title
+    from such a search is accepted; the looser free-text fallback additionally needs our surname check to pass.
+    """
+    title, author = b["title"], b["author_name"] or ""
+    if not author.strip() or author.strip() == "-":
+        return None, "no_author"
+    wants = {cm.title_key(title), base_key(title)}
+    reason, errors = "no_safe_match", 0
+    searches = [({"title": t, "author": author}, False) for t in query_titles(title)]
+    searches.append(({"q": f"{query_titles(title)[-1]} {fps.surname(author) or author}"}, True))
+    seen_ids = set()
+    for params, strict_author in searches:
+        docs = ol_docs(params)
+        time.sleep(0.6)
+        if docs is None:
+            errors += 1
+            continue
+        for d in docs:
+            cid = d.get("cover_i")
+            if not cid or cid in seen_ids:
+                continue
+            if not ({cm.title_key(d.get("title", "")), base_key(d.get("title", ""))} & wants):
+                continue
+            if strict_author and not any(cm.author_matches(a, author) for a in (d.get("author_name") or [])[:3]):
+                continue
+            langs = d.get("language") or []
+            if langs and "eng" not in langs:
+                continue
+            seen_ids.add(cid)
+            url = f"https://covers.openlibrary.org/b/id/{cid}-L.jpg"
+            ok, why = image_ok(url + "?default=false")
+            if ok:
+                return url, "ol_title_author"
+            reason = why
+    if errors and reason == "no_safe_match":
         return None, "lookup_error"
-    want = cm.title_key(title)
-    reason = "no_safe_match"
-    for d in docs:
-        if not d.get("cover_i") or cm.title_key(d.get("title", "")) != want:
-            continue
-        if not any(cm.author_matches(a, author) for a in (d.get("author_name") or [])[:3]):
-            continue
-        langs = d.get("language") or []
-        if langs and "eng" not in langs:
-            continue
-        url = f"https://covers.openlibrary.org/b/id/{d['cover_i']}-L.jpg"
-        ok, why = image_ok(url + "?default=false")
-        if ok:
-            return url, "ol_title_author"
-        reason = why
     return None, reason
 
 
