@@ -6,6 +6,7 @@ import { Footer } from "@/components/Footer";
 import { websiteJsonLd, organizationJsonLd } from "@/lib/jsonld";
 import { getSiteNav } from "@/lib/siteNav";
 import { Reveal } from "@/components/Reveal";
+import { AmazonClickTracker } from "@/components/AmazonClickTracker";
 import "./globals.css";
 
 /*
@@ -131,6 +132,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <main className="flex-1">{children}</main>
         <Footer nav={nav} />
         <Reveal />
+        <AmazonClickTracker />
         <div className="scroll-progress" aria-hidden="true" />
       </body>
     </html>
