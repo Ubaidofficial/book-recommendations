@@ -193,11 +193,52 @@ def query_titles(title: str) -> list[str]:
     return out[:3]
 
 
+def edition_ok(olid):
+    """The edition the cover belongs to must not be a foreign-language or audio edition. Unknown fields pass."""
+    if not olid:
+        return True, "no_edition_key"
+    try:
+        r = S.get(f"https://openlibrary.org/books/{olid}.json", timeout=40)
+        time.sleep(0.4)
+        if r.status_code != 200:
+            return True, "edition_unreadable"
+        e = r.json()
+    except Exception:  # noqa: BLE001
+        return True, "edition_unreadable"
+    langs = [l.get("key", "") for l in (e.get("languages") or [])]
+    if langs and "/languages/eng" not in langs:
+        return False, "foreign_edition"
+    fmt = (e.get("physical_format") or "").lower()
+    if any(w in fmt for w in ("audio", "cassette", "mp3", "cd", "disc", "video")):
+        return False, "audio_edition"
+    return True, "ok" if langs else "unknown_language"
+
+
+def english_edition_cover(work_key):
+    """An explicitly-English, non-audio edition of the work that has a cover image -> cover id, else None."""
+    try:
+        r = S.get(f"https://openlibrary.org{work_key}/editions.json", params={"limit": 60}, timeout=40)
+        time.sleep(0.4)
+        if r.status_code != 200:
+            return None
+        for e in r.json().get("entries", []):
+            langs = [l.get("key", "") for l in (e.get("languages") or [])]
+            fmt = (e.get("physical_format") or "").lower()
+            covers = [c for c in (e.get("covers") or []) if isinstance(c, int) and c > 0]
+            if covers and "/languages/eng" in langs and not any(w in fmt for w in ("audio", "cassette", "mp3", "cd", "disc", "video")):
+                return covers[0]
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
 def ol_docs(params):
+    params = dict(params)
+    limit = params.pop("_limit", 10)
     for attempt in range(3):
         try:
             r = S.get("https://openlibrary.org/search.json", timeout=40,
-                      params={**params, "limit": 10, "fields": "title,author_name,cover_i,language"})
+                      params={**params, "limit": limit, "fields": "key,title,author_name,cover_i,cover_edition_key,language"})
             if r.status_code == 200:
                 return r.json().get("docs", [])
         except Exception:  # noqa: BLE001
@@ -220,6 +261,9 @@ def ol_candidate(b):
     reason, errors = "no_safe_match", 0
     searches = [({"title": t, "author": author}, False) for t in query_titles(title)]
     searches.append(({"q": f"{query_titles(title)[-1]} {fps.surname(author) or author}"}, True))
+    # Our titles lost some hyphens/apostrophes ("TwentyFirst"), which Open Library's title search cannot match. Last
+    # resort: list the author's works and compare titles on our side (squashed, so punctuation no longer matters).
+    searches.append(({"author": author, "_limit": 100}, False))
     seen_ids = set()
     for params, strict_author in searches:
         docs = ol_docs(params)
@@ -239,6 +283,18 @@ def ol_candidate(b):
             if langs and "eng" not in langs:
                 continue
             seen_ids.add(cid)
+            ok_ed, why_ed = edition_ok(d.get("cover_edition_key"))
+            if not ok_ed:
+                reason = why_ed
+                continue
+            doc_langs = set(d.get("language") or [])
+            if why_ed == "unknown_language" and doc_langs - {"eng"} and d.get("key"):
+                # Multilingual work and we cannot tell which language this cover is in: use a verified English edition.
+                better = english_edition_cover(d["key"])
+                if not better:
+                    reason = "language_unverified"
+                    continue
+                cid = better
             url = f"https://covers.openlibrary.org/b/id/{cid}-L.jpg"
             ok, why = image_ok(url + "?default=false")
             if ok:
