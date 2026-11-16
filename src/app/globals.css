@@ -1340,3 +1340,7 @@
     scale: 0.985;
   }
 }
+
+/* List pages: the "Title A–Z" view. Each .list-row carries its A–Z position in --az; ListSortControls flips
+   data-sort on #list-books, so the server HTML (and its cache entry) is identical for both views. */
+#list-books[data-sort="title"] .list-grid > .list-row { order: var(--az); }

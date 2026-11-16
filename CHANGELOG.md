@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-16 — List and compare pages are cached again
+
+`/lists/<slug>` and `/compare/<pair>` were served `Cache-Control: private, no-store` (109 of 293 sitemap pages), so every visit and every Googlebot fetch ran the full Supabase work. Two causes: neither route exported `generateStaticParams` (without it a dynamic route is fully dynamic whatever `revalidate` says; people/books/series already had it), and the list page read `searchParams` for `?sort=`. Both pages now export `generateStaticParams() { return []; }` (generated on first request, cached 300s), and the list page no longer reads `searchParams`: the "Title A–Z" switch is a client component (`ListSortControls`) that flips `data-sort` on `#list-books` and the CSS `order` follows each row's `--az` position. Rank badges keep showing the recommendation rank in both views; A–Z orders within the main group and within the "show more" group. `?sort=` links are no longer generated (old ones still resolve; the canonical was already the base URL). Verified on a production build: both routes are `●`, first request `MISS`, next `HIT`, `s-maxage=300`. The `/lists`, `/series`, `/people`, `/books` hubs stay `force-dynamic` (they read search params; their reads are cached underneath).
+
 ## 2026-11-15
 
 - Home: the headline's accent phrase rotates through true hooks (default "people you trust"), CSS scroll-driven motion (scroll progress bar, parallax on cover strips, deeper reveals), all behind prefers-reduced-motion.

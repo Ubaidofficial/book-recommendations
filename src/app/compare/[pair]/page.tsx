@@ -32,6 +32,12 @@ import { CoverTile, BookRow } from "@/components/person/CoverTile";
  */
 export const revalidate = 300;
 
+/** No pair is prerendered: each is generated on its first request, then cached for `revalidate` seconds.
+ *  Without this export the route is fully dynamic (Cache-Control: private, no-store). */
+export async function generateStaticParams() {
+  return [];
+}
+
 interface Props {
   params: Promise<{ pair: string }>;
 }
