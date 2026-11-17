@@ -116,6 +116,9 @@ def google_books_search(title: str, author: str, api_key: str = "", max_results:
         "q": q,
         "maxResults": str(max_results),
         "printType": "books",
+        # Google returns 403 "Cannot determine user location" for IPs it
+        # cannot geolocate (e.g. cloud containers) unless country is given.
+        "country": "US",
     }
     if api_key:
         params["key"] = api_key
