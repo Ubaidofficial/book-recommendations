@@ -871,7 +871,9 @@ def google_search(title: str, author: str) -> List[Dict[str, Any]]:
             return []
     q = f'intitle:"{title}"' + (f' inauthor:"{author}"' if author else "")
     url = "https://www.googleapis.com/books/v1/volumes?" + urllib.parse.urlencode(
-        {"q": q, "maxResults": "5", "printType": "books"})
+        # country=US: Google 403s ("Cannot determine user location") for IPs it
+        # cannot geolocate, e.g. cloud containers, unless a country is given.
+        {"q": q, "maxResults": "5", "printType": "books", "country": "US"})
     hit = cache_get("gb", url)
     if hit is not None:
         return hit

@@ -184,7 +184,9 @@ def google_books_search(title: str, author: str, max_results: int = 5, timeout: 
     if not parts:
         return []
     q = "+".join(parts)
-    qs = urllib.parse.urlencode({"q": q, "maxResults": str(max_results), "printType": "books"})
+    # country=US: Google 403s ("Cannot determine user location") for IPs it
+    # cannot geolocate, e.g. cloud containers, unless a country is given.
+    qs = urllib.parse.urlencode({"q": q, "maxResults": str(max_results), "printType": "books", "country": "US"})
     url = f"https://www.googleapis.com/books/v1/volumes?{qs}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "bookrecs-cover-backfill/1.0"})
