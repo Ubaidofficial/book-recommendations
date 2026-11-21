@@ -31,6 +31,23 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
+/**
+ * Hand-written title/description for a list whose generated ones do not fit the searches it ranks for.
+ * Every book named must be on the list, and the text must not claim more than the data shows.
+ *
+ * best-cryptography-books: 2026-08..11 it held ~5,500 impressions at position 5-7 and no clicks. The
+ * generated description led with the two novels (Snow Crash, Cryptonomicon) because they carry all the
+ * recommendations, while the queries ("cryptography books 2024/2025/2026") read as textbook searches.
+ * The year stays in the title: the searches themselves carry it.
+ */
+const LIST_META_OVERRIDES: Record<string, { title: string; description: string }> = {
+  "best-cryptography-books": {
+    title: "Best Cryptography Books (2026): Textbooks & Novels",
+    description:
+      "Cryptography books from textbooks to novels: Applied Cryptography, Foundations of Cryptography, The Code Book, Snow Crash and Cryptonomicon.",
+  },
+};
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const list = await getListBySlugCached(slug);
@@ -54,10 +71,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // A missing share image is not worth failing metadata generation over.
   }
 
+  const override = LIST_META_OVERRIDES[list.slug];
   return pageMetadata({
     // "(2026): Most Recommended Picks": the year and hook people search for (see listPageTitle).
-    title: listPageTitle(seoName),
-    description: withUpdatedYear(listMetaDescription(list.description, seoName, topBooks)),
+    title: override?.title ?? listPageTitle(seoName),
+    description: override ? withUpdatedYear(override.description) : withUpdatedYear(listMetaDescription(list.description, seoName, topBooks)),
     path: `/lists/${list.slug}`,
     image: ogImage,
     robots: robotsDirective(list),
