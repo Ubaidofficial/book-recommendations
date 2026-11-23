@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-23 — Daily publish moved to a new session, with an optimization gate
+
+The indexing-gated daily publish now runs as `trig_01BWSEPysnwsJsKTquZj7Wc2` (11:05 UTC); the earlier task `trig_01CW3Xi1RWKBuAj3WMDVya7y` is disabled, not deleted. New step E in `ops/scheduled-tasks/indexing-gated-publish.md`: every page published that day must pass the on-page checks from `scripts/qa/seo_audit.py` (canonical, robots, title and description length and uniqueness, one H1, JSON-LD, OG image, alt text, word count, sitemap presence) and the Amazon tag crawl, or it goes back to draft. Baseline audit of all 300 sitemap URLs on 2026-11-23: every page returned 200 and passed, except the /privacy and /terms titles (under 30 characters); 17 series pages are under 500 words.
+
 ## 2026-11-20 — Cryptography list title and description
 
 `/lists/best-cryptography-books` held about 5,500 impressions at position 5-7 (queries "cryptography books 2024/2025/2026") with no clicks. Its generated description led with the two novels that carry all the recommendations (Snow Crash 33, Cryptonomicon 6) while the searches read as textbook queries. New hand-written text via `LIST_META_OVERRIDES` in `src/app/lists/[slug]/page.tsx`: title "Best Cryptography Books (2026): Textbooks & Novels" (50 chars; the year stays because the queries carry it), description "Cryptography books from textbooks to novels: Applied Cryptography, Foundations of Cryptography, The Code Book, Snow Crash and Cryptonomicon. Updated 2026." (154 chars). Every book named is on the list and nothing claims the textbooks are the most recommended (they have 0-2 recommendations). Other lists are unchanged. Whether it lifts clicks is not known yet; judge on Search Console two weeks after it is live.
