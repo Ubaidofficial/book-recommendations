@@ -2715,6 +2715,110 @@ export async function getRecommendersForBooks(
   }
 }
 
+/** A published list that holds some of a series' books, and how many. */
+export interface SeriesListLink {
+  slug: string;
+  title: string;
+  matched: number;
+}
+
+/** A published person who recommends some of a series' books, and how many. */
+export interface SeriesRecommenderLink {
+  slug: string;
+  name: string;
+  role: string | null;
+  bookCount: number;
+}
+
+/**
+ * The published lists and the published people that connect to a series' books. Series pages were the
+ * thinnest on the site (17 of 72 under 500 words on 2026-11-23) while these links already existed in the
+ * data; showing them adds real, linkable content instead of filler. Only indexable lists (same predicate
+ * as "Appears in" on book pages) and published people are returned, so nothing links to a noindex page.
+ */
+export async function getSeriesConnections(
+  bookIds: string[],
+  limits: { lists: number; people: number } = { lists: 8, people: 12 },
+): Promise<{ lists: SeriesListLink[]; people: SeriesRecommenderLink[] }> {
+  const ids = (bookIds || []).filter(Boolean);
+  const empty = { lists: [], people: [] };
+  if (ids.length === 0) return empty;
+  try {
+    const supa = getSupabase();
+    const chunkSize = 100;
+
+    const matchedByList = new Map<string, Set<string>>();
+    const byPerson = new Map<string, SeriesRecommenderLink & { books: Set<string> }>();
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      const [links, recs] = await Promise.all([
+        supa.from("book_lists").select("list_id, book_id").in("book_id", chunk).limit(5000),
+        supa.from("book_recommendations").select("book_id, people(slug, name, avatar_url, role, bio, index_status)").in("book_id", chunk),
+      ]);
+      if (links.error) logQueryError(`getSeriesConnections[links=${i / chunkSize}]`, links.error);
+      for (const r of (links.data || []) as Array<{ list_id: string | null; book_id: string | null }>) {
+        if (!r.list_id || !r.book_id) continue;
+        if (!matchedByList.has(r.list_id)) matchedByList.set(r.list_id, new Set());
+        matchedByList.get(r.list_id)!.add(r.book_id);
+      }
+      if (recs.error) logQueryError(`getSeriesConnections[recs=${i / chunkSize}]`, recs.error);
+      type Row = {
+        book_id: string | null;
+        people: { slug: string | null; name: string | null; avatar_url: string | null; role: string | null; bio: string | null; index_status: string | null } | null;
+      };
+      for (const row of (recs.data || []) as unknown as Row[]) {
+        const p = row.people;
+        if (!row.book_id || !p || !p.slug || !p.name) continue;
+        if (!BOOK_INDEXABLE_STATUSES.includes(p.index_status || "")) continue;
+        const name = repairEncoding(p.name);
+        if (isProfilelessSurnameAlias({ name, role: p.role, bio: p.bio, avatar_url: p.avatar_url })) continue;
+        const existing = byPerson.get(p.slug);
+        if (existing) existing.books.add(row.book_id);
+        else byPerson.set(p.slug, { slug: p.slug, name, role: repairEncoding(p.role) || null, bookCount: 0, books: new Set([row.book_id]) });
+      }
+    }
+
+    let lists: SeriesListLink[] = [];
+    const listIds = [...matchedByList.keys()];
+    if (listIds.length > 0) {
+      const found: Array<{ id: string; slug: string; title: string | null }> = [];
+      for (let i = 0; i < listIds.length; i += chunkSize) {
+        const { data, error } = await supa
+          .from("lists")
+          .select("id, slug, title")
+          .in("id", listIds.slice(i, i + chunkSize))
+          .or(LIST_LINKABLE_OR)
+          .not("slug", "is", null)
+          .neq("slug", "");
+        if (error) { logQueryError(`getSeriesConnections[lists=${i / chunkSize}]`, error); continue; }
+        found.push(...((data || []) as Array<{ id: string; slug: string; title: string | null }>));
+      }
+      // Specific "best-*" lists first: "Best Thriller Books" says more about a series than a broad parent.
+      const tier = (slug: string) => (slug.startsWith("best-") ? 0 : 1);
+      lists = found
+        .map((l) => ({ slug: l.slug, title: l.title || l.slug, matched: matchedByList.get(l.id)?.size || 0 }))
+        .sort((a, b) => b.matched - a.matched || tier(a.slug) - tier(b.slug) || a.slug.localeCompare(b.slug))
+        .slice(0, limits.lists);
+    }
+
+    const people = [...byPerson.values()]
+      .map(({ books, ...p }) => ({ ...p, bookCount: books.size }))
+      .sort((a, b) => b.bookCount - a.bookCount || a.name.localeCompare(b.name))
+      .slice(0, limits.people);
+    return { lists, people };
+  } catch (e) {
+    logQueryError("getSeriesConnections", e);
+    return empty;
+  }
+}
+
+export const getSeriesConnectionsCached = (seriesId: string, bookIds: string[]) =>
+  cachedRead(
+    () => getSeriesConnections(bookIds),
+    ["series-connections", seriesId, String(bookIds.length)],
+    { revalidate: 900, tags: ["series", "lists", "recommendations"] },
+  )();
+
 export interface BookRecommenderRef {
   book_id: string;
   slug: string;
