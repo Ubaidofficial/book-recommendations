@@ -1,11 +1,11 @@
 import { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
-import { getSeriesBySlugCached, getBooksBySeriesOrderedCached, getRelatedSeries, seriesHasPositionsCached } from "@/lib/data";
+import { getSeriesBySlugCached, getBooksBySeriesOrderedCached, getRelatedSeries, seriesHasPositionsCached, getSeriesConnectionsCached } from "@/lib/data";
 import { pageMetadata, robotsDirective, contentDates } from "@/lib/seo";
-import { displayTitle } from "@/lib/display";
+import { displayTitle, displayListTitleFull } from "@/lib/display";
 import { seriesJsonLd, faqPageJsonLd } from "@/lib/jsonld";
-import { orderSeriesBooks, seriesBaseName, seriesFaq, seriesPageTitle, seriesMetaTitle } from "@/lib/seriesOrder";
+import { orderSeriesBooks, seriesBaseName, seriesFaq, seriesPageTitle, seriesMetaTitle, seriesTimeline, seriesTimelineText } from "@/lib/seriesOrder";
 import { BookCard, Breadcrumbs, EmptyState, LastUpdated } from "@/components";
 import { RelatedSeriesCards } from "@/components/RelatedCards";
 import { SeriesCoverFan } from "@/components/SeriesCoverFan";
@@ -27,6 +27,9 @@ const SERIES_FETCH_LIMIT = 1000;
 // Series pages showed 48 of a series that can run to 868 titles, while the
 // page's entire promise is "in order". Covers below the fold lazy-load.
 const SERIES_PAGE_SIZE = 200;
+// The text "quick list" repeats the order as plain numbered lines, the format "<author> books in order"
+// searches answer with. Past this many books the cover grid already is the list and a second copy is noise.
+const QUICK_LIST_MAX = 60;
 
 /**
  * The import left several rows per series ("dune", "dune-series",
@@ -107,6 +110,16 @@ export default async function SeriesDetailPage({ params }: Props) {
   const hasDescription = series.description && series.description.length > 0;
   const hasRelated = related.length > 0;
   const faq = seriesFaq(base, order, orderedBooks, total);
+  const connections = await getSeriesConnectionsCached(series.id, orderedBooks.map((b) => b.id));
+  const timeline = order === "none" ? null : seriesTimeline(orderedBooks);
+  // Only books that hold a verified place in the order: a year (publication) or a position.
+  const quickList =
+    order === "publication"
+      ? orderedBooks.filter((b) => typeof b.first_published_year === "number" && b.first_published_year > 0)
+      : order === "position"
+        ? orderedBooks.filter((b) => b.series_position != null)
+        : [];
+  const showQuickList = quickList.length >= 2 && quickList.length <= QUICK_LIST_MAX;
 
   const jsonld = seriesJsonLd(series, books, heading);
   const faqJsonLd = faqPageJsonLd(faq);
@@ -211,6 +224,93 @@ export default async function SeriesDetailPage({ params }: Props) {
       ) : (
         <section className="mb-14">
           <EmptyState message="Books for this series are still being organized." />
+        </section>
+      )}
+
+      {(showQuickList || timeline) && (
+        <section className="mb-14 grid gap-8 md:grid-cols-2" aria-label={`${base} order and timeline`}>
+          {showQuickList && (
+            <div>
+              <h2 id="quick-list" className="type-h3 text-ink mb-3">
+                {base} books in order: quick list
+              </h2>
+              <ol className="space-y-1.5 text-sm text-muted">
+                {quickList.map((b, i) => {
+                  const n = b.recommendation_count || 0;
+                  return (
+                    <li key={b.id} className="flex gap-2">
+                      <span className="w-7 shrink-0 text-right tabular-nums text-ink font-medium">
+                        {order === "position" ? `#${b.series_position}` : `${i + 1}.`}
+                      </span>
+                      <span>
+                        <Link href={`/books/${b.slug}`} className="text-ink hover:text-accent underline-offset-2 hover:underline">
+                          {b.title}
+                        </Link>
+                        {b.first_published_year ? ` (${b.first_published_year})` : ""}
+                        {n > 0 ? ` · ${n} ${n === 1 ? "recommendation" : "recommendations"}` : ""}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+              {order === "publication" && undatedCount > 0 && (
+                <p className="text-xs text-muted mt-3">
+                  {undatedCount} more {undatedCount === 1 ? "title has" : "titles have"} no verified year yet, so {undatedCount === 1 ? "it is" : "they are"} left out of this numbered list.
+                </p>
+              )}
+            </div>
+          )}
+          {timeline && (
+            <div>
+              <h2 id="timeline" className="type-h3 text-ink mb-3">
+                {base} publication timeline
+              </h2>
+              <p className="text-sm text-muted leading-relaxed">{seriesTimelineText(base, timeline)}</p>
+              <p className="text-xs text-muted mt-3">
+                Years are each work&rsquo;s first publication, from Open Library, not the date of a later edition.
+              </p>
+            </div>
+          )}
+        </section>
+      )}
+
+      {(connections.lists.length > 0 || connections.people.length > 0) && (
+        <section className="mb-14 grid gap-8 md:grid-cols-2" aria-label={`Where ${base} books are recommended`}>
+          {connections.lists.length > 0 && (
+            <div>
+              <h2 id="on-lists" className="type-h3 text-ink mb-3">
+                Lists featuring {base} books
+              </h2>
+              <ul className="space-y-1.5 text-sm text-muted">
+                {connections.lists.map((l) => (
+                  <li key={l.slug}>
+                    <Link href={`/lists/${l.slug}`} className="text-ink hover:text-accent underline-offset-2 hover:underline">
+                      {displayListTitleFull(l.title, l.slug)}
+                    </Link>
+                    {` · ${l.matched} ${base} ${l.matched === 1 ? "book" : "books"}`}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {connections.people.length > 0 && (
+            <div>
+              <h2 id="recommended-by" className="type-h3 text-ink mb-3">
+                Who recommends {base} books
+              </h2>
+              <ul className="space-y-1.5 text-sm text-muted">
+                {connections.people.map((p) => (
+                  <li key={p.slug}>
+                    <Link href={`/people/${p.slug}`} className="text-ink hover:text-accent underline-offset-2 hover:underline">
+                      {p.name}
+                    </Link>
+                    {p.role ? `, ${p.role}` : ""}
+                    {` · recommends ${p.bookCount} of these books`}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 

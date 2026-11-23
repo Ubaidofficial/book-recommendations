@@ -1,5 +1,8 @@
 # BookRecs: indexing-gated daily publish (replaces "Daily publish (max 2 pages)")
 
+Live task since 2026-11-23: `trig_01BWSEPysnwsJsKTquZj7Wc2`, 11:05 UTC daily (the earlier copy `trig_01CW3Xi1RWKBuAj3WMDVya7y` is disabled).
+Steps run in the order A, B, E, C (D on cap-0 days).
+
 Decided by the owner on 2026-11-15: take unindexed pages out, then publish 1-2 pages a day ONLY while Google indexing is improving, stop
 the day it does not, and learn from Search Console (SEOConsole MCP) and OpenSEO (OpenSEO_Selfhost MCP) every day.
 State lives in `public.seo_publish_log` (one row per day, migration 010). Removed pages are backed up in `bak_seo_changes_20261114`
@@ -27,6 +30,21 @@ Choose the page by evidence, not by queue order:
 * SEOConsole `get_top_queries` / `get_opportunities`: prefer topics Google already shows the site for.
 * Learned preference: the section (lists vs series) with the higher indexed share in `learnings` of the last 7 rows.
 Candidates and guards are the existing ones: lists from the reviewed queue below, guarded statement unchanged; series only `publish_ready`.
+
+**E. OPTIMIZATION GATE (added 2026-11-23; every page published today, before IndexNow and log_change)**
+Run `python3 -I scripts/qa/seo_audit.py` (whole sitemap, about 3 minutes, read-only) and read each new page's row in
+`reports/seo_audit_pages.csv`. Every new page must have: status 200, no redirect, `canonical_self` true, no noindex in `robots`/`x_robots`;
+title 30-65 chars containing "Books" (series: "<Name> Books in Order"); meta description 70-160 chars; title and description not identical to
+any other sitemap URL; exactly 1 H1 and at least 8 H2; `jsonld_invalid` 0 and `jsonld_types` containing ItemList, BreadcrumbList and
+CollectionPage; `og_image` set; `images_no_alt` 0; at least 1,000 words for a list, 350 for a series (flag series under 500 words as thin);
+and the URL present in https://bookmentions.net/sitemap.xml (re-check after a minute if missing). Then
+`QA_PATHS=<today's paths> node scripts/qa/amazon_monetization_crawl.js` must print `"finalResult": "PASS"`.
+If any check fails, set that page back to `index_status='draft'`, publish nothing else that day and report the failing checks. Never edit
+titles, descriptions, meta columns or `amazon_url` from the run to get a page through: list and series titles/descriptions are generated in
+code (`src/app/lists/[slug]/page.tsx`, `src/app/series/[slug]/page.tsx`), so a failure needs a reviewed fix. Also report (do not change) any
+already-live sitemap page that fails the same rules. On cap-0 days run the audit anyway to catch regressions.
+Baseline 2026-11-23: all 300 sitemap URLs returned 200 and passed every rule above except /privacy and /terms titles (27-29 chars, not
+publish candidates); 17 series pages are under 500 words (shortest 366); the five lists published 11-21..11-23 passed the Amazon check.
 
 **C. LEARN (always write the row)**
 Insert today's row into `seo_publish_log`: indexed, not_indexed, crawled_not_indexed, impressions_7d, clicks_7d, published_cap, published, removed,

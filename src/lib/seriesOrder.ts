@@ -111,6 +111,81 @@ export function seriesPageTitle(base: string, order: SeriesOrder): string {
   return order === "position" || order === "publication" ? `${base} Books in Order` : `${base} Books: Full List`;
 }
 
+export interface SeriesTimeline {
+  datedCount: number;
+  first: { title: string; year: number };
+  latest: { title: string; year: number };
+  spanYears: number;
+  /** Mean years between consecutive verified releases; null with fewer than 3 dated books. */
+  averageGapYears: number | null;
+  /** Dated books first published in the last five calendar years (this year included). */
+  recentCount: number;
+  recentFrom: number;
+  /** The calendar year with the most dated releases, when it holds 2 or more. */
+  busiestYear: { year: number; count: number } | null;
+}
+
+/**
+ * Plain facts about when a series' books came out, from verified first-publication years only.
+ * Null when fewer than 2 books carry a verified year: one date is not a timeline.
+ */
+export function seriesTimeline(books: SeriesBook[], now: number = new Date().getFullYear()): SeriesTimeline | null {
+  const dated = books
+    .filter((b) => verifiedYear(b) != null)
+    .sort((a, b) => verifiedYear(a)! - verifiedYear(b)! || a.title.localeCompare(b.title));
+  if (dated.length < 2) return null;
+  const first = dated[0];
+  const latest = dated[dated.length - 1];
+  const firstYear = verifiedYear(first)!;
+  const latestYear = verifiedYear(latest)!;
+  const spanYears = latestYear - firstYear;
+  const recentFrom = now - 4;
+  const perYear = new Map<number, number>();
+  for (const b of dated) perYear.set(verifiedYear(b)!, (perYear.get(verifiedYear(b)!) || 0) + 1);
+  let busiestYear: SeriesTimeline["busiestYear"] = null;
+  for (const [year, count] of perYear) {
+    if (count >= 2 && (!busiestYear || count > busiestYear.count || (count === busiestYear.count && year < busiestYear.year))) {
+      busiestYear = { year, count };
+    }
+  }
+  return {
+    datedCount: dated.length,
+    first: { title: first.title, year: firstYear },
+    latest: { title: latest.title, year: latestYear },
+    spanYears,
+    averageGapYears: dated.length >= 3 && spanYears > 0 ? Math.round((spanYears / (dated.length - 1)) * 10) / 10 : null,
+    recentCount: dated.filter((b) => verifiedYear(b)! >= recentFrom).length,
+    recentFrom,
+    busiestYear,
+  };
+}
+
+/** The timeline as two or three sentences of prose; every figure comes from seriesTimeline. */
+export function seriesTimelineText(base: string, t: SeriesTimeline): string {
+  const parts: string[] = [];
+  parts.push(
+    t.spanYears > 0
+      ? `The ${t.datedCount} ${base} books with a verified first-publication year run from ${t.first.title} (${t.first.year}) to ${t.latest.title} (${t.latest.year}), a span of ${t.spanYears} ${t.spanYears === 1 ? "year" : "years"}.`
+      : `All ${t.datedCount} ${base} books with a verified first-publication year came out in ${t.first.year}.`,
+  );
+  if (t.averageGapYears != null) {
+    parts.push(
+      t.averageGapYears < 1
+        ? `That is more than one new book a year on average.`
+        : `That works out to a new book about every ${t.averageGapYears.toLocaleString("en-US", { maximumFractionDigits: 1 })} ${t.averageGapYears === 1 ? "year" : "years"} on average.`,
+    );
+  }
+  if (t.busiestYear) {
+    parts.push(`The busiest year was ${t.busiestYear.year}, with ${t.busiestYear.count} books.`);
+  }
+  parts.push(
+    t.recentCount > 0
+      ? `${t.recentCount} of them ${t.recentCount === 1 ? "was" : "were"} first published in ${t.recentFrom} or later.`
+      : `None of them was first published in ${t.recentFrom} or later, as far as our records show.`,
+  );
+  return parts.join(" ");
+}
+
 export interface FaqItem {
   q: string;
   a: string;
@@ -156,11 +231,31 @@ export function seriesFaq(base: string, order: SeriesOrder, books: SeriesBook[],
   }
 
   const mostRecommended = [...books].sort((a, b) => (b.recommendation_count || 0) - (a.recommendation_count || 0))[0];
-  if (mostRecommended && (mostRecommended.recommendation_count || 0) > 0) {
+  const hasRecommended = !!mostRecommended && (mostRecommended.recommendation_count || 0) > 0;
+  if (hasRecommended) {
     const n = mostRecommended.recommendation_count;
     faq.push({
       q: `Which ${base} book is the most recommended?`,
       a: `${mostRecommended.title} is the most recommended, with ${n} ${n === 1 ? "recommendation" : "recommendations"} from people whose reading lists we track.`,
+    });
+  }
+
+  // Only where the page holds a verified order: "start here" on an unordered list would be a guess.
+  const start =
+    order === "publication"
+      ? books.find((b) => verifiedYear(b) != null)
+      : order === "position"
+        ? books.find((b) => b.series_position === 1) || books.find((b) => b.series_position != null)
+        : undefined;
+  if (start) {
+    const where = order === "publication" ? `the first published, ${byline(start)}` : `#${start.series_position}, ${start.title}`;
+    const alt =
+      hasRecommended && mostRecommended.id !== start.id
+        ? ` If you would rather start with the title the people we track recommend most, that is ${mostRecommended.title}.`
+        : "";
+    faq.push({
+      q: `Where should I start with ${base} books?`,
+      a: `Going by the order on this page, start with ${where}.${alt}`,
     });
   }
   return faq;
