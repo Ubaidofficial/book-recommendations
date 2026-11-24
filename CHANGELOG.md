@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-24 — Privacy and Terms titles
+
+`/privacy` and `/terms` were the only sitemap pages with titles under 30 characters ("Privacy Policy | BookMentions", 29; "Terms of Use | BookMentions", 27). They now say what the pages cover, taken from their own section headings: "Privacy Policy: Analytics, Cookies & Data | BookMentions" (56) and "Terms of Use: Accuracy, Links and Rules | BookMentions" (54). Both stay under the 60-character `TITLE_MAX`, so the brand suffix is kept. H1s and descriptions are unchanged.
+
 ## 2026-11-24 — Docs: hosting is Openship on a Netcup VPS
 
 README and the two scheduled-task mirrors (`ops/scheduled-tasks/daily-pipeline.md`, `pipeline-reviewer.md`) said the site runs on Railway. Production now runs on Openship on a Netcup VPS (Railway's last BookMentions deployment was 2026-11-12). README now says where production runs, that a merge goes live only after Openship deploys that commit, and that publishing a page needs no deploy. The Railway host rules in `next.config.js` and `src/app/robots.ts` are unchanged on purpose: they still keep the old `*.up.railway.app` URLs out of the index. The historical handoff note from 2026-10-20 is left as written.
