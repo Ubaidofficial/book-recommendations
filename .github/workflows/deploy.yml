@@ -1,0 +1,62 @@
+name: Deploy
+
+# Production deploy to Openship (deploy.ubaid.stream), run only after the CI workflow has passed on a
+# push to main, so a commit that fails typecheck or build never reaches bookmentions.net.
+# Needs the repo secret OPENSHIP_TOKEN: an Openship API token that can deploy the book-recommendations
+# project (Openship -> Settings -> API tokens; not read-only).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# One production deploy at a time; a queued one waits instead of cancelling a deploy mid-rollout.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+
+      # Two merges close together each start a deploy. Only the newest commit on main is deployed, so a
+      # queued older run can never roll production back.
+      - name: Skip if main has moved on
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)
+          if [ "$head" != "$SHA" ]; then
+            echo "main is now at $head; skipping $SHA (the run for $head deploys it)."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to Openship and wait
+        if: steps.latest.outputs.skip != 'true'
+        env:
+          OPENSHIP_TOKEN: ${{ secrets.OPENSHIP_TOKEN }}
+        run: bash .github/scripts/openship-deploy.sh deploy "$SHA"
+
+      - name: Check the live site answers
+        if: steps.latest.outputs.skip != 'true'
+        run: |
+          for path in / /lists /series; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 "https://bookmentions.net${path}")
+            echo "${path} -> ${code}"
+            [ "$code" = "200" ] || { echo "::error::https://bookmentions.net${path} returned ${code} after the deploy"; exit 1; }
+          done
