@@ -35,4 +35,8 @@ npm run build
 npm start
 ```
 
-Deploy to Vercel, Netlify, or any Node.js host. Set the environment variables in your hosting dashboard.
+Production (bookmentions.net) runs on **Openship on a Netcup VPS** (since mid-November 2026; it was on Railway before). It serves the `main` branch, so a change reaches the live site only after it is merged and Openship has built and deployed that commit. Check the Openship dashboard to confirm a deploy ran for the merged commit, or start one there. Set the environment variables (see `.env.example`) in Openship.
+
+Publishing a page (setting `index_status='published'` in Supabase) does not need a deploy: pages render on request and are cached for up to 5 minutes (`revalidate = 300`).
+
+The Railway host rules in `next.config.js` and `src/app/robots.ts` stay in place so the old `*.up.railway.app` URLs keep redirecting or being blocked from indexing.

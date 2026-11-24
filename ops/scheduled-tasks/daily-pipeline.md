@@ -9,7 +9,7 @@ This runs unattended and publishes to a live site, so the ordering and the abort
 
 ## Context you need (no memory of previous runs)
 
-The site is bookmentions.net (Next.js on Railway, Supabase backend). Secrets are in `.env.local` in the project root — source it with `set -a && . ./.env.local && set +a` before any script that writes. Every script is dry-run by default and needs an explicit flag to write.
+The site is bookmentions.net (Next.js on Openship on a Netcup VPS, Supabase backend; on Railway until mid-November 2026). Secrets are in `.env.local` in the project root — source it with `set -a && . ./.env.local && set +a` before any script that writes. Every script is dry-run by default and needs an explicit flag to write.
 
 **Enrichment must run before publishing, every time.** The publisher only accepts books whose `ai_quality_status` is `draft` or `approved`, which only editorial enrichment sets. It also requires a cover and an 80+ character description, which metadata enrichment fills. If enrichment does not run, the candidate pool drains and the publisher quietly starts publishing nothing, or only people.
 
@@ -53,7 +53,7 @@ If the dry run looks correct, publish:
 node scripts/import/publish_batch_pages.js --write
 ```
 
-**6. Post-publish verification** — the failures on this project have all been silent, so check the rendered site, not just exit codes. Wait ~3 minutes for Railway to redeploy, then verify against https://bookmentions.net:
+**6. Post-publish verification** — the failures on this project have all been silent, so check the rendered site, not just exit codes. Publishing changes database rows only and needs no redeploy; pages are cached for up to 5 minutes, so wait ~5 minutes, then verify against https://bookmentions.net:
 - the homepage renders at least one book card (it once rendered an empty "Popular Books" rail for weeks)
 - `/books` lists books
 - `/sitemap.xml` returns 200 and its URL count went UP, not down

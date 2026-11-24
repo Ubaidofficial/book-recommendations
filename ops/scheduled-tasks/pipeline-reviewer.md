@@ -15,7 +15,7 @@ Running scripts in dry-run mode is fine and encouraged (`--dry-run` is the defau
 
 ## Context (you have no memory of previous runs)
 
-bookmentions.net — Next.js on Railway, Supabase backend. `.env.local` holds the keys; source it read-only with `set -a && . ./.env.local && set +a`. A separate task, `bookmentions-daily-pipeline`, runs at 13:00 and enriches then publishes. You run at 15:00 to review what it did.
+bookmentions.net — Next.js on Openship on a Netcup VPS (Railway until mid-November 2026), Supabase backend. `.env.local` holds the keys; source it read-only with `set -a && . ./.env.local && set +a`. A separate task, `bookmentions-daily-pipeline`, runs at 13:00 and enriches then publishes. You run at 15:00 to review what it did.
 
 **Start by reading the previous reports in `reports/pipeline-review/`** (most recent 5-7). They are the only memory this job has. Your value comes from comparing today against them — a single snapshot cannot see the failure mode this project actually has.
 
