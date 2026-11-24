@@ -75,7 +75,8 @@ deploy_commit() {
   echo "Deploying ${sha} of main to Openship project ${PROJECT_ID} (production)"
   resp=$(call_tool post_deployments "$(jq -cn --arg p "$PROJECT_ID" --arg s "$sha" \
     '{body:{projectId:$p, branch:"main", commitSha:$s, environment:"production"}}')")
-  id=$(jq -r '.data.id // .data.deploymentId // .deploymentId // .deployment_id // .id // empty' <<<"$resp" 2>/dev/null || true)
+  # Openship answers {"data":{"deployment_id":"dep_…","deployment":{"id":"dep_…",…}}} (seen 2026-11-24).
+  id=$(jq -r '.data.deployment_id // .data.deployment.id // .data.id // .deployment_id // .id // empty' <<<"$resp" 2>/dev/null || true)
   if [ -z "$id" ]; then
     echo "::error::Openship accepted the request but returned no deployment id. Response: $(head -c 1500 <<<"$resp")"
     return 1
