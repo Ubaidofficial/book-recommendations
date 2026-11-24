@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Terms of Use",
+  title: "Terms of Use: Accuracy, Links and Rules",
   description: "Review the terms for using BookMentions, including accuracy limits, external links, acceptable use, and content policies.",
   path: "/terms",
 });

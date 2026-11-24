@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Privacy Policy",
+  title: "Privacy Policy: Analytics, Cookies & Data",
   description: "Learn how BookMentions handles basic analytics, cookies, privacy, and user data for this book discovery website.",
   path: "/privacy",
 });
