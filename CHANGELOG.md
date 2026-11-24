@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-24 — Deploy workflow: read Openship's deployment id correctly
+
+The first automatic run (Deploy #1, commit `925a092`) did start an Openship deployment (`dep_Wz4_VGJy3uUDvISs`), then failed the job: Openship returns the new id as `data.deployment_id`, which `.github/scripts/openship-deploy.sh` did not look for, so it could not wait on the deploy. It now reads `data.deployment_id` (then `data.deployment.id`). Also moves the workflow to `actions/checkout@v5` (v4 runs on the deprecated Node 20).
+
 ## 2026-11-24 — Deploy to Openship from GitHub Actions after CI passes
 
 Production (Openship on a Netcup VPS) only deployed when someone pressed deploy. Openship's own push-to-deploy could not be turned on: its GitHub login (a `gh` CLI token on the server) is not allowed to create repository webhooks ("You don't have permission to manage webhooks on this repository"). New `.github/workflows/deploy.yml` runs after the CI workflow passes on a push to `main` (also runnable by hand) and calls `.github/scripts/openship-deploy.sh`, which asks Openship's MCP endpoint (`https://deploy.ubaid.stream/api/mcp`, tool `post_deployments`) to deploy that exact commit of project `proj_36supYe4DKoJUvEu` to production, then polls the deployment until it is `ready` (fails the job on `failed`/`canceled`/`action_required` or after 25 minutes) and checks that `/`, `/lists` and `/series` answer 200. Deploys run one at a time, and a run whose commit is no longer the head of `main` is skipped so an older commit can never replace a newer one. Needs the repo secret `OPENSHIP_TOKEN` (an Openship API token that can deploy, not read-only). The script's watch and error paths were tested read-only against the live Openship instance; the first real deploy is the merge of this change.
