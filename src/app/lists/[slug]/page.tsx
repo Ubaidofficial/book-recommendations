@@ -46,6 +46,17 @@ const LIST_META_OVERRIDES: Record<string, { title: string; description: string }
     description:
       "Cryptography books from textbooks to novels: Applied Cryptography, Foundations of Cryptography, The Code Book, Snow Crash and Cryptonomicon.",
   },
+  /**
+   * best-project-management-books: position ~4 for "project management books 2026" with 0% CTR (SEOConsole
+   * ctr_gaps, 28 days to 2026-11-23: ~29 missed clicks). The generated description led with The Hard Thing
+   * About Hard Things and The Lean Startup, which read as startup books to a project-management search. This
+   * leads with the list's project-management classics; all four books named are on the list.
+   */
+  "best-project-management-books": {
+    title: "Project Management Books (2026): Classics Leaders Recommend",
+    description:
+      "Project management books leaders recommend, from The Mythical Man-Month and Getting Things Done to Measure What Matters and The Lean Startup.",
+  },
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

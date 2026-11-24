@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-24 — Project management list title and description
+
+`/lists/best-project-management-books` sat at position ~4 for "project management books 2026" with 0% CTR (SEOConsole ctr_gaps, 28 days to 2026-11-23: about 29 missed clicks). Its generated description led with The Hard Thing About Hard Things and The Lean Startup, which read as startup books to a project-management search. New hand-written text via `LIST_META_OVERRIDES` in `src/app/lists/[slug]/page.tsx`: title "Project Management Books (2026): Classics Leaders Recommend" (59 chars; over the 60-char brand budget with the suffix, so no "| BookMentions", same as the cryptography override), description "Project management books leaders recommend, from The Mythical Man-Month and Getting Things Done to Measure What Matters and The Lean Startup. Updated 2026." (155 chars). All four books named are on the list. Other lists unchanged. Whether it lifts clicks is not known yet; judge on Search Console about two weeks after it is live.
+
 ## 2026-11-24 — Privacy and Terms titles
 
 `/privacy` and `/terms` were the only sitemap pages with titles under 30 characters ("Privacy Policy | BookMentions", 29; "Terms of Use | BookMentions", 27). They now say what the pages cover, taken from their own section headings: "Privacy Policy: Analytics, Cookies & Data | BookMentions" (56) and "Terms of Use: Accuracy, Links and Rules | BookMentions" (54). Both stay under the 60-character `TITLE_MAX`, so the brand suffix is kept. H1s and descriptions are unchanged.
