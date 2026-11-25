@@ -45,7 +45,6 @@ export default function robots(): MetadataRoute.Robots {
           // page is canonical and these carry X-Robots-Tag: noindex too.
           "/md/",
           "/report-issue",
-          "/methodology",
           "/*?*",   // block all other query-string URLs (search, filters, sort)
         ],
       },

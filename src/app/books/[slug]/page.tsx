@@ -25,6 +25,7 @@ import {
   isValidRating,
   formatRating,
   isUsefulDescription,
+  isDisplayableBookDescription,
   cleanDescription,
   parseSourceUrls,
   parseEditorialList,
@@ -117,7 +118,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const desc = proofDesc
     || (isUsefulDescription(book.meta_description)
       ? book.meta_description
-      : isUsefulDescription(book.description)
+      : isDisplayableBookDescription(book.description)
         ? book.description
         : undefined);
   return pageMetadata({
@@ -196,7 +197,9 @@ export default async function BookDetailPage({ params }: Props) {
   // Display-only description hygiene: if the row doesn't pass isUsefulDescription
   // (placeholder text, scraped junk, too short, non-English) we hide the description
   // block entirely rather than show internal review text to the public.
-  const showDescription = isUsefulDescription(book.description);
+  // isDisplayableBookDescription also drops descriptions with "?" mojibake
+  // ("If you?re") left by the import.
+  const showDescription = isDisplayableBookDescription(book.description);
   const descriptionText = showDescription ? cleanDescription(book.description) : "";
 
   // Author line

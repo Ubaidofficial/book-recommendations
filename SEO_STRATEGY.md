@@ -10,6 +10,9 @@ These pages are set to `index, follow`:
 - `/lists` — Lists index
 - `/series` — Series index
 - `/about` — About page
+- `/methodology` — how sources, ranking and AI use work (indexed since 2026-11-25:
+  it answers the "how was this made" question Google's helpful-content guidance asks;
+  it was noindex and robots-blocked before)
 
 ## Noindex Rules
 
@@ -24,7 +27,6 @@ Supabase row has `index_status = 'index'`:
 A few pages are **permanently noindex** (no `index_status` gate — not on a
 path to ever being indexed):
 
-- `/methodology` — not worth the crawl budget over the higher-value pages above
 - `/authors`, `/authors/[slug]` — derived author-catalog pages with no independent quality signal beyond the books they list
 
 ## Implementation

@@ -273,7 +273,6 @@ export default async function PersonDetailPage({ params }: Props) {
         title: r.title,
         author: r.author,
         cover: isValidHttpUrl(r.cover_image_url) ? (r.cover_image_url as string) : "",
-        score: r.rating != null && r.rating > 0 ? r.rating : null,
         recs: r.recommendation_count,
         year: r.first_published_year,
         amazon: amazonCtaUrl({ title: r.title, author: r.author, amazon_url: r.amazon_url }),

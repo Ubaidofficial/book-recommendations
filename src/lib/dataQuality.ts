@@ -403,6 +403,25 @@ export function isUsefulDescription(value: string | null | undefined): boolean {
   return true;
 }
 
+/**
+ * Mojibake left by the import: curly quotes and apostrophes turned into "?"
+ * ("If you?re", "?fascinating account?"). A real question mark is followed by a
+ * space or the end of the text, never directly by a letter.
+ */
+export function hasQuestionMarkMojibake(value: string | null | undefined): boolean {
+  return /[A-Za-z0-9]\?[A-Za-z]|(?:^|\s)\?[A-Za-z]/.test(String(value || ""));
+}
+
+/**
+ * Whether a book description may be shown to readers (page body, meta
+ * description, JSON-LD). Stricter than isUsefulDescription, which also gates
+ * indexability and is left as it was: a book whose only problem is a bad
+ * description should lose the description, not its page.
+ */
+export function isDisplayableBookDescription(description: string | null | undefined): boolean {
+  return isUsefulDescription(description) && !hasQuestionMarkMojibake(description);
+}
+
 // Common placeholder strings authors / scrapers sometimes write into a bio
 // when the real value is unknown. Treated as missing data; would render as
 // noise if shown. The check is case-insensitive on a trimmed value.

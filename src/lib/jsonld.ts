@@ -1,5 +1,5 @@
 import { Book, Person, BookList, Series } from "@/lib/data";
-import { isValidHttpUrl, isUsefulDescription, normalizeAmazonUrl } from "@/lib/dataQuality";
+import { isValidHttpUrl, isUsefulDescription, isDisplayableBookDescription, normalizeAmazonUrl } from "@/lib/dataQuality";
 import { sameAsFor, personSlugForAuthor } from "@/lib/entityLinks";
 import { genreForBook } from "@/lib/bookGenres";
 import { contentDates, SITE_NAME } from "@/lib/seo";
@@ -116,7 +116,7 @@ export function bookJsonLd(book: Book | null, slug?: string): Record<string, unk
   if (book.page_count && book.page_count > 0) {
     mainEntity.numberOfPages = book.page_count;
   }
-  if (isUsefulDescription(book.description)) {
+  if (isDisplayableBookDescription(book.description)) {
     mainEntity.description = book.description.trim();
   }
 

@@ -118,9 +118,9 @@ async function buildSitemap(strict: boolean): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/lists`,   lastModified: newestOf(lists),   changeFrequency: "daily",   priority: 0.8 },
     { url: `${BASE_URL}/series`,  lastModified: newestOf(series),  changeFrequency: "weekly",  priority: 0.7 },
     { url: `${BASE_URL}/about`,                                    changeFrequency: "monthly", priority: 0.5 },
+    { url: `${BASE_URL}/methodology`,                              changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE_URL}/privacy`,                                  changeFrequency: "yearly",  priority: 0.3 },
     { url: `${BASE_URL}/terms`,                                    changeFrequency: "yearly",  priority: 0.3 },
-    // NOTE: /methodology is noindex — intentionally excluded from sitemap
   ];
 
   // ── /compare pages (person+compare v4) ──────────────────────────────────
