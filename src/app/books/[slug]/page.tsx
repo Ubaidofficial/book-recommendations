@@ -189,6 +189,11 @@ export default async function BookDetailPage({ params }: Props) {
 
   // Sources that passed getProofDisplaySafety (see lib/bookInsights.ts).
   const confirmedSources = insights.confirmed.length;
+  // Named recommenders the evidence section can show. recommendation_count also counts records filed under a
+  // bare surname with no profile ("Abdaal", "Stone"), some of which duplicate a named person; say so rather than
+  // let the headline number and the evidence disagree silently.
+  const namedRecommenders = insights.confirmed.length + insights.unconfirmed.length;
+  const surnameOnlyRecords = Math.max(0, (book.recommendation_count || 0) - namedRecommenders);
   const showVerifiedBadge = confirmedSources >= 2;
   const bottomBoxTitle = "How recommendation signals are reviewed";
 
@@ -313,6 +318,16 @@ export default async function BookDetailPage({ params }: Props) {
       ? ""
       : d.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   })();
+
+  // Approved notes carry the month of the human review; drafts the month they were generated.
+  const reviewedLabel = (() => {
+    if (!editorialReviewed || !book.ai_reviewed_at) return "";
+    const d = new Date(book.ai_reviewed_at);
+    return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  })();
+  const editorialDated = editorialReviewed
+    ? (reviewedLabel ? `reviewed ${reviewedLabel}` : undefined)
+    : (aiGeneratedLabel ? `generated ${aiGeneratedLabel}` : undefined);
 
   const hasAudienceFit = bestForItems.length > 0 || notForItems.length > 0;
 
@@ -716,7 +731,7 @@ export default async function BookDetailPage({ params }: Props) {
           notFor={notForItems}
           themes={themesRaw}
           reviewed={editorialReviewed}
-          dated={aiGeneratedLabel ? `generated ${aiGeneratedLabel}` : undefined}
+          dated={editorialDated}
           cta={
             normalizedAmazonUrl ? (
               <a
@@ -814,7 +829,7 @@ export default async function BookDetailPage({ params }: Props) {
 
       <RedditMentions bookTitle={bookTitle} mentions={redditMentions} />
 
-      <SourceEvidence bookTitle={bookTitle} confirmed={insights.confirmed} unconfirmed={insights.unconfirmed} />
+      <SourceEvidence bookTitle={bookTitle} confirmed={insights.confirmed} unconfirmed={insights.unconfirmed} surnameOnly={surnameOnlyRecords} />
 
       {/* Concluding Amazon CTA below the evidence */}
       {normalizedAmazonUrl && (
@@ -1098,11 +1113,21 @@ export default async function BookDetailPage({ params }: Props) {
       {/* Methodology footer */}
       <section className="rounded-2xl border border-border bg-surface p-5 md:p-7">
         <h2 className="type-h3 text-ink mb-2">{bottomBoxTitle}</h2>
+        {/* Specific to this book rather than one paragraph repeated on every page; the general rules live on /methodology. */}
         <p className="text-sm text-muted leading-relaxed">
-          Each recommendation is collected from a public source — interviews, articles, or curated lists.
-          We link the original source only when we can tie it to the person who recommended the book;
-          where we cannot yet, the page says so. Books with many verifiable recommendations from
-          respected people rank higher.
+          We have {namedRecommenders.toLocaleString()} named recommender{namedRecommenders === 1 ? "" : "s"} on record for{" "}
+          {bookTitle}
+          {confirmedSources > 0
+            ? `, and ${confirmedSources.toLocaleString()} of them link to a source we could tie to the person.`
+            : ". None is linked to a source of the recommender's own yet."}
+          {surnameOnlyRecords > 0
+            ? ` The headline count of ${(book.recommendation_count || 0).toLocaleString()} also includes ${surnameOnlyRecords.toLocaleString()} record${surnameOnlyRecords === 1 ? "" : "s"} filed under a surname only, which we cannot yet tie to a named person.`
+            : ""}{" "}
+          Where we cannot confirm a source, the page says so rather than guessing.{" "}
+          <Link href="/methodology" className="text-accent hover:underline">
+            How we collect, check and rank recommendations
+          </Link>
+          .
         </p>
       </section>
       </div> {/* max-w-7xl content wrapper closed */}

@@ -324,7 +324,10 @@ export function organizationJsonLd(): Record<string, unknown> {
     "@type": "Organization",
     name: "BookMentions",
     url: BASE_URL,
-    logo: `${BASE_URL}/apple-touch-icon.png`
+    logo: `${BASE_URL}/apple-touch-icon.png`,
+    description: "Tracks which books notable people recommend, and links the source where it can be tied to them.",
+    email: "hello@bookmentions.net",
+    publishingPrinciples: `${BASE_URL}/methodology`,
   };
 }
 

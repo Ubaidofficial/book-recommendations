@@ -76,6 +76,8 @@ export interface Book {
   source_quality_note?: string | null;
   ai_generated_at?: string | null;
   ai_quality_status?: string | null;  // 'pending' | 'draft' | 'needs_review' | 'approved' | 'rejected'
+  /** Set by review_book_notes() when an editor approves or rejects the notes (migrations/011). */
+  ai_reviewed_at?: string | null;
 }
 
 export interface Person {
@@ -777,7 +779,8 @@ export async function getSimilarBooksByLists(bookId: string, limit = 8): Promise
       .filter((b) => !isNumericTitleArtifact(b.title))
       .map((b) => {
         const hasCover = !!b.cover_image_url && /^https?:\/\//.test(b.cover_image_url);
-        const isDraft = (b.ai_quality_status || "").toLowerCase() === "draft";
+        // Has reader notes, reviewed or not (rejected notes are hidden, so they do not count).
+        const isDraft = ["draft", "approved"].includes((b.ai_quality_status || "").toLowerCase());
         const hasRec = typeof b.recommendation_count === "number" && b.recommendation_count > 0;
         let tier = 4;
         if (hasCover && isDraft) tier = 1;
@@ -2490,7 +2493,7 @@ export async function getBooksByAuthorSlug(
       .from("books")
       .select("author_name")
       .eq("author_catalog_slug", slug)
-      .eq("ai_quality_status", "draft")
+      .in("ai_quality_status", ["draft", "approved"])
       .not("author_name", "is", null)
       .neq("author_name", "")
       .not("cover_image_url", "is", null)
@@ -2526,7 +2529,7 @@ export async function getBooksByAuthorSlug(
       .from("books")
       .select("*")
       .eq("author_catalog_slug", slug)
-      .eq("ai_quality_status", "draft")
+      .in("ai_quality_status", ["draft", "approved"])
       .not("cover_image_url", "is", null)
       .neq("cover_image_url", "")
       .not("slug", "is", null)
