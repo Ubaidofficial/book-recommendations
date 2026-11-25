@@ -225,6 +225,26 @@ These are specific findings from the live pages, not general advice.
 6. **GA4 `(not set)` sessions:** find the source, likely bots or a tag firing without a page_location, so engagement data can be trusted.
 7. Check the **Search Console generative-AI setting**, and that Search Console shows no manual actions.
 
+**P0 status (2026-11-25):**
+
+1. Done, partly.
+   - 5,817 books had their stripped punctuation restored by `scripts/punctuation_repair.py`, which can only add hyphens, spaces or apostrophes and never changes a letter. Every row is backed up in `bak_seo_changes_20261114`, batch `punctuation_repair_20261125`.
+     - Titles and authors: 173 fixes verified against Open Library. Space-only changes were refused, which protects brand names such as StrengthsFinder.
+     - Descriptions, titles and subtitles: 5,644 rows repaired by a reviewed map of 944 spellings plus `you?re` → `you’re`.
+   - On visible books, 0 contraction errors are left.
+   - About 1,000 descriptions with curly-quote `?` corruption are now hidden instead of shown.
+   - Joined words with no hyphenated example in clean text (e.g. "recordbreaking") are still there.
+   - The remaining ~1,800 non-visible suspect titles can be run later with `titles` (resumable).
+2. Done for published books. Six descriptions replaced (batch `published_descriptions_20261125`).
+   - A pattern-based "wrong product" filter was tried and dropped: on the full catalogue it mostly caught legitimate companion books and workbooks.
+3. Done. Removed the score chip and the "Highest score" sort. `books.rating` only holds 0.0–0.9.
+4. Done. Audience lists (`best-books-for-*`) are no longer shown as person topics.
+5. Done. Unblocked, indexed, in the sitemap, and rewritten to match what the code does.
+6. Investigated. GA4 is set up correctly (one GA4 tag; tracking health OK). The noise comes from traffic, likely bots: Direct had 2,587 sessions at 4% engagement and (not set) 511 at 0%, while Organic was 73% engaged and ChatGPT 69%. Next steps:
+   - Mark `amazon_click` as a key event in GA4.
+   - Judge engagement by channel until the bot traffic is filtered.
+7. Not done; owner action. Search Console generative-AI setting and manual-actions check.
+
 ### P1: E-E-A-T foundation (2–3 weeks)
 
 1. **A real "Who"** *(do not invent a persona)*:

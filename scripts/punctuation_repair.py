@@ -327,7 +327,25 @@ def phase_desc(args) -> None:
 
 
 # ── phase: apply ─────────────────────────────────────────────────────────────
+def _current_rows(ids: list[str]) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    for i in range(0, len(ids), 100):
+        chunk = ",".join(ids[i:i + 100])
+        r = requests.get(f"{BASE}/books", params={"select": "id,slug," + ",".join(FIELDS), "id": f"in.({chunk})"}, headers=H, timeout=120)
+        r.raise_for_status()
+        out.update({row["id"]: row for row in r.json()})
+    return out
+
+
+def _allowed(p: dict) -> bool:
+    if p["how"] == "open_library":
+        return adds_only_hyphens(p["new"], p["old"])
+    return same_letters(p["new"], fix_contractions(p["old"]))
+
+
 def phase_apply(args) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
     with open(args.plan, encoding="utf-8") as fh:
         plan = list(csv.DictReader(fh))
     by_id: dict[str, list[dict]] = collections.defaultdict(list)
@@ -335,44 +353,47 @@ def phase_apply(args) -> None:
         if p["field"] not in FIELDS:
             sys.exit(f"refusing field {p['field']}")
         by_id[p["id"]].append(p)
-    done = skipped = failed = 0
-    for n, (rid, changes) in enumerate(by_id.items(), 1):
-        cur = requests.get(f"{BASE}/books", params={"select": "id,slug," + ",".join(FIELDS), "id": f"eq.{rid}"}, headers=H, timeout=60).json()
-        if not cur:
-            skipped += 1
-            continue
-        cur = cur[0]
+    current = _current_rows(list(by_id))
+
+    # Decide every row before touching anything.
+    jobs, skipped = [], 0
+    for rid, changes in by_id.items():
+        cur = current.get(rid)
         old_v, new_v = {}, {}
-        for p in changes:
+        for p in changes if cur else []:
             f = p["field"]
-            if (cur.get(f) or "") != p["old"]:
-                continue                      # changed since the plan was made
-            ok = adds_only_hyphens(p["new"], p["old"]) if p["how"] == "open_library" else \
-                same_letters(p["new"], fix_contractions(p["old"]))
-            if not ok:
-                continue
+            if (cur.get(f) or "") != p["old"] or not _allowed(p):
+                continue                      # changed since the plan was made, or fails the safety rule
             old_v[f], new_v[f] = p["old"], p["new"]
-        if not new_v:
-            skipped += 1
-            continue
-        if not args.write:
-            done += 1
-            continue
-        b = requests.post(f"{BASE}/bak_seo_changes_20261114", headers={**H, "Prefer": "return=minimal"}, timeout=60,
-                          json={"table_name": "books", "row_id": rid, "slug": cur["slug"], "old_values": old_v, "new_values": new_v, "batch": BATCH})
-        if b.status_code not in (200, 201):
-            print("  BACKUP FAILED, not changing", cur["slug"], b.status_code, b.text[:150])
-            failed += 1
-            continue
-        u = requests.patch(f"{BASE}/books", params={"id": f"eq.{rid}"}, headers={**H, "Prefer": "return=minimal"}, json=new_v, timeout=60)
-        if u.status_code in (200, 204):
-            done += 1
+        if new_v:
+            jobs.append((rid, cur["slug"], old_v, new_v))
         else:
-            failed += 1
-            print("  FAILED", cur["slug"], u.status_code, u.text[:150])
-        if n % 200 == 0:
-            print(f"  {n}/{len(by_id)}", flush=True)
-    print(json.dumps({"mode": "WRITE" if args.write else "DRY RUN", "rows_changed": done, "skipped": skipped, "failed": failed, "batch": BATCH}))
+            skipped += 1
+    print(f"{len(jobs)} rows to change, {skipped} skipped (stale or refused)")
+    if not args.write:
+        print(json.dumps({"mode": "DRY RUN", "rows_changed": 0, "would_change": len(jobs), "skipped": skipped, "batch": BATCH}))
+        return
+
+    def write(job) -> str:
+        rid, slug, old_v, new_v = job
+        b = requests.post(f"{BASE}/bak_seo_changes_20261114", headers={**H, "Prefer": "return=minimal"}, timeout=60,
+                          json={"table_name": "books", "row_id": rid, "slug": slug, "old_values": old_v, "new_values": new_v, "batch": BATCH})
+        if b.status_code not in (200, 201):
+            return f"BACKUP FAILED {slug} {b.status_code} {b.text[:120]}"   # never patch without a backup row
+        u = requests.patch(f"{BASE}/books", params={"id": f"eq.{rid}"}, headers={**H, "Prefer": "return=minimal"}, json=new_v, timeout=60)
+        return "ok" if u.status_code in (200, 204) else f"FAILED {slug} {u.status_code} {u.text[:120]}"
+
+    done = failed = 0
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        for n, res in enumerate(pool.map(write, jobs), 1):
+            if res == "ok":
+                done += 1
+            else:
+                failed += 1
+                print("  ", res)
+            if n % 500 == 0:
+                print(f"  {n}/{len(jobs)}", flush=True)
+    print(json.dumps({"mode": "WRITE", "rows_changed": done, "skipped": skipped, "failed": failed, "batch": BATCH}))
 
 
 def main() -> None:
@@ -388,6 +409,7 @@ def main() -> None:
     a = sub.add_parser("apply")
     a.add_argument("--plan", required=True)
     a.add_argument("--write", action="store_true", help="without this, only counts what would change")
+    a.add_argument("--workers", type=int, default=6)
     args = ap.parse_args()
     {"titles": phase_titles, "map": phase_map, "desc": phase_desc, "apply": phase_apply}[args.phase](args)
 
