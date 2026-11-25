@@ -39,12 +39,21 @@ import re
 import sys
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 BASE = "https://ghpdpvatfmvsahzsqgpp.supabase.co/rest/v1"
 H = {"apikey": "dummy", "Authorization": "Bearer dummy", "Content-Type": "application/json"}
 BATCH = "surname_alias_merge_20261125"
 REPORTS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "reports")
 PLAN = os.path.join(REPORTS, "alias_merge_plan.csv")
+# Retry dropped connections and 5xx (the 2026-11-25 run died on a proxy reset); writes are guarded by re-reads.
+_S = requests.Session()
+_S.mount("https://", HTTPAdapter(max_retries=Retry(total=6, connect=6, read=3, backoff_factor=1.5,
+                                                   status_forcelist=(429, 500, 502, 503, 504),
+                                                   allowed_methods=frozenset({"GET", "POST", "PATCH", "DELETE"}))))
+requests = _S  # noqa: F811 - module-level calls below use the retrying session
+
 COLS = ["action", "reason", "rec_id", "book_id", "alias_id", "alias_name", "target_id", "target_name", "target_rec_id"]
 
 
@@ -207,6 +216,61 @@ def apply_one(p: dict, write: bool) -> tuple[str, str]:
     return ("deleted" if d.status_code in (200, 204) else f"failed:delete {d.status_code}"), p["book_id"]
 
 
+def lower_counts(write: bool) -> tuple[int, int]:
+    """Lower books.recommendation_count once per book, by the rows this batch deleted and that are really gone.
+
+    Read from the backup table, not from this run's memory, so rows deleted by an earlier, interrupted run of the
+    same batch are counted too. A book that already has a count backup in this batch is never lowered again.
+    """
+    bak = []
+    off = 0
+    while True:
+        r = requests.get(f"{BASE}/bak_seo_changes_20261114", params={"select": "table_name,row_id,old_values,new_values",
+                         "batch": f"eq.{BATCH}", "order": "id.asc", "offset": off, "limit": 1000}, headers=H, timeout=120)
+        r.raise_for_status()
+        b = r.json()
+        bak += b
+        if len(b) < 1000:
+            break
+        off += 1000
+    done_books = {x["row_id"] for x in bak if x["table_name"] == "books"}
+    deleted = {x["row_id"]: x["old_values"]["book_id"] for x in bak
+               if x["table_name"] == "book_recommendations" and (x["new_values"] or {}).get("deleted")}
+    still_there: set = set()
+    ids = list(deleted)
+    for i in range(0, len(ids), 100):
+        chunk = ",".join(ids[i:i + 100])
+        r = requests.get(f"{BASE}/book_recommendations", params={"select": "id", "id": f"in.({chunk})"}, headers=H, timeout=120)
+        r.raise_for_status()
+        still_there |= {x["id"] for x in r.json()}
+    per_book = collections.Counter(book for rid, book in deleted.items() if rid not in still_there)
+    updated = removed = 0
+    for book_id, k in per_book.items():
+        if book_id in done_books:
+            continue
+        r = requests.get(f"{BASE}/books", params={"select": "id,slug,recommendation_count", "id": f"eq.{book_id}"}, headers=H, timeout=60).json()
+        if not r:
+            continue
+        old = r[0]["recommendation_count"] or 0
+        new = max(0, old - k)
+        if not write:
+            updated += 1
+            removed += k
+            continue
+        if not backup("books", book_id, r[0]["slug"], {"recommendation_count": old}, {"recommendation_count": new}):
+            print("  count backup failed", book_id)
+            continue
+        u = requests.patch(f"{BASE}/books", params={"id": f"eq.{book_id}"}, headers={**H, "Prefer": "return=minimal"},
+                           json={"recommendation_count": new}, timeout=60)
+        if u.status_code in (200, 204):
+            updated += 1
+            removed += k
+        else:
+            print("  count update failed", book_id, u.status_code)
+    print(f"  backup rows: {len(deleted)} deletions, {len(still_there)} of them still present (not counted)")
+    return updated, removed
+
+
 def phase_apply(args) -> None:
     from concurrent.futures import ThreadPoolExecutor
 
@@ -231,28 +295,9 @@ def phase_apply(args) -> None:
             if n % 500 == 0:
                 print(f"  {n}/{len(by_book)} books", flush=True)
 
-    # Lower each book's count by exactly the rows deleted from it.
-    count_updates = 0
-    for book_id, k in deleted_per_book.items():
-        r = requests.get(f"{BASE}/books", params={"select": "id,slug,recommendation_count", "id": f"eq.{book_id}"}, headers=H, timeout=60).json()
-        if not r:
-            continue
-        old = r[0]["recommendation_count"] or 0
-        new = max(0, old - k)
-        if not args.write:
-            count_updates += 1
-            continue
-        if not backup("books", book_id, r[0]["slug"], {"recommendation_count": old}, {"recommendation_count": new}):
-            outcomes["failed:count_backup"] += 1
-            continue
-        u = requests.patch(f"{BASE}/books", params={"id": f"eq.{book_id}"}, headers={**H, "Prefer": "return=minimal"},
-                           json={"recommendation_count": new}, timeout=60)
-        if u.status_code in (200, 204):
-            count_updates += 1
-        else:
-            outcomes["failed:count"] += 1
+    count_updates, removed = lower_counts(args.write) if args.write else (len(deleted_per_book), sum(deleted_per_book.values()))
     print(json.dumps({"mode": "WRITE" if args.write else "DRY RUN", **outcomes, "book_counts_lowered": count_updates,
-                      "rows_removed_from_counts": sum(deleted_per_book.values()), "batch": BATCH}, indent=1))
+                      "rows_removed_from_counts": removed, "batch": BATCH}, indent=1))
 
 
 def main() -> None:
