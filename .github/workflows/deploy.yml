@@ -3,7 +3,8 @@ name: Deploy
 # Production deploy to Openship (deploy.ubaid.stream), run only after the CI workflow has passed on a
 # push to main, so a commit that fails typecheck or build never reaches bookmentions.net.
 # Needs the repo secret OPENSHIP_TOKEN: an Openship API token that can deploy the book-recommendations
-# project (Openship -> Settings -> API tokens; not read-only).
+# project (`openship token create` with the deployment permission, or Openship -> Settings -> API tokens;
+# not read-only). It is sent to Openship's REST API; a short-lived sign-in token stops working within a day.
 on:
   workflow_run:
     workflows: [CI]
