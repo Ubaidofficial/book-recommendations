@@ -73,3 +73,8 @@ it spends crawl on pages we do not want indexed.
   builds). A failed or empty read is never cached; the route then falls back to
   the uncached build.
 
+## /compare pages (2026-11-25)
+
+All `/compare/<a>-vs-<b>` pages are `noindex, follow` and out of the sitemap (`COMPARE_INDEX_ALLOWLIST` in
+`src/lib/compareIndexable.ts` is empty). They earned 3 impressions in 90 days. Re-add a pair only when Search
+Console shows real searches for it.

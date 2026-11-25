@@ -32,7 +32,7 @@ export function DraftNotesLabel({ reviewed = false, dated }: { reviewed?: boolea
       </svg>
       <span>
         {reviewed
-          ? "Reader notes written with AI help and reviewed by an editor"
+          ? "Reader notes written with AI help and reviewed by a BookMentions editor"
           : "Draft reader notes, written with AI help and not yet reviewed by an editor"}
         {dated ? ` · ${dated}` : ""}
       </span>

@@ -266,6 +266,24 @@ These are specific findings from the live pages, not general advice.
 5. **`/compare/` pages:** noindex all of them, unless a pair has real demand (Search Console currently shows 3 impressions in 90 days). Keep them reachable for users.
 6. **Series:** only keep indexed those with a verified order. Group large authors by sub-series. Pause the rest.
 
+**P1 status (2026-11-25):**
+
+1. Done, brand-only, by the owner's choice: `/about` names no individual and says so. It covers who runs the site, how it is funded (Amazon affiliate, which does not affect ordering), AI use, known gaps, and contact and corrections. The Organization JSON-LD gains `email` and `publishingPrinciples`.
+2. Done in P0 (methodology rewrite). Book pages now link to it from the evidence section and the closing box.
+3. Tool built; the human review itself is the owner's job.
+   - `/admin/review` lists the 54 published books' notes. Each one can be approved as-is, edited then approved, rejected (hidden), or reset to draft.
+   - Writes go only through `review_book_notes()` (migrations/011). It checks a review key against a stored SHA-256 hash; keys and the audit log are unreadable by public roles. Verified as the `anon` role: reading keys and log is blocked, direct book updates change 0 rows, and a wrong key is refused.
+   - Approved notes show "reviewed by a BookMentions editor · reviewed <month>".
+   - Not yet enforced: a gate that blocks publishing books whose notes are still draft. Enforcing it now would unpublish all 54.
+4. Done.
+   - The evidence section shows "N recommenders on record · M with a source tied to them". The closing box is now specific to the book instead of the same paragraph on every page.
+   - **New finding:** `recommendation_count` includes records filed under a bare surname with no profile ("Abdaal", "Stone"), some of which duplicate a named person.
+     - Scale: 347 of 1,814 recommendations counted on published books (19%), on 53 of 54 books; 4,629 rows catalogue-wide.
+     - Book pages now state the gap.
+     - Open owner decision: recount, or merge the aliases into real people.
+5. Done. The compare allowlist is emptied: all compare pages are `noindex, follow` and out of the sitemap, and person pages no longer link to them. The 15 kept on 2026-11-15 had earned 3 impressions and 0 clicks in 90 days.
+6. Mostly already true. 70 of 71 published series have a verified order (69 by publication year, 1 by position). The exception is Enid Blyton, the series page with the most impressions. It still needs grouping by sub-series, which requires a source for each series' membership.
+
 ### P2: Intent rebuild per template (1–2 months; the "10x" part)
 
 **Lists (biggest impression pool):**

@@ -62,10 +62,13 @@ export function SourceEvidence({
   bookTitle,
   confirmed,
   unconfirmed,
+  surnameOnly = 0,
 }: {
   bookTitle: string;
   confirmed: EvidenceRow[];
   unconfirmed: UnconfirmedRecommender[];
+  /** Records filed under a surname only (no profile), which we cannot tie to a named person. */
+  surnameOnly?: number;
 }) {
   if (confirmed.length === 0 && unconfirmed.length === 0) return null;
   const shown = confirmed.slice(0, VISIBLE_ROWS);
@@ -82,6 +85,21 @@ export function SourceEvidence({
         title="Who said it, and where"
         dek="Sources we could tie to the person who recommended it: their own account, website, an interview or an episode page. A quote appears only when we could match it to that source."
       />
+      {/* What the headline count rests on, stated before the evidence so "recommended by N people" is never read as N verified sources. */}
+      <p className="-mt-3 mb-5 text-sm text-muted">
+        <span className="font-semibold text-ink tabular-nums">{(confirmed.length + unconfirmed.length).toLocaleString()}</span>{" "}
+        recommender{confirmed.length + unconfirmed.length === 1 ? "" : "s"} on record ·{" "}
+        <span className="font-semibold text-ink tabular-nums">{confirmed.length.toLocaleString()}</span> with a source tied
+        to them ·{" "}
+        {surnameOnly > 0 && (
+          <>
+            {surnameOnly.toLocaleString()} more filed under a surname only, not counted here ·{" "}
+          </>
+        )}
+        <Link href="/methodology" className="text-accent hover:underline">
+          How we check sources
+        </Link>
+      </p>
 
       {confirmed.length > 0 ? (
         <>
