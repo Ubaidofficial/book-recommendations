@@ -16,8 +16,6 @@ export interface LibraryItem {
   author: string;
   /** "" when the book has no usable cover. */
   cover: string;
-  /** BookMentions recommendation score (not a Goodreads/Amazon rating). */
-  score: number | null;
   /** How many people on BookMentions recommend it. */
   recs: number;
   year: number | null;
@@ -54,7 +52,7 @@ export interface LibraryTopic {
   count: number;
 }
 
-type SortKey = "popular" | "reddit" | "score" | "newest" | "oldest" | "az";
+type SortKey = "popular" | "reddit" | "newest" | "oldest" | "az";
 type View = "grid" | "list";
 
 const PAGE_STEP = 24;
@@ -65,7 +63,6 @@ const VIEW_KEY = "bm-person-view";
 const SORT_LABELS: Record<SortKey, string> = {
   popular: "Most recommended",
   reddit: "Most on Reddit",
-  score: "Highest score",
   newest: "Newest published",
   oldest: "Oldest first",
   az: "Title A–Z",
@@ -84,8 +81,6 @@ function compare(sort: SortKey): (a: LibraryItem, b: LibraryItem) => number {
   switch (sort) {
     case "reddit":
       return (a, b) => byNullable(a.reddit?.users ?? null, b.reddit?.users ?? null, -1) || popular(a, b);
-    case "score":
-      return (a, b) => byNullable(a.score, b.score, -1) || popular(a, b);
     case "newest":
       return (a, b) => byNullable(a.year, b.year, -1) || popular(a, b);
     case "oldest":
@@ -170,14 +165,6 @@ function Card({
         {item.author && <p className="mt-0.5 text-xs text-muted truncate">{item.author}</p>}
 
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-          {item.score != null && item.score > 0 && (
-            <span
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-light text-accent font-medium"
-              title="BookMentions recommendation score — not an Amazon or Goodreads rating"
-            >
-              ★ {item.score.toFixed(1)}
-            </span>
-          )}
           {item.recs > 0 && <span className="text-muted">{item.recs.toLocaleString("en-US")} recs</span>}
           {item.year != null && <span className="text-muted tabular-nums">· {item.year}</span>}
         </div>

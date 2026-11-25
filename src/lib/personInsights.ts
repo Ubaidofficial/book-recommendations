@@ -96,6 +96,9 @@ function isTopicCandidate(slug: string, bookCount: number | null): boolean {
   if (!slug) return false;
   if (CATCH_ALL_LIST_SLUGS.has(slug)) return false;
   if (slug.startsWith("books-recommended-by-")) return false;
+  // Audience lists ("For Men", "For 2 Year Olds") say who a list is for, not what a
+  // book is about, so as a topic chip they mislabel books (To Kill a Mockingbird "For Men").
+  if (slug.startsWith("best-books-for-")) return false;
   if ((bookCount || 0) > CATCH_ALL_MAX_BOOKS) return false;
   return true;
 }
@@ -472,7 +475,7 @@ export async function getPersonTopics(
   try {
     const all = await unstable_cache(
       () => fetchPersonTopics(personId, bookIds),
-      ["pi-person-topics-v2", personId, String(bookIds.length)],
+      ["pi-person-topics-v3", personId, String(bookIds.length)],
       { revalidate: 3600, tags: ["lists", `person:${personId}`] },
     )();
     return all.slice(0, limit);

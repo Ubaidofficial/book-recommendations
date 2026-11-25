@@ -12,10 +12,16 @@ import { isAmazonUrl } from "@/lib/dataQuality";
  * it cannot say which page or book a click came from. This can.
  *
  * Parameters sent: link_url (the tagged Amazon URL), asin (when the URL has
- * one), page_path, link_text. The event is a standard gtag `event` command put
- * on the GTM dataLayer, so the Google tag already in the GTM container
- * (GTM-N8SF996L) forwards it to GA4. Nothing is sent until GTM has loaded; if
- * it never does (blocked, offline), the push is a harmless no-op.
+ * one), page_path, link_text. It is pushed as a plain dataLayer event
+ * (`{ event: "amazon_click", ... }`). In the GTM container (GTM-N8SF996L) a
+ * Custom Event trigger on `amazon_click` fires a GA4 Event tag that sends it,
+ * with these parameters, to GA4, where it is a key event.
+ *
+ * It used to be pushed as a gtag-style `event` command, on the assumption that
+ * the container's Google tag would forward it. It did not: a headless test on
+ * 2026-11-25 saw the push land in the dataLayer and no GA4 request follow, even
+ * after the page was hidden. Nothing is sent until GTM has loaded; if it never
+ * does (blocked, offline), the push is a harmless no-op.
  *
  * The click is never delayed or cancelled: this only observes it.
  */
@@ -35,13 +41,8 @@ function asinOf(href: string): string | undefined {
 function sendAmazonClick(anchor: HTMLAnchorElement) {
   const href = anchor.href;
   const dl = (window.dataLayer = window.dataLayer || []);
-  // gtag() pushes its `arguments` object, not an array; GTM only treats the
-  // push as a gtag command if it is an Arguments object, so build one the
-  // same way the gtag snippet does.
-  (function gtag(..._args: unknown[]) {
-    // eslint-disable-next-line prefer-rest-params
-    dl.push(arguments);
-  })("event", "amazon_click", {
+  dl.push({
+    event: "amazon_click",
     link_url: href,
     asin: asinOf(href),
     page_path: window.location.pathname,
@@ -49,7 +50,6 @@ function sendAmazonClick(anchor: HTMLAnchorElement) {
       .replace(/\s+/g, " ")
       .trim()
       .slice(0, 100),
-    transport_type: "beacon",
   });
 }
 

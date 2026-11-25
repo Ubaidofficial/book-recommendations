@@ -5,7 +5,7 @@ import { getListBySlugCached, getBooksForListCached, getBooksForListByRecommenda
 import { pageMetadata, robotsDirective, contentDates, listPageTitle, withUpdatedYear } from "@/lib/seo";
 import { displayBookTitle, displayListTitle, displayListTitleFull, listKindFromSlug, listKindLabel } from "@/lib/display";
 import { isProbablyValidBookTitle, repairNumericTitle, isValidHttpUrl, isValidRating, formatRating, amazonCtaUrl,
-  coverAltText,
+  coverAltText, hasQuestionMarkMojibake,
 } from "@/lib/dataQuality";
 import { itemListJsonLd } from "@/lib/jsonld";
 import { getIndexableBookSlugs, bookLinkRel } from "@/lib/indexableBooks";
@@ -238,7 +238,7 @@ function usableContext(value: string | null | undefined): string {
 function cleanBlurb(value: string | null | undefined): string {
   let v = (value || "").replace(/\s+/g, " ").trim();
   if (v.length < 40) return "";
-  if (/[A-Za-z0-9]\?[A-Za-z]|\s\?[A-Za-z]/.test(v)) return "";
+  if (hasQuestionMarkMojibake(v)) return "";
   if (/scarce antiquarian|this is a reproduction of a book published before|reprint of the original/i.test(v)) return "";
   v = v.replace(/\.{3}$|…$/, "").trim();
   if (v.length > 280) {
