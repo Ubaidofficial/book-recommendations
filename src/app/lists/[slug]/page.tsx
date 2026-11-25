@@ -57,6 +57,18 @@ const LIST_META_OVERRIDES: Record<string, { title: string; description: string }
     description:
       "Project management books leaders recommend, from The Mythical Man-Month and Getting Things Done to Measure What Matters and The Lean Startup.",
   },
+  /**
+   * best-sailing-books: position ~8.8 for "sailing books 2024" with 312 impressions and no clicks (SEOConsole,
+   * 90 days to 2026-11-25). The generated description led with The Old Man and the Sea and Moby Dick, two sea
+   * novels, while the searches are for sailing books. This leads with the list's voyaging classics and its
+   * seamanship guide; all three books named are on the list (The Long Way, The Illustrated Sailing Alone
+   * Around the World, The Annapolis Book of Seamanship).
+   */
+  "best-sailing-books": {
+    title: "Best Sailing Books (2026): Memoirs, Seamanship & Classics",
+    description:
+      "Sailing books sailors recommend: voyages like The Long Way and Sailing Alone Around the World, and The Annapolis Book of Seamanship.",
+  },
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
