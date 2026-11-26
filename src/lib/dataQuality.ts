@@ -256,12 +256,14 @@ function withAmazonAssociateTag(u: URL): string {
  *   - Other malformed lengths (5, 6, 11, …)          → returned unchanged
  *     (too uncertain to auto-repair)
  *
- * Preserves: protocol, host (including regional TLDs like amazon.ca),
- * query string, and any pre/post-ASIN path segments (so the canonical
- * `/Some-Book-Title/dp/<ASIN>/ref=…` SEO form is preserved).
+ *   - Regional stores (amazon.ca, amazon.co.uk, …)   → `https://www.amazon.com/dp/<ISBN-10>`,
+ *     or null when the id is not an ISBN-10 (see `toAmazonUs`)
+ *
+ * Preserves, for amazon.com URLs: protocol, host, query string, and any
+ * pre/post-ASIN path segments (so the canonical `/Some-Book-Title/dp/<ASIN>/ref=…`
+ * SEO form is preserved).
  *
  * Does NOT:
- *   - rewrite hosts
  *   - convert non-Amazon URLs into Amazon URLs
  *   - touch any tracking parameters
  *
@@ -301,7 +303,32 @@ export function normalizeAmazonUrl(url: string | null | undefined): string | nul
     }
   }
 
+  if (!isAmazonUsHost(u.hostname)) return toAmazonUs(u);
+
   return withAmazonAssociateTag(u);
+}
+
+/** www.amazon.com and its subdomains (smile., read., …): the store our tag is for. */
+function isAmazonUsHost(hostname: string): boolean {
+  return /(^|\.)amazon\.com$/i.test(hostname);
+}
+
+/**
+ * `bookmention09-20` is a US (amazon.com) Associates tag. On amazon.ca,
+ * amazon.co.uk or any other regional store it earns nothing, so a regional link
+ * is moved to amazon.com instead of being tagged where the tag does not count.
+ * Visitors outside the US reach their own store through OneLink, which works
+ * from amazon.com links.
+ *
+ * Only an ISBN-10 product id is carried over: a book's ISBN-10 is its id on
+ * every Amazon store. Other ids (`B0…`, Kindle and store-specific editions) may
+ * not exist on amazon.com, so those return null and `amazonCtaUrl` falls back
+ * to an amazon.com title search rather than risk a page-not-found.
+ */
+function toAmazonUs(u: URL): string | null {
+  const m = u.pathname.match(/\/(?:dp|gp\/product)\/([0-9]{9}[0-9X])(?:[/?#]|$)/i);
+  if (!m) return null;
+  return withAmazonAssociateTag(new URL(`https://www.amazon.com/dp/${m[1].toUpperCase()}`));
 }
 
 export function isValidRating(value: unknown): boolean {
