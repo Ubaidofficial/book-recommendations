@@ -17,9 +17,16 @@ State lives in `public.seo_publish_log` (one row per day, migration 010). Remove
 3. Read the newest row of `public.seo_publish_log` (previous day). Decision:
    * `improved` = indexed today > indexed in the previous row, or (equal and newly-indexed > de-indexed in `events`);
    * `declined` = fewer indexed, or de-indexed > newly indexed;
+   * `traffic_up` (added 2026-11-28, owner's choice after the two-week review) = not `improved` and not `declined`, AND in
+     `get_overview` days 7 both Google `clicksChange` > 0 and `impressionsChange` > 0 (week on week), AND today's 7-day clicks and
+     impressions are each >= the previous row's `clicks_7d` and `impressions_7d`, AND `events` shows nothing de-indexed since the
+     previous row;
    * `flat` = anything else.
    The inspected set is a rotating sample, so use net events as the tie-breaker and never act on a one-URL swing.
-4. Gate: **improved -> cap 2; flat or declined -> cap 0 (publish nothing today).** Never above 2. The cap resets daily.
+4. Gate: **improved -> cap 2; traffic_up -> cap 1; flat or declined -> cap 0 (publish nothing today).** Never above 2. The cap resets daily.
+   Why `traffic_up`: from 11-24 to 11-28 the sampled indexed count sat at 135 while 7-day clicks rose 31 -> 56 and impressions
+   5,908 -> 9,796; the sample moves too slowly to show that, so the gate froze publishing while search performance grew. A day that
+   qualifies only on traffic publishes at most one page and still goes through every step-B check and the step-E gate.
 5. First day after a change wave (removals, big deploy): decide against the previous row as usual, but do not publish if the previous row's
    decision was `baseline` and indexed has not risen.
 

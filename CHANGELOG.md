@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-28 — Publish gate: one page a day when search traffic is rising
+
+The indexing-gated daily publish only published when the indexed count in SEOConsole's rotating inspection sample rose. That count sat at 135 from 11-24 to 11-28 while Google 7-day clicks rose 31 -> 56 and impressions 5,908 -> 9,796, so five days in a row published nothing. The owner chose option 1 of the two-week review: a new decision `traffic_up` in `ops/scheduled-tasks/indexing-gated-publish.md` (step A) allows **1** page on a day that is not `improved` and not `declined` when week-on-week Google clicks and impressions both rose, today's 7-day clicks and impressions are not below the previous log row's, and nothing was de-indexed. `improved` still allows 2; `flat`/`declined` still allow 0. Every other guard and the step-E optimization gate are unchanged. The scheduled task's instructions were updated to match.
+
 ## 2026-11-24 — Deploy workflow: read Openship's deployment id correctly
 
 The first automatic run (Deploy #1, commit `925a092`) did start an Openship deployment (`dep_Wz4_VGJy3uUDvISs`), then failed the job: Openship returns the new id as `data.deployment_id`, which `.github/scripts/openship-deploy.sh` did not look for, so it could not wait on the deploy. It now reads `data.deployment_id` (then `data.deployment.id`). Also moves the workflow to `actions/checkout@v5` (v4 runs on the deprecated Node 20).
